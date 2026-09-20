@@ -13,6 +13,9 @@ export interface UserPublic {
   is_active: boolean
   is_superuser: boolean
   full_name: string | null
+  /** 角色名列表（admin/operator/readonly，可多选；is_superuser 等价 admin 但可能不含 'admin'） */
+  roles: string[]
+  created_at: string | null
 }
 
 /**

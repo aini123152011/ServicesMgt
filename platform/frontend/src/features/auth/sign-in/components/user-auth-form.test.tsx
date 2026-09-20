@@ -17,6 +17,8 @@ const mockUser = {
   is_active: true,
   is_superuser: false,
   full_name: 'Test User',
+  roles: ['operator'],
+  created_at: '2026-09-20T00:00:00Z',
 }
 
 const navigate = vi.fn()

@@ -1,98 +1,54 @@
 import { type ColumnDef } from '@tanstack/react-table'
+import { type UserPublic } from '@/api/auth'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
-import { Checkbox } from '@/components/ui/checkbox'
 import { DataTableColumnHeader } from '@/components/data-table'
 import { LongText } from '@/components/long-text'
-import { callTypes, roles } from '../data/data'
-import { type User } from '../data/schema'
+import { roleMeta, userStatusMeta } from '../data/data'
 import { DataTableRowActions } from './data-table-row-actions'
 
-export const usersColumns: ColumnDef<User>[] = [
+export const usersColumns: ColumnDef<UserPublic>[] = [
   {
-    id: 'select',
-    header: ({ table }) => (
-      <Checkbox
-        checked={
-          table.getIsAllPageRowsSelected() ||
-          (table.getIsSomePageRowsSelected() && 'indeterminate')
-        }
-        onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
-        aria-label='Select all'
-        className='translate-y-0.5'
-      />
-    ),
-    meta: {
-      className: cn('inset-s-0 z-10 rounded-tl-[inherit] max-md:sticky'),
-    },
-    cell: ({ row }) => (
-      <Checkbox
-        checked={row.getIsSelected()}
-        onCheckedChange={(value) => row.toggleSelected(!!value)}
-        aria-label='Select row'
-        className='translate-y-0.5'
-      />
-    ),
-    enableSorting: false,
-    enableHiding: false,
-  },
-  {
-    accessorKey: 'username',
+    accessorKey: 'email',
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title='Username' />
+      <DataTableColumnHeader column={column} title='邮箱' />
     ),
     cell: ({ row }) => (
-      <LongText className='max-w-36 ps-3'>{row.getValue('username')}</LongText>
+      <LongText className='max-w-48 ps-3'>{row.getValue('email')}</LongText>
     ),
     meta: {
       className: cn(
-        'drop-shadow-[0_1px_2px_rgb(0_0_0_/_0.1)] dark:drop-shadow-[0_1px_2px_rgb(255_255_255_/_0.1)]',
-        'inset-s-6 ps-0.5 max-md:sticky @4xl/content:table-cell @4xl/content:drop-shadow-none'
+        'inset-s-6 ps-0.5 max-md:sticky @4xl/content:table-cell',
+        'drop-shadow-[0_1px_2px_rgb(0_0_0_/_0.1)] @4xl/content:drop-shadow-none dark:drop-shadow-[0_1px_2px_rgb(255_255_255_/_0.1)]'
       ),
     },
     enableHiding: false,
   },
   {
     id: 'fullName',
+    accessorFn: (row) => row.full_name ?? '',
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title='Name' />
+      <DataTableColumnHeader column={column} title='姓名' />
     ),
-    cell: ({ row }) => {
-      const { firstName, lastName } = row.original
-      const fullName = `${firstName} ${lastName}`
-      return <LongText className='max-w-36'>{fullName}</LongText>
-    },
+    cell: ({ row }) => (
+      <LongText className='max-w-36'>{row.original.full_name || '—'}</LongText>
+    ),
     meta: { className: 'w-36' },
   },
   {
-    accessorKey: 'email',
+    id: 'status',
+    // 归一化为 'active' | 'inactive'，与路由 search 的状态筛选枚举对应
+    accessorFn: (row) => (row.is_active ? 'active' : 'inactive'),
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title='Email' />
-    ),
-    cell: ({ row }) => (
-      <div className='w-fit ps-2 text-nowrap'>{row.getValue('email')}</div>
-    ),
-  },
-  {
-    accessorKey: 'phoneNumber',
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title='Phone Number' />
-    ),
-    cell: ({ row }) => <div>{row.getValue('phoneNumber')}</div>,
-    enableSorting: false,
-  },
-  {
-    accessorKey: 'status',
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title='Status' />
+      <DataTableColumnHeader column={column} title='状态' />
     ),
     cell: ({ row }) => {
-      const { status } = row.original
-      const badgeColor = callTypes.get(status)
+      const meta = userStatusMeta.get(row.original.is_active)
+      if (!meta) return null
       return (
         <div className='flex space-x-2'>
-          <Badge variant='outline' className={cn('capitalize', badgeColor)}>
-            {row.getValue('status')}
+          <Badge variant='outline' className={cn(meta.className)}>
+            {meta.label}
           </Badge>
         </div>
       )
@@ -100,33 +56,32 @@ export const usersColumns: ColumnDef<User>[] = [
     filterFn: (row, id, value) => {
       return value.includes(row.getValue(id))
     },
-    enableHiding: false,
     enableSorting: false,
+    enableHiding: false,
   },
   {
-    accessorKey: 'role',
+    id: 'roles',
+    accessorFn: (row) => row.roles,
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title='Role' />
+      <DataTableColumnHeader column={column} title='角色' />
     ),
-    cell: ({ row }) => {
-      const { role } = row.original
-      const userType = roles.find(({ value }) => value === role)
-
-      if (!userType) {
-        return null
-      }
-
-      return (
-        <div className='flex items-center gap-x-2'>
-          {userType.icon && (
-            <userType.icon size={16} className='text-muted-foreground' />
-          )}
-          <span className='text-sm capitalize'>{row.getValue('role')}</span>
-        </div>
-      )
-    },
+    cell: ({ row }) => (
+      <div className='flex max-w-56 flex-wrap gap-1'>
+        {row.original.roles.map((role) => {
+          const meta = roleMeta(role)
+          return (
+            <Badge key={role} variant='outline' className={cn(meta.className)}>
+              <meta.icon size={12} />
+              {meta.label}
+            </Badge>
+          )
+        })}
+      </div>
+    ),
+    // 一个用户可有多角色：任一命中即通过筛选
     filterFn: (row, id, value) => {
-      return value.includes(row.getValue(id))
+      const roles = row.getValue<string[]>(id) ?? []
+      return roles.some((role) => value.includes(role))
     },
     enableSorting: false,
     enableHiding: false,

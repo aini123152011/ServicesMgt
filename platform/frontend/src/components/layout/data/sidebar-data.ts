@@ -75,9 +75,11 @@ export const sidebarData: SidebarData = {
           icon: MessagesSquare,
         },
         {
-          title: 'Users',
+          title: '用户管理',
           url: '/users',
           icon: Users,
+          // 仅 admin（含 is_superuser）可见，渲染处按 usePermissions 过滤
+          adminOnly: true,
         },
         {
           title: '服务管理',

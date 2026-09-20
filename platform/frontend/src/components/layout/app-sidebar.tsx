@@ -1,4 +1,5 @@
 import { useLayout } from '@/context/layout-provider'
+import { usePermissions } from '@/hooks/use-permissions'
 import {
   Sidebar,
   SidebarContent,
@@ -14,6 +15,7 @@ import { TeamSwitcher } from './team-switcher'
 
 export function AppSidebar() {
   const { collapsible, variant } = useLayout()
+  const { isAdmin } = usePermissions()
   return (
     <Sidebar collapsible={collapsible} variant={variant}>
       <SidebarHeader>
@@ -25,7 +27,12 @@ export function AppSidebar() {
       </SidebarHeader>
       <SidebarContent>
         {sidebarData.navGroups.map((props) => (
-          <NavGroup key={props.title} {...props} />
+          <NavGroup
+            key={props.title}
+            {...props}
+            // adminOnly 项按角色过滤，其余导航所有人可见
+            items={props.items.filter((item) => !item.adminOnly || isAdmin)}
+          />
         ))}
       </SidebarContent>
       <SidebarFooter>

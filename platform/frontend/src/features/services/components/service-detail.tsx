@@ -9,6 +9,7 @@ import {
   Square,
 } from 'lucide-react'
 import { type ServiceAction } from '@/api/services'
+import { usePermissions } from '@/hooks/use-permissions'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -42,6 +43,7 @@ type ServiceDetailProps = {
 
 export function ServiceDetail({ name }: ServiceDetailProps) {
   const [logsOpen, setLogsOpen] = useState(false)
+  const { isOperator } = usePermissions()
   const serviceQuery = useServiceQuery(name)
   const statusQuery = useServiceStatusQuery(name)
   const actionMutation = useServiceActionMutation(name)
@@ -143,10 +145,14 @@ export function ServiceDetail({ name }: ServiceDetailProps) {
           </Button>
         </div>
 
-        {/* 生命周期：running 时禁启动，反之禁停止/重启 */}
-        <div className='flex gap-2'>
+        {/* 生命周期：readonly 角色整体禁用；运行中禁启动，反之禁停止/重启 */}
+        <div
+          className='flex gap-2'
+          title={isOperator ? undefined : '只读角色无权操作'}
+        >
           {lifecycleActions.map(({ action, label, icon: Icon }) => {
             const disabled =
+              !isOperator ||
               actionMutation.isPending ||
               (action === 'start' ? running : !running)
             return (

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import {
+  type Table as TanstackTable,
   type SortingState,
   type VisibilityState,
   flexRender,
@@ -11,6 +12,7 @@ import {
   getSortedRowModel,
   useReactTable,
 } from '@tanstack/react-table'
+import { type UserPublic } from '@/api/auth'
 import { cn } from '@/lib/utils'
 import { type NavigateFn, useTableUrlState } from '@/hooks/use-table-url-state'
 import {
@@ -22,26 +24,38 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { DataTablePagination, DataTableToolbar } from '@/components/data-table'
-import { roles } from '../data/data'
-import { type User } from '../data/schema'
-import { DataTableBulkActions } from './data-table-bulk-actions'
+import { roleOptions, userStatusOptions } from '../data/data'
 import { usersColumns as columns } from './users-columns'
 
 type DataTableProps = {
-  data: User[]
+  data: UserPublic[]
   search: Record<string, unknown>
   navigate: NavigateFn
 }
 
+// 角色列一行多值，内置 faceted 统计不适用：逐角色累计；其余列沿用默认实现
+function facetedUniqueValues(
+  table: TanstackTable<UserPublic>,
+  columnId: string
+): () => Map<string, number> {
+  if (columnId === 'roles') {
+    return () => {
+      const counts = new Map<string, number>()
+      for (const row of table.getCoreRowModel().flatRows) {
+        for (const role of row.getValue<string[]>(columnId) ?? []) {
+          counts.set(role, (counts.get(role) ?? 0) + 1)
+        }
+      }
+      return counts
+    }
+  }
+  return getFacetedUniqueValues<UserPublic>()(table, columnId)
+}
+
 export function UsersTable({ data, search, navigate }: DataTableProps) {
   // Local UI-only states
-  const [rowSelection, setRowSelection] = useState({})
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({})
   const [sorting, setSorting] = useState<SortingState>([])
-
-  // Local state management for table (uncomment to use local-only state, not synced with URL)
-  // const [columnFilters, onColumnFiltersChange] = useState<ColumnFiltersState>([])
-  // const [pagination, onPaginationChange] = useState<PaginationState>({ pageIndex: 0, pageSize: 10 })
 
   // Synced with URL states (keys/defaults mirror users route search schema)
   const {
@@ -56,10 +70,10 @@ export function UsersTable({ data, search, navigate }: DataTableProps) {
     pagination: { defaultPage: 1, defaultPageSize: 10 },
     globalFilter: { enabled: false },
     columnFilters: [
-      // username per-column text filter
-      { columnId: 'username', searchKey: 'username', type: 'string' },
+      // email per-column text filter
+      { columnId: 'email', searchKey: 'email', type: 'string' },
       { columnId: 'status', searchKey: 'status', type: 'array' },
-      { columnId: 'role', searchKey: 'role', type: 'array' },
+      { columnId: 'roles', searchKey: 'role', type: 'array' },
     ],
   })
 
@@ -70,14 +84,11 @@ export function UsersTable({ data, search, navigate }: DataTableProps) {
     state: {
       sorting,
       pagination,
-      rowSelection,
       columnFilters,
       columnVisibility,
     },
-    enableRowSelection: true,
     onPaginationChange,
     onColumnFiltersChange,
-    onRowSelectionChange: setRowSelection,
     onSortingChange: setSorting,
     onColumnVisibilityChange: setColumnVisibility,
     getPaginationRowModel: getPaginationRowModel(),
@@ -85,7 +96,7 @@ export function UsersTable({ data, search, navigate }: DataTableProps) {
     getFilteredRowModel: getFilteredRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFacetedRowModel: getFacetedRowModel(),
-    getFacetedUniqueValues: getFacetedUniqueValues(),
+    getFacetedUniqueValues: facetedUniqueValues,
   })
 
   useEffect(() => {
@@ -101,23 +112,18 @@ export function UsersTable({ data, search, navigate }: DataTableProps) {
     >
       <DataTableToolbar
         table={table}
-        searchPlaceholder='Filter users...'
-        searchKey='username'
+        searchPlaceholder='按邮箱过滤…'
+        searchKey='email'
         filters={[
           {
             columnId: 'status',
-            title: 'Status',
-            options: [
-              { label: 'Active', value: 'active' },
-              { label: 'Inactive', value: 'inactive' },
-              { label: 'Invited', value: 'invited' },
-              { label: 'Suspended', value: 'suspended' },
-            ],
+            title: '状态',
+            options: userStatusOptions,
           },
           {
-            columnId: 'role',
-            title: 'Role',
-            options: roles.map((role) => ({ ...role })),
+            columnId: 'roles',
+            title: '角色',
+            options: roleOptions.map((role) => ({ ...role })),
           },
         ]}
       />
@@ -180,7 +186,7 @@ export function UsersTable({ data, search, navigate }: DataTableProps) {
                   colSpan={columns.length}
                   className='h-24 text-center'
                 >
-                  No results.
+                  暂无用户。
                 </TableCell>
               </TableRow>
             )}
@@ -188,7 +194,6 @@ export function UsersTable({ data, search, navigate }: DataTableProps) {
         </Table>
       </div>
       <DataTablePagination table={table} className='mt-auto' />
-      <DataTableBulkActions table={table} />
     </div>
   )
 }

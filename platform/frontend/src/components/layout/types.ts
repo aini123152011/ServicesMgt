@@ -16,6 +16,8 @@ type BaseNavItem = {
   title: string
   badge?: string
   icon?: React.ElementType
+  /** true 时仅 admin（含 is_superuser）可见，渲染处按 usePermissions 过滤 */
+  adminOnly?: boolean
 }
 
 type NavLink = BaseNavItem & {

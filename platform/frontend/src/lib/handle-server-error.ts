@@ -19,9 +19,18 @@ export function handleServerError(error: unknown) {
   }
 
   if (error instanceof AxiosError) {
-    const title = error.response?.data?.title
-    if (typeof title === 'string' && title.length > 0) {
-      errMsg = title
+    // FastAPI 错误统一带 { detail }，优先展示给用户
+    const detail = error.response?.data?.detail
+    if (typeof detail === 'string' && detail.length > 0) {
+      errMsg = detail
+    } else if (detail != null) {
+      // 422 校验错误的 detail 是数组，转成文本避免丢失信息
+      errMsg = JSON.stringify(detail)
+    } else {
+      const title = error.response?.data?.title
+      if (typeof title === 'string' && title.length > 0) {
+        errMsg = title
+      }
     }
   }
 

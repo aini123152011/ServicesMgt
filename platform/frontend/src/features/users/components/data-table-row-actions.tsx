@@ -1,6 +1,7 @@
 import { DotsHorizontalIcon } from '@radix-ui/react-icons'
 import { type Row } from '@tanstack/react-table'
 import { Trash2, UserPen } from 'lucide-react'
+import { type UserPublic } from '@/api/auth'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -10,11 +11,10 @@ import {
   DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { type User } from '../data/schema'
 import { useUsers } from './users-provider'
 
 type DataTableRowActionsProps = {
-  row: Row<User>
+  row: Row<UserPublic>
 }
 
 export function DataTableRowActions({ row }: DataTableRowActionsProps) {
@@ -38,7 +38,7 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
               setOpen('edit')
             }}
           >
-            Edit
+            编辑
             <DropdownMenuShortcut>
               <UserPen size={16} />
             </DropdownMenuShortcut>
@@ -51,7 +51,7 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
             }}
             className='text-red-500!'
           >
-            Delete
+            删除
             <DropdownMenuShortcut>
               <Trash2 size={16} />
             </DropdownMenuShortcut>

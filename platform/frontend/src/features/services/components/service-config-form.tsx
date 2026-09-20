@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { LoaderCircle } from 'lucide-react'
 import { type ServiceConfig, type ServiceField } from '@/api/services'
+import { usePermissions } from '@/hooks/use-permissions'
 import { Button } from '@/components/ui/button'
 import {
   Form,
@@ -157,6 +158,9 @@ export function ServiceConfigForm({
   config,
 }: ServiceConfigFormProps) {
   const updateMutation = useUpdateConfigMutation(name)
+  // readonly 角色只看不改：字段与提交按钮一并禁用
+  const { isOperator } = usePermissions()
+  const canEdit = isOperator
 
   // schema/fields 来自 query 缓存，identity 稳定，useMemo 避免每渲染重建校验器
   const formSchema = useMemo(
@@ -199,6 +203,11 @@ export function ServiceConfigForm({
         onSubmit={form.handleSubmit(onSubmit)}
         className='space-y-6'
       >
+        {!canEdit && (
+          <p className='text-sm text-muted-foreground'>
+            只读角色无权修改配置。
+          </p>
+        )}
         {config.applied === false && (
           <p className='text-sm text-amber-600 dark:text-amber-400'>
             当前保存的配置尚未生效（容器未运行），启动服务后加载。
@@ -225,6 +234,7 @@ export function ServiceConfigForm({
                     <Switch
                       checked={field.value === true}
                       onCheckedChange={field.onChange}
+                      disabled={!canEdit}
                     />
                   </FormControl>
                 ) : f.type === 'enum' ? (
@@ -232,6 +242,7 @@ export function ServiceConfigForm({
                     <Select
                       value={String(field.value ?? '')}
                       onValueChange={field.onChange}
+                      disabled={!canEdit}
                     >
                       <SelectTrigger className='w-72'>
                         <SelectValue placeholder='请选择' />
@@ -258,6 +269,7 @@ export function ServiceConfigForm({
                         10
                       )}
                       className='font-mono'
+                      disabled={!canEdit}
                       placeholder={
                         '每行一项，例如：\nntp.aliyun.com\ncn.pool.ntp.org'
                       }
@@ -272,6 +284,7 @@ export function ServiceConfigForm({
                       min={f.min}
                       max={f.max}
                       className='w-72'
+                      disabled={!canEdit}
                     />
                   </FormControl>
                 )}
@@ -282,7 +295,11 @@ export function ServiceConfigForm({
           />
         ))}
         <div className='flex gap-2'>
-          <Button type='submit' disabled={updateMutation.isPending}>
+          <Button
+            type='submit'
+            disabled={!canEdit || updateMutation.isPending}
+            title={canEdit ? undefined : '只读角色无权修改配置'}
+          >
             {updateMutation.isPending && (
               <LoaderCircle className='animate-spin' />
             )}
@@ -292,6 +309,7 @@ export function ServiceConfigForm({
             type='button'
             variant='outline'
             onClick={() => form.reset(defaultValues)}
+            disabled={!canEdit}
           >
             还原
           </Button>
