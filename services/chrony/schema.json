@@ -1,0 +1,53 @@
+{
+  "fields": [
+    {
+      "name": "servers",
+      "type": "list",
+      "label": "NTP 上游服务器",
+      "default": ["ntp.aliyun.com", "cn.pool.ntp.org", "time.windows.com"],
+      "required": true,
+      "help": "上游 NTP 服务器列表（域名或 IP），每项生成一条 server <host> iburst",
+      "item_pattern": "^[A-Za-z0-9]([A-Za-z0-9.\\-:]*[A-Za-z0-9])?$"
+    },
+    {
+      "name": "allow_networks",
+      "type": "list",
+      "label": "允许同步的网段",
+      "default": ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"],
+      "help": "允许向本机同步时间的 IPv4 网段（CIDR，掩码 0-32）；为空则本机仅作客户端、不对外提供 NTP 服务",
+      "item_pattern": "^([0-9]{1,3}\\.){3}[0-9]{1,3}(/(3[0-2]|[12]?[0-9]))?$"
+    },
+    {
+      "name": "makestep",
+      "type": "string",
+      "label": "启动期步进校准",
+      "default": "1.0 3",
+      "help": "格式 \"<秒数> <stratum>\"：启动后指定秒数内、时钟源 stratum 不高于阈值时，偏差过大直接步进校准而非缓慢逼近",
+      "pattern": "^[0-9]+(\\.[0-9]+)? [0-9]+$"
+    },
+    {
+      "name": "rtcsync",
+      "type": "boolean",
+      "label": "同步硬件时钟",
+      "default": true,
+      "help": "开启后系统定期把内核时间写回硬件 RTC，断电重启后时间不漂移"
+    },
+    {
+      "name": "driftfile",
+      "type": "string",
+      "label": "频率漂移文件",
+      "default": "/var/lib/chrony/drift",
+      "help": "记录时钟频率偏差的文件路径，需位于持久化数据卷（/var/lib/chrony）内，重建容器不丢失校准结果",
+      "pattern": "^/[A-Za-z0-9._/\\-]+$"
+    },
+    {
+      "name": "maxdistance",
+      "type": "integer",
+      "label": "最大根距离（秒）",
+      "default": 3,
+      "min": 1,
+      "max": 15,
+      "help": "时钟源的根距离超过该值（秒）视为不可信并忽略；内网无外部源时可适当调大"
+    }
+  ]
+}

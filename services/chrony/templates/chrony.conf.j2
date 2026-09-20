@@ -1,0 +1,37 @@
+{#- 平台渲染契约：后端按 schema.json 校验用户提交的配置值后，用本模板渲染出 chrony.conf 写入配置卷 -#}
+{#- 渲染环境要求：Jinja2 需开启 trim_blocks=True + lstrip_blocks=True（Ansible 同款默认），否则块标签会残留空行 -#}
+{#- defaults/chrony.conf 就是 schema 默认值的渲染产物，改字段需同步 schema.json 并重新生成种子文件 -#}
+# 本文件由 BMC 服务管理平台自动渲染生成，请勿手工编辑
+
+# 上游 NTP 服务器（iburst：首次发送 8 个快速请求，加快初始同步）
+{% for server in servers %}
+server {{ server }} iburst
+{% endfor %}
+
+# 允许向本机同步时间的网段；为空时本机仅作 NTP 客户端
+{% for cidr in allow_networks %}
+allow {{ cidr }}
+{% endfor %}
+
+# 上游全部失联时仍以本机时钟对外服务，stratum 加 10 标识时钟质量降级
+local stratum 10
+
+{% if rtcsync %}
+# 系统时间定期写回硬件 RTC
+rtcsync
+{% endif %}
+
+# 启动初期偏差过大时直接步进校准（格式：<容忍秒数> <stratum 阈值>）
+makestep {{ makestep }}
+
+# 时钟频率漂移记录文件（位于持久化数据卷，重建容器不丢失校准结果）
+driftfile {{ driftfile }}
+
+# 时钟源根距离上限（秒），超过视为不可信源
+maxdistance {{ maxdistance }}
+
+# 源偏差估计上限（秒），超出则放宽收敛判定，避免长时间不同步
+maxupdateskew 100.0
+
+# chronyc 控制接口仅监听本机回环，不对网络暴露
+bindcmdaddress 127.0.0.1

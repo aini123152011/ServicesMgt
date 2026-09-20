@@ -18,6 +18,8 @@ dependencies = [
     "sentry-sdk[fastapi]>=2.68.1,<3.0.0",
     "pyjwt<3.0.0,>=2.13.0",
     "pwdlib[argon2,bcrypt]>=0.3.1",
+    "docker>=7.1.0,<8.0.0",
+    "pyyaml<7.0.0,>=6.0.1",
 ]
 
 [dependency-groups]
@@ -36,6 +38,11 @@ build-backend = "hatchling.build"
 [tool.mypy]
 strict = true
 exclude = ["venv", ".venv", "alembic"]
+
+[[tool.mypy.overrides]]
+module = ["docker.*", "yaml.*"]
+# docker 与 pyyaml 未发布类型标注，按 Any 处理避免误报
+ignore_missing_imports = true
 
 [tool.ruff]
 target-version = "py314"

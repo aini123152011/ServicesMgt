@@ -1,0 +1,15 @@
+# 服务元数据：平台 Service Registry 扫描 services/* 时按此识别与展示
+# 字段名是平台契约，后续服务照此复制，勿改名
+name: chrony
+display_name: NTP 时间同步
+category: time                # 分类枚举: time | file-share | log-monitor
+description: 基于 chrony 的 NTP 服务，为 BMC/内网设备提供时间同步
+container_name: bmc-chrony
+config_dir: /etc/chrony       # 配置卷在容器内的挂载点
+config_files:                 # 渲染产物相对 config_dir 的路径列表
+  - chrony.conf
+ports:
+  - port: 123
+    protocol: udp
+    description: NTP 服务端口
+reload_mode: hot              # hot = /reload.sh 不中断生效; restart = 重启进程

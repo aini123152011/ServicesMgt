@@ -1,13 +1,15 @@
 import { useState } from 'react'
 import { z } from 'zod'
+import { AxiosError } from 'axios'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { Loader2, LogIn } from 'lucide-react'
 import { toast } from 'sonner'
 import { IconFacebook, IconGithub } from '@/assets/brand-icons'
+import { getCurrentUser, loginAccessToken } from '@/api/auth'
 import { useAuthStore } from '@/stores/auth-store'
-import { sleep, cn } from '@/lib/utils'
+import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
   Form,
@@ -34,6 +36,17 @@ interface UserAuthFormProps extends React.HTMLAttributes<HTMLFormElement> {
   redirectTo?: string
 }
 
+/** 后端失败响应统一带 { detail }，优先展示给用户 */
+function resolveErrorMessage(error: unknown): string {
+  if (error instanceof AxiosError) {
+    const detail = error.response?.data?.detail
+    if (typeof detail === 'string' && detail.length > 0) {
+      return detail
+    }
+  }
+  return 'Sign in failed. Please try again.'
+}
+
 export function UserAuthForm({
   className,
   redirectTo,
@@ -54,30 +67,45 @@ export function UserAuthForm({
   function onSubmit(data: z.infer<typeof formSchema>) {
     setIsLoading(true)
 
-    toast.promise(sleep(2000), {
+    const signIn = async () => {
+      try {
+        const token = await loginAccessToken(data.email, data.password)
+        // 先落 token，请求 /users/me 时拦截器才能附带 Authorization
+        auth.setAccessToken(token.access_token)
+        const user = await getCurrentUser()
+        auth.setUser(user)
+
+        // 回跳地址可能是带查询串的路径，解析后交给 navigate 保证路由匹配
+        const target = redirectTo
+          ? new URL(redirectTo, window.location.origin)
+          : null
+        const search = target
+          ? Object.fromEntries(target.searchParams)
+          : undefined
+        navigate({
+          to: target?.pathname ?? '/',
+          search: search && Object.keys(search).length > 0 ? search : undefined,
+          replace: true,
+        })
+
+        return `Welcome back, ${user.email}!`
+      } catch (error) {
+        // 任一步失败都清掉半套凭证，避免"有 token 无 user"的中间态
+        auth.reset()
+        throw error
+      }
+    }
+
+    toast.promise(signIn(), {
       loading: 'Signing in...',
-      success: () => {
+      success: (message) => {
         setIsLoading(false)
-
-        // Mock successful authentication with expiry computed at success time
-        const mockUser = {
-          accountNo: 'ACC001',
-          email: data.email,
-          role: ['user'],
-          exp: Date.now() + 24 * 60 * 60 * 1000, // 24 hours from now
-        }
-
-        // Set user and access token
-        auth.setUser(mockUser)
-        auth.setAccessToken('mock-access-token')
-
-        // Redirect to the stored location or default to dashboard
-        const targetPath = redirectTo || '/'
-        navigate({ to: targetPath, replace: true })
-
-        return `Welcome back, ${data.email}!`
+        return message
       },
-      error: 'Error',
+      error: (error) => {
+        setIsLoading(false)
+        return resolveErrorMessage(error)
+      },
     })
   }
 

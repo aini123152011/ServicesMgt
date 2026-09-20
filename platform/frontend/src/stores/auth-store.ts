@@ -1,19 +1,13 @@
 import { create } from 'zustand'
+import { type UserPublic } from '@/api/auth'
 import { getCookie, setCookie, removeCookie } from '@/lib/cookies'
 
 const ACCESS_TOKEN = 'thisisjustarandomstring'
 
-interface AuthUser {
-  accountNo: string
-  email: string
-  role: string[]
-  exp: number
-}
-
 interface AuthState {
   auth: {
-    user: AuthUser | null
-    setUser: (user: AuthUser | null) => void
+    user: UserPublic | null
+    setUser: (user: UserPublic | null) => void
     accessToken: string
     setAccessToken: (accessToken: string) => void
     resetAccessToken: () => void

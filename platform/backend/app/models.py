@@ -1,8 +1,9 @@
 import uuid
 from datetime import UTC, datetime
+from typing import Any
 
 from pydantic import EmailStr
-from sqlalchemy import DateTime
+from sqlalchemy import JSON, Column, DateTime
 from sqlmodel import Field, Relationship, SQLModel
 
 
@@ -110,6 +111,91 @@ class ItemPublic(ItemBase):
 class ItemsPublic(SQLModel):
     data: list[ItemPublic]
     count: int
+
+
+# 服务概要（列表页展示），字段与 manifest.yaml 对应
+class ServicePort(SQLModel):
+    port: int
+    protocol: str
+    description: str | None = None
+
+
+class ServiceSummary(SQLModel):
+    name: str
+    display_name: str
+    category: str
+    description: str | None = None
+    container_name: str
+    ports: list[ServicePort] = Field(default_factory=list)
+    reload_mode: str
+
+
+# 服务详情中的 manifest：在概要之上补充配置目录与配置文件清单
+class ServiceManifest(ServiceSummary):
+    config_dir: str
+    config_files: list[str]
+
+
+# 服务当前配置状态：从未保存过配置时三个字段均为 None
+class ServiceConfigState(SQLModel):
+    values: dict[str, Any] | None = None
+    applied: bool | None = None
+    rendered_at: datetime | None = None
+
+
+# PUT /services/{name}/config 的请求体
+class ServiceConfigUpdate(SQLModel):
+    values: dict[str, Any]
+
+
+# 配置提交结果：applied=False 表示已写卷但容器未运行、reload 被跳过
+class ServiceConfigApplyResult(SQLModel):
+    message: str
+    applied: bool
+
+
+# 服务运行状态查询结果
+class ServiceStatus(SQLModel):
+    name: str
+    running: bool
+    health: str | None = None
+    status: str | None = None
+
+
+# 服务日志查询结果
+class ServiceLogs(SQLModel):
+    logs: str
+
+
+class ServicesPublic(SQLModel):
+    data: list[ServiceSummary]
+    count: int
+
+
+# 每服务当前生效配置：service_name 唯一定位一行，整行覆盖式更新（不存历史，历史版本属阶段 4）
+class ServiceConfigBase(SQLModel):
+    service_name: str = Field(unique=True, index=True, max_length=64)
+    # 配置值按 schema 归一化后原样存 JSON，键与服务插件 schema 字段名对应
+    values: dict[str, Any] = Field(sa_column=Column(JSON, nullable=False))
+    applied: bool | None = None
+
+
+# Database model, database table inferred from class name
+class ServiceConfig(ServiceConfigBase, table=True):
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    # 最近一次渲染时间（非配置提交时间）；applied 记录渲染产物是否已在容器内生效
+    rendered_at: datetime | None = Field(
+        default=None,
+        sa_type=DateTime(timezone=True),  # type: ignore
+    )
+    created_at: datetime | None = Field(
+        default_factory=get_datetime_utc,
+        sa_type=DateTime(timezone=True),  # type: ignore
+    )
+    updated_at: datetime | None = Field(
+        default_factory=get_datetime_utc,
+        sa_type=DateTime(timezone=True),  # type: ignore
+    )
 
 
 # Generic message

@@ -1,4 +1,5 @@
 import warnings
+from pathlib import Path
 from typing import Literal, Self
 
 from pydantic import (
@@ -14,8 +15,9 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        # Use top level .env file (one level above ./backend/)
-        env_file="../.env",
+        # Use the top-level .env at the repo root; the relative form "../.env" fails to resolve
+        # after backend was moved under platform/, so anchor it to the file location instead of CWD
+        env_file=Path(__file__).resolve().parents[4] / ".env",
         env_ignore_empty=True,
         extra="ignore",
     )
@@ -38,6 +40,20 @@ class Settings(BaseSettings):
             if database_url.startswith(scheme):
                 return database_url.replace(scheme, "postgresql+psycopg://", 1)
         return database_url
+
+    # 服务插件目录（含 manifest.yaml 的子目录）；相对路径按后端项目目录解析
+    SERVICES_DIR: str = "../../services"
+    # 配置卷在宿主机上的根路径，每个服务的卷按 {VOLUMES_MOUNT_ROOT}/{name}-config 挂载
+    VOLUMES_MOUNT_ROOT: str = "/var/lib/platform"
+
+    @field_validator("SERVICES_DIR", mode="after")
+    @classmethod
+    def _resolve_services_dir(cls, value: str) -> str:
+        # 相对路径以后端项目目录（pyproject.toml 所在处）展开为绝对路径，不依赖进程工作目录
+        services_dir = Path(value)
+        if not services_dir.is_absolute():
+            services_dir = Path(__file__).resolve().parents[2] / services_dir
+        return str(services_dir)
 
     SMTP_TLS: bool = True
     SMTP_SSL: bool = False

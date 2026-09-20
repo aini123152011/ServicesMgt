@@ -33,4 +33,6 @@ app.add_middleware(
 )
 
 app.include_router(api_router, prefix=settings.API_V1_STR)
-app.frontend("/", directory=FRONTEND_DIR)
+# check_dir=False：前端产物只在镜像构建后才拷入 app/frontend，开发机上没有；
+# 挂载仍保留，目录缺失的错误推迟到真正请求静态页时才发生，不阻塞导入与测试收集
+app.frontend("/", directory=FRONTEND_DIR, check_dir=False)
