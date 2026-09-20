@@ -43,11 +43,12 @@ def login_access_token(
 
 
 @router.post("/login/test-token", response_model=UserPublic)
-def test_token(current_user: CurrentUser) -> Any:
+def test_token(session: SessionDep, current_user: CurrentUser) -> Any:
     """
     Test access token
     """
-    return current_user
+    # 与 /users/me 对齐：响应回填真实角色，前端据此显隐操作按钮
+    return crud.build_user_public(session=session, user=current_user)
 
 
 @router.post("/password-recovery/{email}")

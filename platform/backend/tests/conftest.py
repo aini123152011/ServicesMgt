@@ -6,9 +6,13 @@ from sqlmodel import Session, delete
 
 from app.core.config import settings
 from app.core.db import engine, init_db
+from app.initial_data import seed
 from app.main import app
-from app.models import Item, User
-from tests.utils.user import authentication_token_from_email
+from app.models import AuditLog, Item, Role, User, UserRole
+from tests.utils.user import (
+    authentication_token_from_email,
+    create_user_token_headers,
+)
 from tests.utils.utils import get_superuser_token_headers
 
 
@@ -16,10 +20,19 @@ from tests.utils.utils import get_superuser_token_headers
 def db() -> Generator[Session]:
     with Session(engine) as session:
         init_db(session)
+        # 角色种子与首超管 admin 角色：RBAC 测试依赖 role 表非空
+        seed(session)
         yield session
+        # 清理顺序按外键依赖：审计/关联/条目先删，再删用户与角色
+        statement = delete(AuditLog)
+        session.execute(statement)
+        statement = delete(UserRole)
+        session.execute(statement)
         statement = delete(Item)
         session.execute(statement)
         statement = delete(User)
+        session.execute(statement)
+        statement = delete(Role)
         session.execute(statement)
         session.commit()
 
@@ -40,3 +53,15 @@ def normal_user_token_headers(client: TestClient, db: Session) -> dict[str, str]
     return authentication_token_from_email(
         client=client, email=settings.EMAIL_TEST_USER, db=db
     )
+
+
+@pytest.fixture(scope="module")
+def operator_token_headers(client: TestClient, db: Session) -> dict[str, str]:
+    """带 operator 角色的随机用户及其认证头。"""
+    return create_user_token_headers(client=client, db=db, roles=["operator"])
+
+
+@pytest.fixture(scope="module")
+def readonly_token_headers(client: TestClient, db: Session) -> dict[str, str]:
+    """带 readonly 角色的随机用户及其认证头。"""
+    return create_user_token_headers(client=client, db=db, roles=["readonly"])

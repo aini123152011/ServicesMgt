@@ -1,6 +1,6 @@
 import uuid
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import EmailStr
 from sqlalchemy import JSON, Column, DateTime
@@ -9,6 +9,10 @@ from sqlmodel import Field, Relationship, SQLModel
 
 def get_datetime_utc() -> datetime:
     return datetime.now(UTC)
+
+
+# 系统固定三角色名（role.name 唯一）；请求体角色校验与种子数据都以此为界
+RoleName = Literal["admin", "operator", "readonly"]
 
 
 # Shared properties
@@ -22,6 +26,8 @@ class UserBase(SQLModel):
 # Properties to receive via API on creation
 class UserCreate(UserBase):
     password: str = Field(min_length=8, max_length=128)
+    # 创建时的缺省授予（readonly）由路由层决定；None 表示不指定角色
+    roles: list[RoleName] | None = None
 
 
 class UserRegister(SQLModel):
@@ -37,6 +43,8 @@ class UserUpdate(SQLModel):
     is_superuser: bool | None = None
     full_name: str | None = Field(default=None, max_length=255)
     password: str | None = Field(default=None, min_length=8, max_length=128)
+    # None=保持既有角色不变；显式列表=整体替换（空列表=清空全部角色）
+    roles: list[RoleName] | None = None
 
 
 class UserUpdateMe(SQLModel):
@@ -64,11 +72,48 @@ class User(UserBase, table=True):
 class UserPublic(UserBase):
     id: uuid.UUID
     created_at: datetime | None = None
+    # 前端按角色显隐操作按钮依赖此字段；无角色用户为空列表
+    roles: list[str] = Field(default_factory=list)
 
 
 class UsersPublic(SQLModel):
     data: list[UserPublic]
     count: int
+
+
+# 角色共享属性：name 固定三值之一，唯一索引防重复种子
+class RoleBase(SQLModel):
+    name: str = Field(unique=True, index=True, max_length=32)
+    description: str | None = Field(default=None, max_length=255)
+
+
+class RoleCreate(RoleBase):
+    pass
+
+
+# Database model, database table inferred from class name
+class Role(RoleBase, table=True):
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    created_at: datetime | None = Field(
+        default_factory=get_datetime_utc,
+        sa_type=DateTime(timezone=True),  # type: ignore
+    )
+
+
+# Properties to return via API, id is always required
+class RolePublic(RoleBase):
+    id: uuid.UUID
+    created_at: datetime | None = None
+
+
+# 用户-角色多对多关联：复合主键 (user_id, role_id)，任一侧删除即级联清理
+class UserRole(SQLModel, table=True):
+    user_id: uuid.UUID = Field(
+        foreign_key="user.id", primary_key=True, ondelete="CASCADE"
+    )
+    role_id: uuid.UUID = Field(
+        foreign_key="role.id", primary_key=True, ondelete="CASCADE"
+    )
 
 
 # Shared properties
@@ -196,6 +241,50 @@ class ServiceConfig(ServiceConfigBase, table=True):
         default_factory=get_datetime_utc,
         sa_type=DateTime(timezone=True),  # type: ignore
     )
+
+
+# 审计日志共享属性：action 为动作标识（config.update / service.start / user.create 等）
+class AuditLogBase(SQLModel):
+    action: str = Field(max_length=64)
+    # 操作对象为服务时填服务名；用户操作留空
+    service_name: str | None = Field(default=None, max_length=64)
+    # 简短说明（仅字段名/状态，不含密码等敏感值），写入侧超长截断
+    detail: str | None = Field(default=None, max_length=1024)
+    # 冗余邮箱便于删除后追溯：用户操作存目标邮箱，服务操作存操作者邮箱
+    user_email: str | None = Field(default=None, max_length=255)
+
+
+# Database model, database table inferred from class name
+class AuditLog(AuditLogBase, table=True):
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    # 操作者；用户被删除后由 ON DELETE SET NULL 置空，靠 user_email 追溯
+    user_id: uuid.UUID | None = Field(
+        default=None, foreign_key="user.id", nullable=True, ondelete="SET NULL"
+    )
+    created_at: datetime | None = Field(
+        default_factory=get_datetime_utc,
+        sa_type=DateTime(timezone=True),  # type: ignore
+    )
+
+
+# Properties to return via API, id is always required（不外露 user_id）
+class AuditLogPublic(SQLModel):
+    id: uuid.UUID
+    user_email: str | None = None
+    action: str
+    service_name: str | None = None
+    detail: str | None = None
+    created_at: datetime | None = None
+
+
+class AuditLogsPublic(SQLModel):
+    data: list[AuditLogPublic]
+    count: int
+
+
+# 角色名列表（GET /roles），供前端角色选择器使用
+class RolesPublic(SQLModel):
+    data: list[str]
 
 
 # Generic message

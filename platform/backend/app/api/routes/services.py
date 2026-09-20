@@ -2,7 +2,8 @@
 
 错误语义（见 .trellis/spec/backend/error-handling.md）：404 服务不存在、
 400 配置校验失败、502 Docker/渲染/写卷失败（detail 带原始原因）；
-所有端点都要求已认证用户（RBAC 细化属阶段 2）。
+所有端点都要求已认证用户，写操作（配置下发/生命周期）额外要求
+operator 及以上角色（admin/超管放行），操作成功后写审计日志。
 """
 
 import logging
@@ -12,8 +13,8 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException
 
 from app import config_renderer, lifecycle, registry
-from app.api.deps import SessionDep, get_current_user
-from app.crud import get_service_config, upsert_service_config
+from app.api.deps import CurrentUser, RequireOperator, SessionDep, get_current_user
+from app.crud import get_service_config, record_audit_log, upsert_service_config
 from app.models import (
     Message,
     ServiceConfigApplyResult,
@@ -98,18 +99,35 @@ def read_service(session: SessionDep, name: str) -> Any:
     }
 
 
-@router.put("/{name}/config", response_model=ServiceConfigApplyResult)
+@router.put(
+    "/{name}/config",
+    dependencies=[Depends(RequireOperator)],
+    response_model=ServiceConfigApplyResult,
+)
 def update_service_config(
-    session: SessionDep, name: str, config_in: ServiceConfigUpdate
+    session: SessionDep,
+    current_user: CurrentUser,
+    name: str,
+    config_in: ServiceConfigUpdate,
 ) -> Any:
     """校验 → 渲染 → 写卷 → 落库，容器在运行则执行 /reload.sh 使配置生效。
 
     applied 语义：reload 成功为 True；容器未运行（跳过 reload）或 reload/写卷
-    失败一律为 False，绝不把失败标记成已生效。
+    失败一律为 False，绝不把失败标记成已生效。操作成功后写审计
+    （action=config.update，user_id 记操作者）。
+
+    Args:
+        session: 数据库会话，用于配置落库与审计写入。
+        current_user: 当前登录用户（操作者），用于审计归属。
+        name: 服务名，需与 services/ 目录名一致。
+        config_in: 请求体，values 键与该服务 schema 字段对应。
+
+    Returns:
+        ServiceConfigApplyResult：applied 状态与提示文案。
 
     Raises:
-        HTTPException: 404 服务不存在；400 values 与 schema 不匹配；
-            502 渲染/写卷/Docker 调用失败。
+        HTTPException: 403 无 operator 及以上角色；404 服务不存在；
+            400 values 与 schema 不匹配；502 渲染/写卷/Docker 调用失败。
     """
     plugin = _get_plugin_or_404(name)
     try:
@@ -147,6 +165,15 @@ def update_service_config(
             rendered_at=rendered_at,
             applied=True,
         )
+    # 审计只记结果状态，不记配置值（值里可能含密码类字段）
+    record_audit_log(
+        session=session,
+        user_id=current_user.id,
+        user_email=current_user.email,
+        action="config.update",
+        service_name=name,
+        detail=f"applied={'true' if applied else 'false'}",
+    )
     message = (
         "Configuration applied successfully"
         if applied
@@ -155,11 +182,19 @@ def update_service_config(
     return ServiceConfigApplyResult(message=message, applied=applied)
 
 
-@router.post("/{name}/{action}", response_model=Message)
-def run_service_action(name: str, action: ServiceAction) -> Any:
-    """对服务容器执行 start/stop/restart。
+@router.post(
+    "/{name}/{action}",
+    dependencies=[Depends(RequireOperator)],
+    response_model=Message,
+)
+def run_service_action(
+    session: SessionDep, current_user: CurrentUser, name: str, action: ServiceAction
+) -> Any:
+    """对服务容器执行 start/stop/restart，操作成功后写审计。
 
     Args:
+        session: 数据库会话，用于审计写入。
+        current_user: 当前登录用户（操作者），用于审计归属。
         name: 服务名，用于定位插件与容器名。
         action: 生命周期动作，枚举外的路径参数由 FastAPI 返回 422。
 
@@ -167,7 +202,8 @@ def run_service_action(name: str, action: ServiceAction) -> Any:
         Message：操作结果文案。
 
     Raises:
-        HTTPException: 404 服务不存在；502 Docker 调用失败。
+        HTTPException: 403 无 operator 及以上角色；404 服务不存在；
+            502 Docker 调用失败。
     """
     plugin = _get_plugin_or_404(name)
     container_name = plugin.manifest["container_name"]
@@ -181,6 +217,14 @@ def run_service_action(name: str, action: ServiceAction) -> Any:
     except lifecycle.LifecycleError as e:
         logger.error(f"Service action '{action.value}' failed for '{name}': {e}")
         raise HTTPException(status_code=502, detail=str(e)) from e
+    record_audit_log(
+        session=session,
+        user_id=current_user.id,
+        user_email=current_user.email,
+        action=f"service.{action.value}",
+        service_name=name,
+        detail=f"container={container_name}",
+    )
     return Message(
         message=f"Service '{name}' {_ACTION_PAST_TENSE[action.value]} successfully"
     )

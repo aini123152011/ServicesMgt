@@ -3,7 +3,7 @@ from sqlmodel import Session
 
 from app import crud
 from app.core.config import settings
-from app.models import User, UserCreate, UserUpdate
+from app.models import RoleName, User, UserCreate, UserUpdate
 from tests.utils.utils import random_email, random_lower_string
 
 
@@ -17,6 +17,26 @@ def user_authentication_headers(
     auth_token = response["access_token"]
     headers = {"Authorization": f"Bearer {auth_token}"}
     return headers
+
+
+def create_user_token_headers(
+    *, client: TestClient, db: Session, roles: list[RoleName]
+) -> dict[str, str]:
+    """创建带指定角色的随机用户并返回其 Bearer 认证头。
+
+    Args:
+        client: TestClient，用于走真实登录接口换取 token。
+        db: 数据库会话，用于建用户并挂角色。
+        roles: 角色名列表（须为系统固定三角色）。
+
+    Returns:
+        {"Authorization": "Bearer <token>"} 形式的请求头。
+    """
+    email = random_email()
+    password = random_lower_string()
+    user_in = UserCreate(email=email, password=password, roles=roles)
+    crud.create_user(session=db, user_create=user_in)
+    return user_authentication_headers(client=client, email=email, password=password)
 
 
 def create_random_user(db: Session) -> User:

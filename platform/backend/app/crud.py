@@ -1,16 +1,22 @@
 import uuid
+from collections.abc import Sequence
 from datetime import datetime
 from typing import Any
 
-from sqlmodel import Session, select
+from sqlmodel import Session, col, delete, select
 
 from app.core.security import get_password_hash, verify_password
 from app.models import (
+    AuditLog,
     Item,
     ItemCreate,
+    Role,
     ServiceConfig,
     User,
     UserCreate,
+    UserPublic,
+    UserRole,
+    UsersPublic,
     UserUpdate,
     get_datetime_utc,
 )
@@ -23,11 +29,16 @@ def create_user(*, session: Session, user_create: UserCreate) -> User:
     session.add(db_obj)
     session.commit()
     session.refresh(db_obj)
+    if user_create.roles:
+        # 指定了角色才挂关联；None 保持"无角色"（首超管的 admin 角色由 initial_data 单独补）
+        set_user_roles(session=session, user=db_obj, role_names=user_create.roles)
     return db_obj
 
 
 def update_user(*, session: Session, db_user: User, user_in: UserUpdate) -> Any:
     user_data = user_in.model_dump(exclude_unset=True)
+    # roles 不是 User 列，先取出单独同步；None=未传即保持不变
+    role_names: list[str] | None = user_data.pop("roles", None)
     extra_data = {}
     if "password" in user_data:
         password = user_data["password"]
@@ -37,6 +48,9 @@ def update_user(*, session: Session, db_user: User, user_in: UserUpdate) -> Any:
     session.add(db_user)
     session.commit()
     session.refresh(db_user)
+    if role_names is not None:
+        # 显式传入才整体替换（空列表=清空全部角色）
+        set_user_roles(session=session, user=db_user, role_names=role_names)
     return db_user
 
 
@@ -127,3 +141,225 @@ def upsert_service_config(
     session.commit()
     session.refresh(db_config)
     return db_config
+
+
+# 系统固定三角色；顺序即 GET /roles 之外的种子创建顺序
+ROLE_NAMES: tuple[str, str, str] = ("admin", "operator", "readonly")
+
+ROLE_DESCRIPTIONS: dict[str, str] = {
+    "admin": "管理员：全部权限（用户管理、审计查询、服务配置与生命周期）",
+    "operator": "操作员：读 + 配置修改 + 生命周期操作",
+    "readonly": "只读：仅查看服务与自身信息",
+}
+
+# detail 为"简短说明"，超长截断防止 JSON 说明撑爆 VARCHAR(1024)
+MAX_AUDIT_DETAIL_LENGTH = 1024
+
+
+def get_role_names_by_user_ids(
+    *, session: Session, user_ids: Sequence[uuid.UUID]
+) -> dict[uuid.UUID, list[str]]:
+    """批量取多个用户的角色名映射，供用户列表一次查询组装响应。
+
+    Args:
+        session: 数据库会话，由路由层注入。
+        user_ids: 用户 id 集合；空集合直接返回空映射避免无效查询。
+
+    Returns:
+        {user_id: [角色名, ...]}；无角色的用户不出现在映射中。
+    """
+    mapping: dict[uuid.UUID, list[str]] = {}
+    if not user_ids:
+        return mapping
+    statement = (
+        select(UserRole.user_id, Role.name)
+        .join(Role, col(Role.id) == col(UserRole.role_id))
+        .where(col(UserRole.user_id).in_(user_ids))
+    )
+    for user_id, role_name in session.exec(statement).all():
+        mapping.setdefault(user_id, []).append(role_name)
+    return mapping
+
+
+def get_user_role_names(*, session: Session, user_id: uuid.UUID) -> list[str]:
+    """取单个用户的角色名列表（每次请求只此一次查询，供鉴权与响应组装复用）。
+
+    Args:
+        session: 数据库会话，由路由层注入。
+        user_id: 目标用户 id。
+
+    Returns:
+        角色名列表；用户无任何角色时为空列表。
+    """
+    return get_role_names_by_user_ids(session=session, user_ids=[user_id]).get(
+        user_id, []
+    )
+
+
+def user_has_role(*, session: Session, user: User, role_name: str) -> bool:
+    """判断用户是否拥有指定角色名。
+
+    Args:
+        session: 数据库会话，由路由层注入。
+        user: 目标用户（通常是当前登录用户）。
+        role_name: 角色名，须为固定三角色之一。
+
+    Returns:
+        拥有该角色为 True，否则 False。
+    """
+    return role_name in get_user_role_names(session=session, user_id=user.id)
+
+
+def get_roles(*, session: Session) -> list[Role]:
+    """返回全部角色行，按 name 升序保证响应顺序稳定。
+
+    Args:
+        session: 数据库会话，由路由层注入。
+
+    Returns:
+        角色行列表；角色种子未执行时为空列表。
+    """
+    statement = select(Role).order_by(col(Role.name).asc())
+    return list(session.exec(statement).all())
+
+
+def ensure_roles(*, session: Session) -> None:
+    """幂等创建三个固定角色，已存在的名字跳过（可重复执行）。
+
+    Args:
+        session: 数据库会话，由 initial_data 或测试夹具注入。
+    """
+    existing = set(session.exec(select(Role.name)).all())
+    for name in ROLE_NAMES:
+        if name not in existing:
+            session.add(Role(name=name, description=ROLE_DESCRIPTIONS.get(name)))
+    session.commit()
+
+
+def ensure_user_role(*, session: Session, user: User, role_name: str) -> None:
+    """给用户补挂一个角色；已拥有则跳过（幂等）。
+
+    Args:
+        session: 数据库会话，由 initial_data 或测试夹具注入。
+        user: 目标用户（须已落库，id 非空）。
+        role_name: 角色名，须已由 ensure_roles 创建。
+
+    Raises:
+        ValueError: 角色名不存在于 role 表时（种子顺序错误）。
+    """
+    role = session.exec(select(Role).where(Role.name == role_name)).first()
+    if role is None:
+        raise ValueError(f"Unknown role: {role_name}")
+    link = session.exec(
+        select(UserRole).where(UserRole.user_id == user.id, UserRole.role_id == role.id)
+    ).first()
+    if link is not None:
+        return
+    session.add(UserRole(user_id=user.id, role_id=role.id))
+    session.commit()
+
+
+def set_user_roles(*, session: Session, user: User, role_names: Sequence[str]) -> None:
+    """整体替换用户的角色为给定名字集合（先清旧关联再建新关联）。
+
+    Args:
+        session: 数据库会话，由路由层注入。
+        user: 目标用户（须已落库，id 非空）。
+        role_names: 角色名列表；空列表表示清空全部角色，重复名字自动去重。
+
+    Raises:
+        ValueError: 任一角色名不存在于 role 表时（请求体 Literal 校验的兜底）。
+    """
+    if not role_names:
+        statement = delete(UserRole).where(col(UserRole.user_id) == user.id)
+        session.exec(statement)
+        session.commit()
+        return
+    roles = session.exec(select(Role).where(col(Role.name).in_(role_names))).all()
+    found = {role.name for role in roles}
+    missing = set(role_names) - found
+    if missing:
+        raise ValueError(f"Unknown roles: {', '.join(sorted(missing))}")
+    statement = delete(UserRole).where(col(UserRole.user_id) == user.id)
+    session.exec(statement)
+    for role in roles:
+        session.add(UserRole(user_id=user.id, role_id=role.id))
+    session.commit()
+
+
+def build_user_public(*, session: Session, user: User) -> UserPublic:
+    """组装带角色名的 UserPublic（User 表无角色列，需单独查关联表回填）。
+
+    Args:
+        session: 数据库会话，由路由层注入。
+        user: 目标用户行。
+
+    Returns:
+        UserPublic，roles 为该用户角色名列表（无角色为空列表）。
+    """
+    roles = get_user_role_names(session=session, user_id=user.id)
+    return UserPublic.model_validate(user, update={"roles": roles})
+
+
+def build_users_public(
+    *, session: Session, users: list[User], count: int
+) -> UsersPublic:
+    """批量组装带角色名的用户列表响应（一次关联查询，避免 N+1）。
+
+    Args:
+        session: 数据库会话，由路由层注入。
+        users: 当前页的用户行列表。
+        count: 过滤后的用户总数（非本页条数）。
+
+    Returns:
+        UsersPublic，每个用户的 roles 已回填。
+    """
+    mapping = get_role_names_by_user_ids(
+        session=session, user_ids=[user.id for user in users]
+    )
+    data = [
+        UserPublic.model_validate(user, update={"roles": mapping.get(user.id, [])})
+        for user in users
+    ]
+    return UsersPublic(data=data, count=count)
+
+
+def record_audit_log(
+    *,
+    session: Session,
+    user_id: uuid.UUID | None,
+    user_email: str | None,
+    action: str,
+    service_name: str | None = None,
+    detail: str | None = None,
+) -> AuditLog:
+    """写一条审计日志并提交。
+
+    user_id 恒记操作者（用户被删后由 ON DELETE SET NULL 置空）；user_email 为
+    冗余追溯字段：用户操作记目标邮箱，服务操作记操作者邮箱。detail 只记
+    字段名/状态，调用方不得传密码等敏感值。
+
+    Args:
+        session: 数据库会话，由路由层注入。
+        user_id: 操作者用户 id；系统行为无操作者时为 None。
+        user_email: 冗余追溯邮箱，语义见摘要。
+        action: 动作标识，如 config.update / service.start / user.create。
+        service_name: 目标服务名；非服务操作为 None。
+        detail: 简短说明，超长自动截断到 1024 字符。
+
+    Returns:
+        已落库并刷新的 AuditLog 行。
+    """
+    if detail is not None and len(detail) > MAX_AUDIT_DETAIL_LENGTH:
+        detail = detail[:MAX_AUDIT_DETAIL_LENGTH]
+    entry = AuditLog(
+        user_id=user_id,
+        user_email=user_email,
+        action=action,
+        service_name=service_name,
+        detail=detail,
+    )
+    session.add(entry)
+    session.commit()
+    session.refresh(entry)
+    return entry

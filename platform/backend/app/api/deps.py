@@ -1,4 +1,4 @@
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 from typing import Annotated
 
 import jwt
@@ -8,6 +8,7 @@ from jwt.exceptions import InvalidTokenError
 from pydantic import ValidationError
 from sqlmodel import Session
 
+from app import crud
 from app.core import security
 from app.core.config import settings
 from app.core.db import engine
@@ -55,3 +56,34 @@ def get_current_active_superuser(current_user: CurrentUser) -> User:
             status_code=403, detail="The user doesn't have enough privileges"
         )
     return current_user
+
+
+def require_role(*allowed_roles: str) -> Callable[..., User]:
+    """工厂：生成"拥有任一指定角色（或超管）才放行"的路由级依赖。
+
+    Args:
+        *allowed_roles: 放行所需的角色名集合（任一命中即可），如 ("admin", "operator")。
+
+    Returns:
+        可用于 Depends 的依赖函数；放行时返回当前用户。
+
+    Raises:
+        HTTPException: 403 当前用户既非超管也不具备任一指定角色（detail 固定
+            "Not enough permissions"，与模板权限文案一致）。
+    """
+
+    def dependency(session: SessionDep, current_user: CurrentUser) -> User:
+        # 超管视同 admin：兼容首个超管尚未挂角色行的情况
+        if current_user.is_superuser:
+            return current_user
+        user_roles = crud.get_user_role_names(session=session, user_id=current_user.id)
+        if not any(role in user_roles for role in allowed_roles):
+            raise HTTPException(status_code=403, detail="Not enough permissions")
+        return current_user
+
+    return dependency
+
+
+# 常用便捷别名：管理员全权；操作员=读 + 配置修改 + 生命周期
+RequireAdmin = require_role("admin")
+RequireOperator = require_role("admin", "operator")
