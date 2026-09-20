@@ -1,3 +1,5 @@
-allowBuilds:
-  '@clerk/shared': set this to true or false
-  esbuild: set this to true or false
+# pnpm 构建脚本审批：esbuild 需要执行安装脚本，clerk 模板依赖不执行（未使用 Clerk）
+onlyBuiltDependencies:
+  - esbuild
+ignoredBuiltDependencies:
+  - '@clerk/shared'
