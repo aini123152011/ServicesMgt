@@ -16,8 +16,9 @@ from app.core.config import settings
 from app.crud import get_service_config
 from app.models import ServiceConfig
 
-# tests/api/routes -> api -> tests -> backend -> platform -> 仓库根
-REPO_SERVICES_DIR = Path(__file__).resolve().parents[5] / "services"
+# 服务目录统一取 settings.SERVICES_DIR：本地默认按 config.py 锚定解析到仓库 services/，
+# 容器内由环境变量指向挂载目录——不要按测试文件层级回溯（容器内层级不同会失效）
+REPO_SERVICES_DIR = Path(settings.SERVICES_DIR).resolve()
 
 
 @pytest.fixture(autouse=True)

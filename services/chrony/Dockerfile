@@ -6,7 +6,10 @@ FROM debian:bookworm-slim
 # 用 4.3* 锁上游版本、放行 bookworm 点版本的安全修订——精确锁定整段包版本
 # 会在下次点发布后失败（旧修订会被移出存档）。
 # 升级方法：把 4.3* 改为新上游版本模式（如 4.5*），确认 bookworm 存档已有该版本后重建镜像。
-RUN apt-get update \
+# APT_MIRROR：默认官方源；境内构建可用 --build-arg APT_MIRROR=mirrors.aliyun.com 加速
+ARG APT_MIRROR=deb.debian.org
+RUN sed -i "s|deb.debian.org|${APT_MIRROR}|g" /etc/apt/sources.list.d/debian.sources \
+    && apt-get update \
     && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
         chrony=4.3* \
     && rm -rf /var/lib/apt/lists/*

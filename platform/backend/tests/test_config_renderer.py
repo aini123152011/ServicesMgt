@@ -13,8 +13,8 @@ import pytest
 from app import config_renderer, registry
 from app.core.config import settings
 
-# tests/ -> backend -> platform -> 仓库根
-REPO_SERVICES_DIR = Path(__file__).resolve().parents[3] / "services"
+# 服务目录统一取 settings.SERVICES_DIR（与 test_services.py 同理，勿按文件层级回溯）
+REPO_SERVICES_DIR = Path(settings.SERVICES_DIR).resolve()
 
 
 @pytest.fixture()
