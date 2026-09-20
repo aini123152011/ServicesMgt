@@ -34,14 +34,14 @@ export async function listUsers(skip = 0, limit = 100): Promise<UserPublic[]> {
   const { data } = await apiClient.get<{
     data: UserPublic[]
     count: number
-  }>('/api/v1/users', { params: { skip, limit } })
+  }>('/api/v1/users/', { params: { skip, limit } })
   return data.data
 }
 
 export async function createUser(
   payload: UserCreatePayload
 ): Promise<UserPublic> {
-  const { data } = await apiClient.post<UserPublic>('/api/v1/users', payload)
+  const { data } = await apiClient.post<UserPublic>('/api/v1/users/', payload)
   return data
 }
 
