@@ -7,3 +7,10 @@
 # picking either side (task state lives in task.json, not index.md). See
 # .trellis/spec/cli/backend/directory-structure.md for details.
 .trellis/workspace/*/journal-*.md merge=union
+
+# 统一 LF：跨平台协作 + 容器内脚本可执行（服务镜像均为 Linux）
+* text=auto eol=lf
+
+# Windows 批处理必须 CRLF
+*.bat eol=crlf
+*.cmd eol=crlf

@@ -1,0 +1,33 @@
+# 仓库级 pre-commit 钩子（提交前自动格式化与检查）
+# 安装: pip install pre-commit && pre-commit install
+# 说明: 后端 ruff 配置与 platform/backend/pyproject.toml 一致；前端格式化以 platform/frontend/.prettierrc 为准
+repos:
+  # 通用文件检查
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: ^platform/frontend/pnpm-lock\.yaml$
+      - id: end-of-file-fixer
+        exclude: ^platform/frontend/pnpm-lock\.yaml$
+      - id: check-yaml
+      - id: check-added-large-files
+      - id: check-merge-conflict
+
+  # 后端 Python（lint + format，仅作用于 platform/backend）
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.12.5
+    hooks:
+      - id: ruff
+        args: [--fix]
+        files: ^platform/backend/
+      - id: ruff-format
+        files: ^platform/backend/
+
+  # 前端格式化（prettier，读取 platform/frontend/.prettierrc；生成文件除外）
+  - repo: https://github.com/rbubley/mirrors-prettier
+    rev: v3.6.2
+    hooks:
+      - id: prettier
+        files: ^platform/frontend/(src|docs)/.+\.(ts|tsx|css|json|md)$
+        exclude: (^|/)routeTree\.gen\.ts$
