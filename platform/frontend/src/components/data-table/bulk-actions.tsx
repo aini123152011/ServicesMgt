@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { type Table } from '@tanstack/react-table'
 import { X } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -18,40 +19,42 @@ type DataTableBulkActionsProps<TData> = {
 }
 
 /**
- * A modular toolbar for displaying bulk actions when table rows are selected.
+ * 表格选中行后浮出的批量操作工具栏。
  *
- * @template TData The type of data in the table.
- * @param {object} props The component props.
- * @param {Table<TData>} props.table The react-table instance.
- * @param {string} props.entityName The name of the entity being acted upon (e.g., "task", "user").
- * @param {React.ReactNode} props.children The action buttons to be rendered inside the toolbar.
- * @returns {React.ReactNode | null} The rendered component or null if no rows are selected.
+ * @template TData 表格数据类型
+ * @param props.table react-table 实例
+ * @param props.entityName 被操作实体的显示名（由调用方本地化后传入，用于屏幕阅读器播报）
+ * @param props.children 工具栏里的操作按钮
  */
 export function DataTableBulkActions<TData>({
   table,
   entityName,
   children,
 }: DataTableBulkActionsProps<TData>): React.ReactNode | null {
+  const { t } = useTranslation()
   const selectedRows = table.getFilteredSelectedRowModel().rows
   const selectedCount = selectedRows.length
   const toolbarRef = useRef<HTMLDivElement>(null)
   const [announcement, setAnnouncement] = useState('')
 
-  // Announce selection changes to screen readers
+  // 选中行数变化时向屏幕阅读器播报；t 进依赖是因为切语言后播报文案也要跟着变
   useEffect(() => {
     if (selectedCount > 0) {
-      const message = `${selectedCount} ${entityName}${selectedCount > 1 ? 's' : ''} selected. Bulk actions toolbar is available.`
+      const message = t('ui.table.bulkAnnouncement', {
+        count: selectedCount,
+        entity: entityName,
+      })
 
-      // Use queueMicrotask to defer state update and avoid cascading renders
+      // 用 queueMicrotask 推迟状态更新，避免 effect 内同步 setState 造成级联渲染
       queueMicrotask(() => {
         setAnnouncement(message)
       })
 
-      // Clear announcement after a delay
+      // 播报完清空，避免下一次选中时朗读旧内容
       const timer = setTimeout(() => setAnnouncement(''), 3000)
       return () => clearTimeout(timer)
     }
-  }, [selectedCount, entityName])
+  }, [selectedCount, entityName, t])
 
   const handleClearSelection = () => {
     table.resetRowSelection()
@@ -88,12 +91,12 @@ export function DataTableBulkActions<TData>({
         buttons[buttons.length - 1]?.focus()
         break
       case 'Escape': {
-        // Check if the Escape key came from a dropdown trigger or content
-        // We can't check dropdown state because Radix UI closes it before our handler runs
+        // 判断 Esc 是不是发给下拉菜单的：下拉菜单的状态查不到——Radix 会在本处理器之前先关掉它，
+        // 所以只能看事件目标/当前焦点元素是不是下拉的触发器或内容
         const target = event.target as HTMLElement
         const activeElement = document.activeElement as HTMLElement
 
-        // Check if the event target or currently focused element is a dropdown trigger
+        // 事件目标或当前焦点元素是下拉触发器
         const isFromDropdownTrigger =
           target?.getAttribute('data-slot') === 'dropdown-menu-trigger' ||
           activeElement?.getAttribute('data-slot') ===
@@ -101,17 +104,17 @@ export function DataTableBulkActions<TData>({
           target?.closest('[data-slot="dropdown-menu-trigger"]') ||
           activeElement?.closest('[data-slot="dropdown-menu-trigger"]')
 
-        // Check if the focused element is inside dropdown content (which is portaled)
+        // 当前焦点元素在下拉内容里（内容被 portal 到 body 之外）
         const isFromDropdownContent =
           activeElement?.closest('[data-slot="dropdown-menu-content"]') ||
           target?.closest('[data-slot="dropdown-menu-content"]')
 
         if (isFromDropdownTrigger || isFromDropdownContent) {
-          // Escape was meant for the dropdown - don't clear selection
+          // 这个 Esc 是关下拉菜单的，不要清空选中
           return
         }
 
-        // Escape was meant for the toolbar - clear selection
+        // 这个 Esc 是发给工具栏的：清空选中
         event.preventDefault()
         handleClearSelection()
         break
@@ -138,7 +141,10 @@ export function DataTableBulkActions<TData>({
       <div
         ref={toolbarRef}
         role='toolbar'
-        aria-label={`Bulk actions for ${selectedCount} selected ${entityName}${selectedCount > 1 ? 's' : ''}`}
+        aria-label={t('ui.table.bulkActionsLabel', {
+          count: selectedCount,
+          entity: entityName,
+        })}
         aria-describedby='bulk-actions-description'
         tabIndex={-1}
         onKeyDown={handleKeyDown}
@@ -163,15 +169,15 @@ export function DataTableBulkActions<TData>({
                 size='icon'
                 onClick={handleClearSelection}
                 className='size-6 rounded-full'
-                aria-label='Clear selection'
-                title='Clear selection (Escape)'
+                aria-label={t('ui.table.clearSelection')}
+                title={t('ui.table.clearSelectionHint')}
               >
                 <X />
-                <span className='sr-only'>Clear selection</span>
+                <span className='sr-only'>{t('ui.table.clearSelection')}</span>
               </Button>
             </TooltipTrigger>
             <TooltipContent>
-              <p>Clear selection (Escape)</p>
+              <p>{t('ui.table.clearSelectionHint')}</p>
             </TooltipContent>
           </Tooltip>
 
@@ -185,18 +191,13 @@ export function DataTableBulkActions<TData>({
             className='flex items-center gap-x-1 text-sm'
             id='bulk-actions-description'
           >
-            <Badge
-              variant='default'
-              className='min-w-8 rounded-lg'
-              aria-label={`${selectedCount} selected`}
-            >
-              {selectedCount}
-            </Badge>{' '}
-            <span className='hidden sm:inline'>
-              {entityName}
-              {selectedCount > 1 ? 's' : ''}
-            </span>{' '}
-            selected
+            {/*
+              数量与单位在各语言里语序不同（en「3 selected」/ zh「已选 3 项」），
+              所以整句由一条带参文案渲染，不在这里拼「数字 + 名词」。
+            */}
+            <Badge variant='default' className='min-w-8 rounded-lg'>
+              {t('ui.table.selectedCount', { count: selectedCount })}
+            </Badge>
           </div>
 
           <Separator

@@ -1,9 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, type RenderResult } from 'vitest-browser-react'
 import { userEvent } from 'vitest/browser'
+import i18n, { DEFAULT_LANGUAGE, LANGUAGE_STORAGE_KEY } from '@/lib/i18n'
 import { SearchProvider } from '@/context/search-provider'
 
-const COMMAND_MENU_PLACEHOLDER = 'Type a command or search...'
+// 命令面板文案已随界面语言切换，断言针对默认语言（中文）
+const COMMAND_MENU_PLACEHOLDER = '输入命令或搜索…'
 
 const mocks = vi.hoisted(() => ({
   navigate: vi.fn(),
@@ -56,8 +58,11 @@ async function openCommandPalette(
 }
 
 describe('SearchProvider and CommandMenu', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks()
+    // 语言是全局单例状态：显式复位，保证命令面板文案是中文
+    window.localStorage.removeItem(LANGUAGE_STORAGE_KEY)
+    await i18n.changeLanguage(DEFAULT_LANGUAGE)
   })
 
   it('renders the command palette when the palette is open', async () => {
@@ -69,10 +74,10 @@ describe('SearchProvider and CommandMenu', () => {
     await expect
       .element(getByPlaceholder(COMMAND_MENU_PLACEHOLDER))
       .toBeInTheDocument()
-    await expect.element(getByText('Theme')).toBeInTheDocument()
-    await expect.element(getByText('Light')).toBeInTheDocument()
-    await expect.element(getByText('Dark')).toBeInTheDocument()
-    await expect.element(getByText('System')).toBeInTheDocument()
+    await expect.element(getByText('主题')).toBeInTheDocument()
+    await expect.element(getByText('浅色')).toBeInTheDocument()
+    await expect.element(getByText('深色')).toBeInTheDocument()
+    await expect.element(getByText('跟随系统')).toBeInTheDocument()
     await expect.element(getByText('服务列表')).toBeInTheDocument()
   })
 
@@ -136,7 +141,7 @@ describe('SearchProvider and CommandMenu', () => {
 
     await openCommandPalette(screen)
 
-    await userEvent.click(screen.getByText('Dark'))
+    await userEvent.click(screen.getByText('深色'))
 
     expect(mocks.setTheme).toHaveBeenCalledWith('dark')
     await expect
@@ -154,8 +159,6 @@ describe('SearchProvider and CommandMenu', () => {
       'zzzz-no-match-xxxx'
     )
 
-    await expect
-      .element(screen.getByText('No results found.'))
-      .toBeInTheDocument()
+    await expect.element(screen.getByText('无匹配结果')).toBeInTheDocument()
   })
 })

@@ -1,6 +1,7 @@
 import React from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { ArrowRight, ChevronRight, Laptop, Moon, Sun } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { useSearch } from '@/context/search-provider'
 import { useTheme } from '@/context/theme-provider'
 import { useNavLabel } from '@/hooks/use-nav-label'
@@ -20,7 +21,8 @@ export function CommandMenu() {
   const navigate = useNavigate()
   const { setTheme } = useTheme()
   const { open, setOpen } = useSearch()
-  // 导航项文案随语言切换（key 或服务名原文），命令面板自身文案是模板英文，本轮不改
+  const { t } = useTranslation()
+  // 导航项文案随语言切换（key 或服务名原文）
   const navLabel = useNavLabel()
 
   const runCommand = React.useCallback(
@@ -32,11 +34,19 @@ export function CommandMenu() {
   )
 
   return (
-    <CommandDialog modal open={open} onOpenChange={setOpen}>
-      <CommandInput placeholder='Type a command or search...' />
+    <CommandDialog
+      modal
+      open={open}
+      onOpenChange={setOpen}
+      // 对话框标题/描述是 sr-only 的，模板默认写死英文；ui/command.tsx 是生成物，
+      // 按 spec 不改，改由调用方传入本地化文案
+      title={t('ui.command.title')}
+      description={t('ui.command.description')}
+    >
+      <CommandInput placeholder={t('ui.command.placeholder')} />
       <CommandList>
         <ScrollArea type='hover' className='h-72 pe-1'>
-          <CommandEmpty>No results found.</CommandEmpty>
+          <CommandEmpty>{t('ui.command.noResults')}</CommandEmpty>
           {sidebarData.navGroups.map((group) => (
             <CommandGroup
               key={group.titleKey ?? group.title}
@@ -77,17 +87,17 @@ export function CommandMenu() {
             </CommandGroup>
           ))}
           <CommandSeparator />
-          <CommandGroup heading='Theme'>
+          <CommandGroup heading={t('ui.command.theme')}>
             <CommandItem onSelect={() => runCommand(() => setTheme('light'))}>
-              <Sun /> <span>Light</span>
+              <Sun /> <span>{t('ui.command.light')}</span>
             </CommandItem>
             <CommandItem onSelect={() => runCommand(() => setTheme('dark'))}>
               <Moon className='scale-90' />
-              <span>Dark</span>
+              <span>{t('ui.command.dark')}</span>
             </CommandItem>
             <CommandItem onSelect={() => runCommand(() => setTheme('system'))}>
               <Laptop />
-              <span>System</span>
+              <span>{t('ui.command.system')}</span>
             </CommandItem>
           </CommandGroup>
         </ScrollArea>

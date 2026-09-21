@@ -32,9 +32,18 @@ describe('i18n 资源', () => {
   })
 
   it('覆盖 design.md 约定的命名空间', () => {
-    // 用顶层分组判定：system 目前是空分组（系统页在批次 D 落地），拍平后取不到 key
+    // 用顶层分组判定：分组本身始终存在，即使其中暂时没有 key（拍平后取不到）
     expect(Object.keys(zh).sort()).toEqual(
-      ['auth', 'common', 'errors', 'nav', 'services', 'system', 'users'].sort()
+      [
+        'auth',
+        'common',
+        'errors',
+        'nav',
+        'services',
+        'system',
+        'ui',
+        'users',
+      ].sort()
     )
     expect(Object.keys(en).sort()).toEqual(Object.keys(zh).sort())
   })

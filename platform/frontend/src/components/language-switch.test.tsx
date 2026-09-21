@@ -44,7 +44,8 @@ describe('LanguageSwitch', () => {
     const screen = await render(<LanguageSwitch />)
 
     await userEvent.click(screen.getByRole('button', { name: /language/i }))
-    await userEvent.click(screen.getByText('Chinese'))
+    // 选项一律用各语言自身文字（中文 / English），不随当前界面语言变化
+    await userEvent.click(screen.getByText('中文'))
 
     expect(window.localStorage.getItem(LANGUAGE_STORAGE_KEY)).toBe('zh')
     await expect

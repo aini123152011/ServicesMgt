@@ -5,7 +5,6 @@ import {
   isLanguage,
   setLanguage,
   type Language,
-  type TranslationKey,
 } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -16,10 +15,14 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 
-/** 语言选项：显示名用当前界面语言翻译，切换后本菜单自身也能看出变化 */
-const LANGUAGE_OPTIONS: { value: Language; labelKey: TranslationKey }[] = [
-  { value: 'zh', labelKey: 'common.languageZh' },
-  { value: 'en', labelKey: 'common.languageEn' },
+/**
+ * 语言选项：**每种语言用它自己的文字显示**（中文 / English），不跟随当前界面语言。
+ * 这是语言选择器的通行做法：界面已经是用户看不懂的语言时，用户仍能认出自己那一项；
+ * 若按当前语言翻译（英文界面下显示 Chinese/English），反而让人找不到母语入口。
+ */
+const LANGUAGE_OPTIONS: { value: Language; label: string }[] = [
+  { value: 'zh', label: '中文' },
+  { value: 'en', label: 'English' },
 ]
 
 /**
@@ -47,7 +50,7 @@ export function LanguageSwitch() {
             key={option.value}
             onClick={() => void setLanguage(option.value)}
           >
-            {t(option.labelKey)}
+            {option.label}
             <Check
               size={14}
               className={cn('ms-auto', current !== option.value && 'hidden')}
