@@ -2,6 +2,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import {
   getService,
+  getServiceDataContent,
+  getServiceDataTree,
   getServiceLogs,
   getServiceStatus,
   listServices,
@@ -74,5 +76,33 @@ export function useServiceActionMutation(name: string) {
       })
       queryClient.invalidateQueries({ queryKey: ['services'] })
     },
+  })
+}
+
+/** 数据卷目录树查询 */
+export function useServiceDataTreeQuery(
+  name: string,
+  subpath = '',
+  enabled = true
+) {
+  return useQuery({
+    queryKey: ['services', name, 'data', 'tree', subpath],
+    queryFn: () => getServiceDataTree(name, subpath),
+    enabled,
+  })
+}
+
+/** 数据卷文件内容查询（按尾部行数与关键词过滤） */
+export function useServiceDataContentQuery(
+  name: string,
+  subpath: string,
+  tail = 500,
+  keyword = '',
+  enabled = true
+) {
+  return useQuery({
+    queryKey: ['services', name, 'data', 'content', subpath, tail, keyword],
+    queryFn: () => getServiceDataContent(name, subpath, tail, keyword),
+    enabled: enabled && !!subpath,
   })
 }

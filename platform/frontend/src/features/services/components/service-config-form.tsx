@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import { z } from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { LoaderCircle } from 'lucide-react'
+import { AlertTriangle, LoaderCircle } from 'lucide-react'
 import { type ServiceConfig, type ServiceField } from '@/api/services'
 import { usePermissions } from '@/hooks/use-permissions'
 import { Button } from '@/components/ui/button'
@@ -16,6 +16,7 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import { PasswordInput } from '@/components/password-input'
 import {
   Select,
   SelectContent,
@@ -24,6 +25,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import { useUpdateConfigMutation } from '../hooks/use-services'
 
@@ -126,6 +128,26 @@ function buildFieldSchema(field: ServiceField): z.ZodType {
         })
         .transform(splitList)
     }
+    case 'text': {
+      return z.string().superRefine((v, ctx) => {
+        if (field.required && v.trim() === '') {
+          ctx.addIssue({ code: 'custom', message: '此项为必填' })
+          return
+        }
+        if (field.pem && v.trim()) {
+          const stripped = v.trim()
+          if (
+            !stripped.startsWith('-----BEGIN ') ||
+            !stripped.includes('-----END ')
+          ) {
+            ctx.addIssue({
+              code: 'custom',
+              message: '必须为有效的 PEM 格式证书或密钥',
+            })
+          }
+        }
+      })
+    }
     case 'string':
     default: {
       const re = compilePattern(field.pattern)
@@ -162,6 +184,16 @@ export function ServiceConfigForm({
   const { isOperator } = usePermissions()
   const canEdit = isOperator
 
+  // 分离基础配置与故障注入字段
+  const baseFields = useMemo(
+    () => fields.filter((f) => (f.group ?? 'base') === 'base'),
+    [fields]
+  )
+  const faultFields = useMemo(
+    () => fields.filter((f) => f.group === 'fault'),
+    [fields]
+  )
+
   // schema/fields 来自 query 缓存，identity 稳定，useMemo 避免每渲染重建校验器
   const formSchema = useMemo(
     () =>
@@ -196,6 +228,112 @@ export function ServiceConfigForm({
     updateMutation.mutate(values)
   }
 
+  const renderField = (f: ServiceField) => (
+    <FormField
+      key={f.name}
+      control={form.control}
+      name={f.name}
+      render={({ field }) => (
+        <FormItem>
+          <FormLabel>
+            {f.label}
+            {f.required && <span className='text-destructive'> *</span>}
+            {f.secret && (
+              <span className='ml-1 text-xs text-muted-foreground'>
+                (敏感脱敏字段)
+              </span>
+            )}
+          </FormLabel>
+          {f.type === 'boolean' ? (
+            <FormControl>
+              <Switch
+                checked={field.value === true}
+                onCheckedChange={field.onChange}
+                disabled={!canEdit}
+              />
+            </FormControl>
+          ) : f.type === 'enum' ? (
+            <FormControl>
+              <Select
+                value={String(field.value ?? '')}
+                onValueChange={field.onChange}
+                disabled={!canEdit}
+              >
+                <SelectTrigger className='w-72'>
+                  <SelectValue placeholder='请选择' />
+                </SelectTrigger>
+                <SelectContent>
+                  {f.options?.map((opt) => (
+                    <SelectItem key={opt} value={opt}>
+                      {opt}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </FormControl>
+          ) : f.type === 'list' ? (
+            <FormControl>
+              <Textarea
+                {...field}
+                value={String(field.value ?? '')}
+                rows={Math.min(
+                  Math.max(splitList(String(field.value ?? '')).length + 1, 3),
+                  10
+                )}
+                className='font-mono'
+                disabled={!canEdit}
+                placeholder={'每行一项'}
+              />
+            </FormControl>
+          ) : f.type === 'text' ? (
+            <FormControl>
+              <Textarea
+                {...field}
+                value={String(field.value ?? '')}
+                rows={f.pem ? 8 : 4}
+                className='font-mono text-xs'
+                disabled={!canEdit}
+                placeholder={
+                  f.pem
+                    ? '-----BEGIN CERTIFICATE / PRIVATE KEY-----\n...\n-----END CERTIFICATE / PRIVATE KEY-----'
+                    : ''
+                }
+              />
+            </FormControl>
+          ) : f.secret ? (
+            <FormControl>
+              <PasswordInput
+                {...field}
+                value={String(field.value ?? '')}
+                placeholder={
+                  field.value === '********'
+                    ? '保持既有密钥不变（输入新值覆盖）'
+                    : '请输入密码或密钥'
+                }
+                className='w-72'
+                disabled={!canEdit}
+              />
+            </FormControl>
+          ) : (
+            <FormControl>
+              <Input
+                {...field}
+                value={String(field.value ?? '')}
+                type={f.type === 'integer' ? 'number' : 'text'}
+                min={f.min}
+                max={f.max}
+                className='w-72'
+                disabled={!canEdit}
+              />
+            </FormControl>
+          )}
+          {f.help && <FormDescription>{f.help}</FormDescription>}
+          <FormMessage />
+        </FormItem>
+      )}
+    />
+  )
+
   return (
     <Form {...form}>
       <form
@@ -218,83 +356,41 @@ export function ServiceConfigForm({
             最近渲染时间：{config.rendered_at}
           </p>
         )}
-        {fields.map((f) => (
-          <FormField
-            key={f.name}
-            control={form.control}
-            name={f.name}
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>
-                  {f.label}
-                  {f.required && <span className='text-destructive'> *</span>}
-                </FormLabel>
-                {f.type === 'boolean' ? (
-                  <FormControl>
-                    <Switch
-                      checked={field.value === true}
-                      onCheckedChange={field.onChange}
-                      disabled={!canEdit}
-                    />
-                  </FormControl>
-                ) : f.type === 'enum' ? (
-                  <FormControl>
-                    <Select
-                      value={String(field.value ?? '')}
-                      onValueChange={field.onChange}
-                      disabled={!canEdit}
-                    >
-                      <SelectTrigger className='w-72'>
-                        <SelectValue placeholder='请选择' />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {f.options?.map((opt) => (
-                          <SelectItem key={opt} value={opt}>
-                            {opt}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </FormControl>
-                ) : f.type === 'list' ? (
-                  <FormControl>
-                    <Textarea
-                      {...field}
-                      value={String(field.value ?? '')}
-                      rows={Math.min(
-                        Math.max(
-                          splitList(String(field.value ?? '')).length + 1,
-                          3
-                        ),
-                        10
-                      )}
-                      className='font-mono'
-                      disabled={!canEdit}
-                      placeholder={
-                        '每行一项，例如：\nntp.aliyun.com\ncn.pool.ntp.org'
-                      }
-                    />
-                  </FormControl>
-                ) : (
-                  <FormControl>
-                    <Input
-                      {...field}
-                      value={String(field.value ?? '')}
-                      type={f.type === 'integer' ? 'number' : 'text'}
-                      min={f.min}
-                      max={f.max}
-                      className='w-72'
-                      disabled={!canEdit}
-                    />
-                  </FormControl>
-                )}
-                {f.help && <FormDescription>{f.help}</FormDescription>}
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        ))}
-        <div className='flex gap-2'>
+
+        {faultFields.length > 0 ? (
+          <Tabs defaultValue='base' className='w-full'>
+            <TabsList className='mb-4'>
+              <TabsTrigger value='base'>
+                基础服务配置 ({baseFields.length})
+              </TabsTrigger>
+              <TabsTrigger
+                value='fault'
+                className='text-amber-600 dark:text-amber-400'
+              >
+                BMC 故障注入 ({faultFields.length})
+              </TabsTrigger>
+            </TabsList>
+            <TabsContent value='base' className='space-y-6'>
+              {baseFields.map(renderField)}
+            </TabsContent>
+            <TabsContent value='fault' className='space-y-6'>
+              <div className='flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-900 dark:text-amber-200'>
+                <AlertTriangle className='mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400' />
+                <div>
+                  <strong>BMC 故障注入模式：</strong>
+                  本分组配置项专用于 BMC
+                  带外管理服务器的健壮性、超时重试与异常处理逻辑测试。在正常测试模式下请保持为
+                  &quot;none&quot;。
+                </div>
+              </div>
+              {faultFields.map(renderField)}
+            </TabsContent>
+          </Tabs>
+        ) : (
+          <div className='space-y-6'>{baseFields.map(renderField)}</div>
+        )}
+
+        <div className='flex gap-2 pt-2'>
           <Button
             type='submit'
             disabled={!canEdit || updateMutation.isPending}

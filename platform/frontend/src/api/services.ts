@@ -23,10 +23,13 @@ export interface ServicePort {
   description: string | null
 }
 
+/** 字段分组类型：基础配置 vs BMC 故障注入 */
+export type FieldGroup = 'base' | 'fault'
+
 /** schema.json 中单个配置字段的描述，驱动前端动态表单 */
 export interface ServiceField {
   name: string
-  type: 'string' | 'integer' | 'boolean' | 'enum' | 'list'
+  type: 'string' | 'integer' | 'boolean' | 'enum' | 'list' | 'text'
   label: string
   default?: unknown
   required?: boolean
@@ -36,11 +39,15 @@ export interface ServiceField {
   min?: number
   max?: number
   item_pattern?: string
+  secret?: boolean
+  group?: FieldGroup
+  pem?: boolean
 }
 
 export interface ServiceManifest extends ServiceSummary {
   config_dir: string
   config_files: string[]
+  data_dir?: string | null
 }
 
 export interface ServiceSchema {
@@ -136,6 +143,51 @@ export async function getServiceLogs(
   const { data } = await apiClient.get<ServiceLogsResponse>(
     `/api/v1/services/${name}/logs`,
     { params: { tail } }
+  )
+  return data
+}
+
+export interface ServiceDataEntry {
+  name: string
+  type: 'file' | 'dir'
+  size: number
+  modified: string | null
+}
+
+export interface ServiceDataTree {
+  path: string
+  entries: ServiceDataEntry[]
+}
+
+export interface ServiceDataContent {
+  path: string
+  size: number
+  truncated: boolean
+  lines: string[]
+}
+
+/** 浏览服务数据卷内的文件目录结构 */
+export async function getServiceDataTree(
+  name: string,
+  subpath = ''
+): Promise<ServiceDataTree> {
+  const { data } = await apiClient.get<ServiceDataTree>(
+    `/api/v1/services/${name}/data/tree`,
+    { params: { subpath } }
+  )
+  return data
+}
+
+/** 读取服务数据卷内具体日志/数据文件的内容，支持尾部行数裁剪与关键字过滤 */
+export async function getServiceDataContent(
+  name: string,
+  subpath: string,
+  tail = 500,
+  keyword = ''
+): Promise<ServiceDataContent> {
+  const { data } = await apiClient.get<ServiceDataContent>(
+    `/api/v1/services/${name}/data/content`,
+    { params: { subpath, tail, keyword } }
   )
   return data
 }

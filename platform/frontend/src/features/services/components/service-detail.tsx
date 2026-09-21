@@ -33,6 +33,7 @@ import {
   useServiceStatusQuery,
 } from '../hooks/use-services'
 import { ServiceConfigForm } from './service-config-form'
+import { ServiceDataExplorer } from './service-data-explorer'
 import { ServiceLogsDialog } from './service-logs-dialog'
 import { ServiceStatusDot } from './service-status-dot'
 
@@ -190,6 +191,10 @@ export function ServiceDetail({ name }: ServiceDetailProps) {
             />
           </CardContent>
         </Card>
+
+        {manifest.data_dir && (
+          <ServiceDataExplorer name={name} dataDir={manifest.data_dir} />
+        )}
       </Main>
 
       <ServiceLogsDialog
