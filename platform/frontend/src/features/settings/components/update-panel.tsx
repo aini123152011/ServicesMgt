@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
+import { taskStatusKey } from '../data/update-status'
 import {
   useApplyUpdateMutation,
   useCheckUpdatesMutation,
@@ -20,17 +21,6 @@ import {
   useUpdateStatusQuery,
   useUploadPackageMutation,
 } from '../hooks/use-system'
-
-/** 后端可能返回的任务状态；未知值一律按 idle 显示，避免把 i18n key 露到界面上 */
-const KNOWN_TASK_STATUSES = ['idle', 'running', 'succeeded', 'failed'] as const
-
-function taskStatusKey(status: string | null | undefined): string {
-  return KNOWN_TASK_STATUSES.includes(
-    status as (typeof KNOWN_TASK_STATUSES)[number]
-  )
-    ? `system.status.${status}`
-    : 'system.status.idle'
-}
 
 /** 镜像 ID 太长，表格里只显示前 12 位（完整值在后端可查） */
 function shortImageId(imageId: string | null): string {

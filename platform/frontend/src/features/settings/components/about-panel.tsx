@@ -16,19 +16,11 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { taskStatusKey } from '../data/update-status'
 import { useSystemInfoQuery } from '../hooks/use-system'
 
 /** 更新目标里的平台自身条目，不计入「纳管服务」清单 */
 const PLATFORM_TARGET = 'platform'
-
-/** 后端可能返回的任务状态；未知值一律按 idle 显示，避免把 i18n key 露到界面上 */
-const KNOWN_TASK_STATUSES = ['idle', 'running', 'succeeded', 'failed'] as const
-
-function taskStatusKey(status: string | null | undefined): string {
-  return KNOWN_TASK_STATUSES.some((known) => known === status)
-    ? `system.status.${status}`
-    : 'system.status.idle'
-}
 
 /**
  * 关于：平台版本与构建、部署形态、纳管服务清单与开源组件说明。

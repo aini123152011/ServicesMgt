@@ -108,8 +108,9 @@ export function AccountProfileForm() {
                 <FormItem>
                   <FormLabel>{t('settings.account.profile.email')}</FormLabel>
                   <FormControl>
+                    {/* 不用 type='email'：浏览器原生校验会先拦下提交，
+                        用户看到的是原生气泡而不是本地化后的校验文案 */}
                     <Input
-                      type='email'
                       placeholder={t(
                         'settings.account.profile.emailPlaceholder'
                       )}

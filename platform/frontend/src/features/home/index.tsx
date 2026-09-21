@@ -84,6 +84,11 @@ export function Home() {
     )
   }).length
 
+  // 三项按状态汇总的统计何时显示骨架：服务列表还没回来时无从判断；
+  // 列表为空时状态查询被禁用（isPending 会一直为 true），此时应显示 0 而不是永远转圈
+  const statusPending =
+    servicesQuery.isPending || (services.length > 0 && statusQuery.isPending)
+
   // 日志浏览指向日志监控类服务的详情页；不硬编码服务名，分类下没有服务时按钮禁用
   const logService = services.find(
     (service) => service.category === 'log-monitor'
@@ -126,20 +131,20 @@ export function Home() {
                 icon={Activity}
                 label={t('home.stats.running')}
                 value={runningCount}
-                isPending={statusQuery.isPending}
+                isPending={statusPending}
               />
               <StatCard
                 icon={AlertTriangle}
                 label={t('home.stats.healthIssues')}
                 value={healthIssueCount}
-                isPending={statusQuery.isPending}
+                isPending={statusPending}
                 tone={healthIssueCount > 0 ? 'warning' : 'default'}
               />
               <StatCard
                 icon={CircleSlash}
                 label={t('home.stats.stopped')}
                 value={stoppedCount}
-                isPending={statusQuery.isPending}
+                isPending={statusPending}
               />
             </div>
 

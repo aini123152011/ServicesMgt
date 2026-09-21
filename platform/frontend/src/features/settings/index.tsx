@@ -39,7 +39,10 @@ export function SettingsLayout() {
         </div>
 
         <div className='flex flex-col gap-6 md:flex-row md:gap-8'>
-          <SidebarNav items={items} className='md:w-44 md:shrink-0' />
+          {/* 宽度挂在包裹层：ScrollArea 是块级子元素，宽度写在它内部的 nav 上不生效 */}
+          <div className='md:w-44 md:shrink-0'>
+            <SidebarNav items={items} />
+          </div>
           <div className='min-w-0 flex-1'>
             <Outlet />
           </div>
