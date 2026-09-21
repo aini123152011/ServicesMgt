@@ -1,0 +1,22 @@
+FROM python:3.14
+ENV PYTHONUNBUFFERED=1
+ENV PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple/
+ENV UV_HTTP_TIMEOUT=60
+RUN pip install --no-cache-dir uv
+ENV UV_COMPILE_BYTECODE=1
+ENV UV_LINK_MODE=copy
+ENV UV_DEFAULT_INDEX=https://mirrors.aliyun.com/pypi/simple/
+
+COPY platform/backend/uv.lock platform/backend/pyproject.toml /app/backend/
+WORKDIR /app/backend/
+ENV PATH=/app/backend/.venv/bin:$PATH
+RUN uv sync --frozen --no-install-workspace --package app
+
+COPY platform/backend/scripts /app/backend/scripts
+COPY platform/backend/alembic.ini /app/backend/
+COPY platform/backend/app /app/backend/app
+COPY platform/frontend/dist /app/backend/app/frontend
+RUN uv sync --frozen --package app
+
+EXPOSE 8000
+CMD ["fastapi", "run", "--workers", "2"]

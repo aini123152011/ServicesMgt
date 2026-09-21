@@ -26,6 +26,9 @@ coverage/
 *.log
 *.pid
 
+# 部署打包产物（部署流程生成的 tar 包，不入库）
+deploy-*.tar.gz
+
 # 编辑器与系统文件
 .idea/
 .vscode/
