@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { z } from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -16,7 +16,6 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
-import { PasswordInput } from '@/components/password-input'
 import {
   Select,
   SelectContent,
@@ -27,6 +26,7 @@ import {
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
+import { PasswordInput } from '@/components/password-input'
 import { useUpdateConfigMutation } from '../hooks/use-services'
 
 type ServiceConfigFormProps = {
@@ -38,6 +38,55 @@ type ServiceConfigFormProps = {
 // 空串/纯空白视为未填写，交给 required 或 optional 逻辑处理
 function emptyToUndefined(v: unknown) {
   return typeof v === 'string' && v.trim() === '' ? undefined : v
+}
+
+/**
+ * secret + text 字段（如 TLS 私钥）的输入控件：默认遮蔽，可手动显示。
+ *
+ * 不能直接用 PasswordInput —— 它是单行 <input type=password>，粘贴多行 PEM 时
+ * 浏览器会丢掉换行，把密钥压成一行；这里保留多行 Textarea，靠 CSS 遮蔽字符，
+ * 兼顾「不进明文」与「PEM 不被破坏」。
+ */
+function SecretTextarea({
+  value,
+  onChange,
+  rows,
+  disabled,
+  placeholder,
+}: {
+  value: string
+  onChange: (v: string) => void
+  rows: number
+  disabled: boolean
+  placeholder: string
+}) {
+  const [visible, setVisible] = useState(false)
+  return (
+    <div className='space-y-1'>
+      <Textarea
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        rows={rows}
+        disabled={disabled}
+        placeholder={placeholder}
+        className='font-mono text-xs'
+        style={
+          visible
+            ? undefined
+            : ({ WebkitTextSecurity: 'disc' } as React.CSSProperties)
+        }
+      />
+      <Button
+        type='button'
+        variant='ghost'
+        size='sm'
+        disabled={disabled}
+        onClick={() => setVisible((v) => !v)}
+      >
+        {visible ? '隐藏内容' : '显示内容'}
+      </Button>
+    </div>
+  )
 }
 
 // 后端 pattern 编译失败时返回 null 并跳过该校验，避免脏 schema 令表单崩溃
@@ -283,6 +332,21 @@ export function ServiceConfigForm({
                 className='font-mono'
                 disabled={!canEdit}
                 placeholder={'每行一项'}
+              />
+            </FormControl>
+          ) : f.type === 'text' && f.secret ? (
+            // secret 判断必须在普通 text 之前：否则私钥类字段会落到下面的明文 Textarea
+            <FormControl>
+              <SecretTextarea
+                value={String(field.value ?? '')}
+                onChange={field.onChange}
+                rows={f.pem ? 8 : 4}
+                disabled={!canEdit}
+                placeholder={
+                  field.value === '********'
+                    ? '保持既有内容不变（输入新值覆盖）'
+                    : '-----BEGIN ...-----\n...\n-----END ...-----'
+                }
               />
             </FormControl>
           ) : f.type === 'text' ? (

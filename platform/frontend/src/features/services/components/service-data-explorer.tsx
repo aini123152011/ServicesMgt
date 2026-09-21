@@ -82,9 +82,7 @@ export function ServiceDataExplorer({
   }
 
   const handleSelectFile = (fileName: string) => {
-    const fullPath = currentSubpath
-      ? `${currentSubpath}/${fileName}`
-      : fileName
+    const fullPath = currentSubpath ? `${currentSubpath}/${fileName}` : fileName
     setSelectedFilePath(fullPath)
   }
 
@@ -297,7 +295,7 @@ export function ServiceDataExplorer({
                   <div className='h-80 overflow-auto rounded-md bg-slate-950 p-3 font-mono text-xs text-slate-100 dark:bg-zinc-950'>
                     {contentQuery.data?.lines.map((line, idx) => (
                       <div key={idx} className='leading-relaxed break-all'>
-                        <span className='mr-3 select-none text-slate-500'>
+                        <span className='mr-3 text-slate-500 select-none'>
                           {idx + 1}
                         </span>
                         <span>{line}</span>
