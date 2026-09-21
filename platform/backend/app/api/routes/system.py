@@ -131,7 +131,7 @@ def apply_update(
 @router.get("/updates/status")
 def read_update_status() -> Any:
     """当前/最近一次更新任务状态（平台自更新重启后仍可查，前端据此轮询）。"""
-    status = system_update.read_status()
+    status = system_update.current_status()
     if status is None:
         return {"status": "idle", "message": "No update task has run yet"}
     return status

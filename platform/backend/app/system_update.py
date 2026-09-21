@@ -10,9 +10,11 @@
 任务状态写文件而不是内存：平台自更新会重启进程，内存态会丢，写文件后重启仍可查。
 """
 
+import calendar
 import json
 import logging
 import threading
+import time
 import uuid
 from pathlib import Path
 from typing import Any
@@ -31,6 +33,9 @@ UPLOADS_DIRNAME = "uploads"
 STATUS_FILENAME = "system-update.json"
 # 平台自更新的 helper 等待时间：先让触发它的 API 把响应返回给前端
 SELF_UPDATE_DELAY_SECONDS = 3
+# 平台自更新任务的宽限期：helper 尚未动手前不判失败；超过它且 helper 已不在、
+# 平台也没切到目标镜像，就判定失败（否则任务会永远停在 running 挡住后续更新）
+SELF_UPDATE_GRACE_SECONDS = 120
 
 _worker_lock = threading.Lock()
 _worker_running = False
@@ -272,7 +277,7 @@ def start_update(plugins: list[Any], target: str, image: str) -> dict[str, Any]:
         UpdateError: 目标未知或镜像不存在。
     """
     global _worker_running
-    current = read_status()
+    current = current_status()
     if current and current.get("status") == "running":
         raise UpdateBusyError("Another update task is still running")
 
@@ -316,6 +321,29 @@ def _service_container(plugins: list[Any], target: str) -> str | None:
         if plugin.name == target:
             return str(plugin.manifest["container_name"])
     return None
+
+
+def _host_path_for(
+    client: docker.DockerClient, container_name: str, container_path: str
+) -> str:
+    """反查某个容器内路径在宿主上的真实来源路径。
+
+    helper 由平台派生，它的 -v 源必须是**宿主路径**：直接传容器内路径（如
+    /var/lib/platform）会被 Docker 当成宿主上另一个目录，helper 因此读不到参数文件
+    （实机演练踩到）。这里从平台自身容器的 Mounts 反查 Source，查不到就退回原路径。
+    """
+    try:
+        container = client.containers.get(container_name)
+    except NotFound, APIError, OSError:
+        return container_path
+    for mount in (container.attrs or {}).get("Mounts") or []:
+        if mount.get("Destination") == container_path and mount.get("Source"):
+            return str(mount["Source"])
+    logger.warning(
+        f"No host source found for '{container_path}' in container "
+        f"'{container_name}'; using the path as-is"
+    )
+    return container_path
 
 
 def _spawn_self_update(image: str) -> dict[str, Any]:
@@ -372,8 +400,16 @@ def _spawn_self_update(image: str) -> dict[str, Any]:
             entrypoint=["python", "/app/backend/scripts/self_update.py"],
             command=[str(params_file)],
             volumes={
-                "/var/run/docker.sock": {"bind": "/var/run/docker.sock", "mode": "rw"},
-                str(_volumes_root()): {"bind": str(_volumes_root()), "mode": "rw"},
+                _host_path_for(
+                    client, PLATFORM_CONTAINER_NAME, "/var/run/docker.sock"
+                ): {
+                    "bind": "/var/run/docker.sock",
+                    "mode": "rw",
+                },
+                _host_path_for(client, PLATFORM_CONTAINER_NAME, str(_volumes_root())): {
+                    "bind": str(_volumes_root()),
+                    "mode": "rw",
+                },
             },
             environment={"VOLUMES_MOUNT_ROOT": str(_volumes_root())},
         )
@@ -394,3 +430,106 @@ def _spawn_self_update(image: str) -> dict[str, Any]:
         "status": "running",
         "message": "Self-update scheduled; the platform will restart in a few seconds",
     }
+
+
+def _status_age_seconds(status: dict[str, Any]) -> float:
+    """状态文件里 updated_at 距现在的秒数；解析失败按「刚更新」处理（不误判失败）。"""
+    stamp = status.get("updated_at")
+    if not isinstance(stamp, str):
+        return 0.0
+    try:
+        parsed = time.strptime(stamp, "%Y-%m-%dT%H:%M:%SZ")
+    except ValueError:
+        return 0.0
+    return max(0.0, time.time() - calendar.timegm(parsed))
+
+
+def _platform_matches_target(
+    client: docker.DockerClient, status: dict[str, Any]
+) -> bool:
+    """平台容器当前所用镜像是否已经是目标 tag 指向的镜像。"""
+    target_image = str(status.get("image") or "")
+    if not target_image:
+        return False
+    tag_id, _ = _image_ids(client, target_image)
+    if tag_id is None:
+        return False
+    return _container_state(client, PLATFORM_CONTAINER_NAME).get("image_id") == tag_id
+
+
+def _helper_failure(status: dict[str, Any]) -> str | None:
+    """平台自更新任务是否需要改判失败；需要则返回原因，否则 None。
+
+    helper 起不来（镜像里缺脚本、权限不对等）时它自己没法写状态文件，任务会永远
+    停在 running 并挡住后续更新——所以读状态时做一次对账，分三种情形：
+    1. helper 仍在运行 → 任务确实在进行；
+    2. helper 非零退出 → 用退出码与日志尾部说明原因；
+    3. helper 已不在（被清理/正常退出）但平台仍未切到目标镜像 → 超过宽限期判失败。
+    """
+    client = _client()
+    running = False
+    exit_code: int | None = None
+    logs = ""
+    try:
+        helper = client.containers.get(SELF_UPDATE_CONTAINER_NAME)
+    except NotFound, APIError, OSError:
+        helper = None
+    if helper is not None:
+        state = (helper.attrs or {}).get("State") or {}
+        running = bool(state.get("Running"))
+        exit_code = state.get("ExitCode")
+        try:
+            logs = helper.logs(tail=20).decode("utf-8", "replace").strip()
+        except APIError, OSError:
+            logs = ""
+    if running:
+        return None
+    if exit_code not in (None, 0):
+        detail = f" (exit code {exit_code})"
+        return (
+            f"Self-update helper failed{detail}: {logs}"
+            if logs
+            else f"Self-update helper failed{detail}"
+        )
+
+    # helper 不在了或正常退出：看平台是否真的切到了目标镜像
+    if _platform_matches_target(client, status):
+        return None  # 已经切过去了，属于成功（只是没记录）
+    if _status_age_seconds(status) < SELF_UPDATE_GRACE_SECONDS:
+        return None  # 宽限期内，等 helper 动手
+    return (
+        "Self-update helper did not complete and the platform is still running "
+        "the previous image"
+    )
+
+
+def current_status() -> dict[str, Any] | None:
+    """读取状态并在必要时对账：helper 已失败的任务改判为 failed 并落盘。"""
+    status = read_status()
+    if not status or status.get("status") != "running":
+        return status
+    if status.get("target") != "platform":
+        return status
+    reason = _helper_failure(status)
+    if reason is None:
+        # helper 正常退出但没来得及写成功状态时，用「平台镜像已是目标镜像」补记，
+        # 否则任务会一直显示 running（并挡住后续更新）
+        if _platform_matches_target(_client(), status):
+            return write_status(
+                target="platform",
+                image=status.get("image"),
+                phase="succeeded",
+                status="succeeded",
+                message="Platform already runs the target image",
+                finished_at=update_status.now_iso(),
+            )
+        return status
+    logger.error(f"Self-update helper failed: {reason}")
+    return write_status(
+        target="platform",
+        image=status.get("image"),
+        phase="failed",
+        status="failed",
+        message=reason,
+        finished_at=update_status.now_iso(),
+    )

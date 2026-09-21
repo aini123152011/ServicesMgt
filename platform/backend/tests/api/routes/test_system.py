@@ -269,3 +269,51 @@ def test_read_update_status_idle_then_reports_file(
     body = done.json()
     assert body["status"] == "succeeded"
     assert body["target"] == "nginx"
+
+
+def test_current_status_marks_failed_when_helper_died(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """helper 起不来时任务不能永远停在 running：读状态时对账改判为 failed 并落盘。"""
+    status_file = tmp_path / "system-update.json"
+    monkeypatch.setattr(system_update, "status_file_path", lambda: status_file)
+    monkeypatch.setattr(
+        system_update,
+        "_helper_failure",
+        lambda _status: "Self-update helper failed (exit code 2)",
+    )
+    system_update.write_status(
+        target="platform",
+        image="bmc-platform:latest",
+        status="running",
+        phase="pending",
+    )
+
+    status = system_update.current_status()
+
+    assert status is not None
+    assert status["status"] == "failed"
+    assert "exit code 2" in (status["message"] or "")
+    # 对账结果要落盘，前端刷新后仍能看到失败原因
+    persisted = system_update.read_status()
+    assert persisted is not None
+    assert persisted["status"] == "failed"
+
+
+def test_current_status_leaves_running_service_task_untouched(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """服务更新任务不经过 helper，对账逻辑不应误判。"""
+    status_file = tmp_path / "system-update.json"
+    monkeypatch.setattr(system_update, "status_file_path", lambda: status_file)
+    monkeypatch.setattr(
+        system_update, "_helper_failure", lambda _status: "should not be called"
+    )
+    system_update.write_status(
+        target="nginx", image="bmc/nginx:latest", status="running", phase="running"
+    )
+
+    status = system_update.current_status()
+
+    assert status is not None
+    assert status["status"] == "running"

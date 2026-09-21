@@ -22,6 +22,11 @@ logger = logging.getLogger(__name__)
 # 重建后等待容器健康的秒数：够慢启动服务（ganesha/rsyslog 这类）完成初始化
 HEALTH_TIMEOUT_SECONDS = 60
 
+# 由镜像本身携带的环境变量，重建时不从旧容器继承。
+# PLATFORM_VERSION/PLATFORM_BUILD 是构建期注入的版本元数据：若照抄旧容器的值，
+# 更新后新容器会继续上报旧版本号，更新等于白做（实机演练踩到）。
+IMAGE_OWNED_ENV_KEYS = frozenset({"PLATFORM_VERSION", "PLATFORM_BUILD"})
+
 
 class RebuildError(Exception):
     """重建失败（消息含原始原因，路由层转 502）。"""
@@ -99,9 +104,14 @@ def extract_run_params(container: _HasAttrs) -> dict[str, Any]:
 
     env_list = config.get("Env") or []
     if env_list:
-        params["environment"] = dict(
-            item.split("=", 1) for item in env_list if "=" in item
-        )
+        params["environment"] = {
+            key: value
+            for item in env_list
+            if "=" in item
+            for key, value in [item.split("=", 1)]
+            # 版本元数据跟随新镜像，不从旧容器继承（见 IMAGE_OWNED_ENV_KEYS）
+            if key not in IMAGE_OWNED_ENV_KEYS
+        }
 
     networks = list((attrs.get("NetworkSettings") or {}).get("Networks") or {})
     # 只指定非默认网络：默认 bridge 无需显式传，传了反而可能因网络不存在失败

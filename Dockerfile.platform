@@ -1,9 +1,13 @@
 FROM python:3.14
-# 平台版本与构建号：构建时注入（--build-arg PLATFORM_VERSION=x.y.z），
+# 平台版本与构建号：构建时注入（--build-arg APP_VERSION=x.y.z），
 # 由后端 /api/v1/system/info 暴露，供界面显示与更新后核对
-ARG PLATFORM_VERSION=dev
-ARG PLATFORM_BUILD=
-ENV PYTHONUNBUFFERED=1 \n    PLATFORM_VERSION=${PLATFORM_VERSION} \n    PLATFORM_BUILD=${PLATFORM_BUILD}
+# NOTE: 构建参数不能叫 PLATFORM_VERSION——Docker 里同名 ARG 与 ENV 会互相遮蔽，
+# 上一层已 ENV PLATFORM_VERSION，同名 ARG 的取值会被 ENV 覆盖，--build-arg 静默失效
+ARG APP_VERSION=dev
+ARG APP_BUILD=
+ENV PYTHONUNBUFFERED=1 \
+    PLATFORM_VERSION=${APP_VERSION} \
+    PLATFORM_BUILD=${APP_BUILD}
 ENV PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple/
 ENV UV_HTTP_TIMEOUT=60
 RUN pip install --no-cache-dir uv

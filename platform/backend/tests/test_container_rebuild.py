@@ -93,3 +93,25 @@ def test_extract_run_params_handles_bind_without_mode() -> None:
     params = container_rebuild.extract_run_params(_FakeContainer(attrs))
 
     assert params["volumes"] == {"/host/data": {"bind": "/data", "mode": "rw"}}
+
+
+def test_extract_run_params_drops_image_owned_version_env() -> None:
+    """版本元数据必须跟随新镜像：照抄旧容器的值会让更新后仍上报旧版本。"""
+    attrs = {
+        "Config": {
+            "Image": "bmc-platform:latest",
+            "Env": [
+                "DATABASE_URL=postgresql://bmc:pwd@pg:5432/bmc_platform",
+                "PLATFORM_VERSION=0.4.0",
+                "PLATFORM_BUILD=202609212046",
+            ],
+        },
+        "HostConfig": {"RestartPolicy": {"Name": "unless-stopped"}},
+        "NetworkSettings": {"Networks": {"bmc-platform-isolated-net": {}}},
+    }
+
+    params = container_rebuild.extract_run_params(_FakeContainer(attrs))
+
+    assert params["environment"] == {
+        "DATABASE_URL": "postgresql://bmc:pwd@pg:5432/bmc_platform"
+    }
