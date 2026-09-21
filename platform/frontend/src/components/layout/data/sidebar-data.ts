@@ -5,6 +5,8 @@ export const sidebarData: SidebarData = {
   navGroups: [
     {
       title: '服务管理',
+      // 其下除「服务总览」外，还会按分类动态追加各服务入口
+      dynamicServices: true,
       items: [
         {
           title: '服务列表',

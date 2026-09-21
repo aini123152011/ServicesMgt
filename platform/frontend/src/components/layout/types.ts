@@ -23,6 +23,8 @@ type NavItem = NavCollapsible | NavLink
 type NavGroup = {
   title: string
   items: NavItem[]
+  /** true 时渲染处会追加「按服务分类」的动态菜单项（见 features/services/data/nav.ts） */
+  dynamicServices?: boolean
 }
 
 type SidebarData = {

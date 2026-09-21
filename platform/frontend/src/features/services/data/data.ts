@@ -15,6 +15,13 @@ export const categoryTypes: Record<ServiceCategory, string> = {
     'bg-amber-100/40 text-amber-900 dark:text-amber-100 border-amber-300',
 }
 
+/** 侧边栏菜单里的分类顺序，固定下来避免每次刷新顺序跳动 */
+export const categoryOrder: ServiceCategory[] = [
+  'time',
+  'file-share',
+  'log-monitor',
+]
+
 export const categoryLabels: Record<ServiceCategory, string> = {
   time: '时间同步',
   'file-share': '文件共享',
