@@ -103,9 +103,12 @@ describe('UsersDeleteDialog', () => {
     )
 
     const emailInput = getByRole('textbox', { name: /邮箱/i })
-    await userEvent.fill(emailInput, 'wrong@example.com')
-    await userEvent.click(getByRole('button', { name: /删除/i }))
+    const deleteButton = getByRole('button', { name: /删除/i })
 
+    await userEvent.fill(emailInput, 'wrong@example.com')
+    // 邮箱不匹配时按钮保持禁用——禁用本身就是拦截手段，不能再对它发起点击
+    // （Playwright 点禁用元素会一直等到可用，只会得到超时，证明不了任何事）
+    await expect.element(deleteButton).toBeDisabled()
     expect(mutationMocks.deleteMutate).not.toHaveBeenCalled()
     expect(onOpenChange).not.toHaveBeenCalled()
   })

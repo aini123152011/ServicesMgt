@@ -26,7 +26,17 @@ export default defineConfig({
     unstubEnvs: true,
     browser: {
       enabled: true,
-      provider: playwright(),
+      // 组件测试跑在真实浏览器里：Radix 的 portal/焦点管理与真实 CSS 在 jsdom 下不可靠。
+      // Playwright 在这里只是「浏览器驱动」（Vitest 浏览器模式），不是本项目的 E2E 工具
+      // ——端到端验收是 scripts/verify_bmc_platform_e2e.py 的真实协议套件。
+      // 默认用 Playwright 自带的 chromium（需 `pnpm test:browser:install` 下载一次）；
+      // 机器上没有该二进制时可用系统已装的 Chrome：
+      //   VITEST_BROWSER_CHANNEL=chrome pnpm test
+      provider: playwright(
+        process.env.VITEST_BROWSER_CHANNEL
+          ? { launchOptions: { channel: process.env.VITEST_BROWSER_CHANNEL } }
+          : undefined
+      ),
       instances: [{ browser: 'chromium' }],
     },
     coverage: {

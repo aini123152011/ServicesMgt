@@ -35,7 +35,18 @@ const MOCK_USER: UserPublic = {
 }
 
 describe('UsersActionDialog', () => {
-  beforeEach(() => vi.clearAllMocks())
+  beforeEach(() => {
+    vi.clearAllMocks()
+    // 组件在 mutate 的 onSuccess 里重置表单并关闭对话框，
+    // mock 不回调的话关闭链路永远不触发（测试会断言 onOpenChange(false)）
+    mutationMocks.createMutate.mockImplementation(
+      (_payload: unknown, opts?: { onSuccess?: () => void }) =>
+        opts?.onSuccess?.()
+    )
+    mutationMocks.updateMutate.mockImplementation(
+      (_args: unknown, opts?: { onSuccess?: () => void }) => opts?.onSuccess?.()
+    )
+  })
 
   describe('create user', () => {
     it('renders title and description', async () => {
