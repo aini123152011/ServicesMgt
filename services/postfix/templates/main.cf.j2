@@ -1,0 +1,54 @@
+{#- 平台渲染契约：后端按 schema.json 校验用户提交的配置值后，用本模板渲染出 main.cf 写入配置卷 -#}
+{#- 渲染环境要求：Jinja2 需开启 trim_blocks=True + lstrip_blocks=True（Ansible 同款默认），否则块标签会残留空行 -#}
+{#- defaults/main.cf 就是 schema 默认值的渲染产物，改字段需同步 schema.json 并重新生成种子文件 -#}
+# 本文件由 BMC 服务管理平台自动渲染生成，请勿手工编辑
+
+# 本机邮件名：对外 HELO 标识与日志中的主机名
+myhostname = {{ myhostname }}
+
+# 本地投递域留空：BMC 场景只做告警邮件转发/中继，不在本机投递 mailbox，
+# 邮件按 mynetworks 中继规则交给 relayhost 或按 DNS MX 直接投递
+mydestination =
+
+# 监听所有网卡，供内网 BMC 设备投递告警邮件
+inet_interfaces = all
+
+# 可信网段：来源在列表内的客户端允许经本机中继
+# （smtpd_relay_restrictions 默认策略 permit_mynetworks，其余外部来源禁止中继防开放转发）
+mynetworks = {{ mynetworks | join(', ') }}
+{% if relayhost %}
+
+# 上游中继：[主机]:端口 形式跳过 MX 查询按 A 记录直投；relayhost 为空时不渲染本行，
+# 邮件按收件人域名的 DNS MX 记录直接投递
+relayhost = {{ relayhost }}
+{% endif %}
+
+# 单封邮件大小上限：平台按 MB 换算为字节（postfix 以字节计）
+message_size_limit = {{ message_size_limit_mb * 1024 * 1024 }}
+
+# 单用户邮箱容量上限：同上换算，需大于单封邮件上限
+mailbox_size_limit = {{ mailbox_size_limit_mb * 1024 * 1024 }}
+
+# 别名表：entrypoint 启动时执行 newaliases 生成 /etc/aliases.db
+alias_maps = hash:/etc/aliases
+alias_database = hash:/etc/aliases
+
+# 兼容级别：对齐 postfix 3.6 行为，关闭 3.7 新默认值引起的迁移告警
+compatibility_level = 3.6
+
+# ==== BMC 故障注入 ====
+{% if fault_mode == 'reject_554' %}
+# 故障注入：永久拒收（554 Relay access denied / rejected）
+smtpd_client_restrictions = reject
+{% elif fault_mode == 'greylist_451' %}
+# 故障注入：临时拒收（451 Temporary failure, try again later）
+smtpd_client_restrictions = defer 451 4.3.0 Temporary failure, please retry later
+{% elif fault_mode == 'force_tls' %}
+# 故障注入：强制要求 TLS 加密，拒绝明文发信
+smtpd_tls_security_level = encrypt
+{% elif fault_mode == 'tarpit_delay' %}
+# 故障注入：Tarpit 陷阱极慢响应
+smtpd_error_sleep_time = {{ tarpit_delay_seconds | default(20) }}s
+smtpd_soft_error_limit = 1
+smtpd_hard_error_limit = 5
+{% endif %}

@@ -1,0 +1,76 @@
+{
+  "fields": [
+    {
+      "name": "listen_port",
+      "type": "integer",
+      "label": "Syslog 监听端口",
+      "default": 514,
+      "min": 1,
+      "max": 65535,
+      "help": "接收 BMC 日志的端口，Syslog 标准端口为 514（UDP/TCP 共用同一端口号）",
+      "group": "base"
+    },
+    {
+      "name": "protocols",
+      "type": "enum",
+      "label": "接收协议",
+      "default": "both",
+      "options": ["both", "udp", "tcp"],
+      "help": "both=UDP+TCP 同时接收；udp=仅 UDP（BMC 最常用）；tcp=仅 TCP（可靠传输）",
+      "group": "base"
+    },
+    {
+      "name": "log_root",
+      "type": "string",
+      "label": "日志归档根目录",
+      "default": "/var/log/bmc",
+      "help": "归档文件的根目录，需位于持久化数据卷挂载点（默认 /var/log/bmc）内；日期目录与来源文件在其下自动创建",
+      "pattern": "^/[A-Za-z0-9._/\\-]+$",
+      "group": "base"
+    },
+    {
+      "name": "date_dir",
+      "type": "enum",
+      "label": "日期目录层级",
+      "default": "daily",
+      "options": ["daily", "monthly", "none"],
+      "help": "归档目录按日期组织：daily=年-月-日 三级；monthly=年-月 两级；none=不按日期建目录，文件直接落在归档根目录",
+      "group": "base"
+    },
+    {
+      "name": "filename_by_ip",
+      "type": "boolean",
+      "label": "按来源 IP 命名文件",
+      "default": true,
+      "help": "开启后每个来源 BMC 一个以 IP 命名的日志文件（如 192.168.1.100.log）；关闭后按来源主机名命名",
+      "group": "base"
+    },
+    {
+      "name": "file_format",
+      "type": "enum",
+      "label": "日志文件格式",
+      "default": "RSYSLOG_FileFormat",
+      "options": ["RSYSLOG_FileFormat", "RSYSLOG_TraditionalFileFormat"],
+      "help": "RSYSLOG_FileFormat=高精度 ISO 时间戳（推荐，便于按秒过滤）；RSYSLOG_TraditionalFileFormat=传统短格式（兼容旧解析器）",
+      "group": "base"
+    },
+    {
+      "name": "allowed_senders",
+      "type": "list",
+      "label": "允许的发送源",
+      "default": ["0.0.0.0/0"],
+      "help": "允许发送日志的来源（CIDR 或 IP），渲染为 $AllowedSender 白名单；0.0.0.0/0 表示不限制",
+      "item_pattern": "^[0-9a-fA-F.:/$]+$",
+      "group": "base"
+    },
+    {
+      "name": "fault_mode",
+      "type": "enum",
+      "label": "BMC 故障注入模式",
+      "options": ["none", "port_blackhole", "drop_all"],
+      "default": "none",
+      "help": "故障注入：port_blackhole/drop_all 静默丢弃日志不落盘，测试 BMC 缓冲区满与超时",
+      "group": "fault"
+    }
+  ]
+}

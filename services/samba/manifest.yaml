@@ -1,0 +1,19 @@
+# 服务元数据：平台 Service Registry 扫描 services/* 时按此识别与展示
+name: samba
+display_name: Samba / CIFS 文件共享
+category: file-share          # 分类枚举: time | file-share | log-monitor
+description: 基于 Samba 的 Windows/CIFS 文件共享服务，支持 SMB2/SMB3、用户认证与协议版本故障注入
+container_name: bmc-samba
+config_dir: /etc/samba-bmc    # 配置卷在容器内的挂载点
+config_files:                 # 渲染产物相对 config_dir 的路径列表
+  - smb.conf
+  - users.txt
+ports:
+  - port: 445
+    protocol: tcp
+    description: SMB over TCP 端口
+  - port: 139
+    protocol: tcp
+    description: NetBIOS 会话端口
+reload_mode: restart          # 用户账号同步与全局协议参数需重启 smbd 进程以完整生效
+data_dir: /data/samba         # 数据卷在容器内的挂载点：Samba 共享物理路径

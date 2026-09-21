@@ -1,0 +1,60 @@
+{
+  "fields": [
+    {
+      "name": "port",
+      "type": "integer",
+      "label": "TFTP 监听端口",
+      "default": 69,
+      "min": 1,
+      "max": 65535,
+      "help": "TFTP 服务端口，标准端口为 69（UDP）；修改后需同步调整宿主机端口映射",
+      "group": "base"
+    },
+    {
+      "name": "create_enabled",
+      "type": "boolean",
+      "label": "允许创建新文件",
+      "default": true,
+      "help": "开启后客户端可上传服务端不存在的新文件（in.tftpd --create），用于备份配置/固件；关闭后仅允许覆盖已有文件",
+      "group": "base"
+    },
+    {
+      "name": "root_dir",
+      "type": "string",
+      "label": "TFTP 服务根目录",
+      "default": "/srv/tftp",
+      "help": "文件传输的根目录，须位于数据卷挂载点（默认 /srv/tftp）内；in.tftpd 以 --secure chroot 到该目录，客户端看不到目录之外的路径",
+      "pattern": "^/[A-Za-z0-9._/\\-]+$",
+      "group": "base"
+    },
+    {
+      "name": "blksize",
+      "type": "integer",
+      "label": "最大块大小（字节）",
+      "default": 512,
+      "min": 512,
+      "max": 65464,
+      "help": "RFC 2348 块大小协商上限：越大吞吐越高，但需链路不分片（标准以太网建议 1468）；512 为传统兼容值",
+      "group": "base"
+    },
+    {
+      "name": "timeout",
+      "type": "integer",
+      "label": "传输超时（秒）",
+      "default": 5,
+      "min": 1,
+      "max": 255,
+      "help": "单个数据包的等待重传时间（RFC 2349，1-255 秒）：超时未收到确认则重传；链路质量差时可调大",
+      "group": "base"
+    },
+    {
+      "name": "fault_mode",
+      "type": "enum",
+      "label": "BMC 故障注入模式",
+      "options": ["none", "deny_create", "timeout_simulate"],
+      "default": "none",
+      "help": "故障注入：deny_create 拒绝新文件上传(Error 2)；timeout_simulate 设置超短超时与参数排斥",
+      "group": "fault"
+    }
+  ]
+}

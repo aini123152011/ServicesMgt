@@ -1,0 +1,22 @@
+{#- 平台渲染契约：后端按 schema.json 校验用户提交的配置值后，用本模板渲染出 tftpd-hpa.conf 写入配置卷 -#}
+{#- 渲染环境要求：Jinja2 需开启 trim_blocks=True + lstrip_blocks=True（Ansible 同款默认），否则块标签会残留空行 -#}
+{#- defaults/tftpd-hpa.conf 就是 schema 默认值的渲染产物，改字段需同步 schema.json 并重新生成种子文件 -#}
+# 本文件由 BMC 服务管理平台自动渲染生成，请勿手工编辑
+#
+# 说明：本文件为 shell 变量形式（沿用 Debian /etc/default/tftpd-hpa 的格式习惯），
+# entrypoint 直接 source 后按变量拼装 in.tftpd 启动参数
+TFTP_USERNAME="tftp"
+TFTP_DIRECTORY="{{ root_dir }}"
+TFTP_ADDRESS=":{{ port }}"
+# --secure：chroot 到服务根目录；--create：允许客户端上传新文件；
+# NOTE: in.tftpd 的 --timeout(-t) 仅作用于 inetd 模式（standalone 下被忽略），
+# 首包重传等待与 RFC 2349 超时协商共用 --retransmit(-T)，单位为微秒
+{% if fault_mode == 'deny_create' %}
+# 故障注入：强制不加 --create，客户端上传新文件时触发 Error Code 2 Access Violation
+TFTP_OPTIONS="--secure --blocksize {{ blksize }} --retransmit {{ timeout * 1000000 }}"
+{% elif fault_mode == 'timeout_simulate' %}
+# 故障注入：设置 100ms 极短重传超时，模拟高丢包环境
+TFTP_OPTIONS="--secure --blocksize {{ blksize }} --retransmit 100000"
+{% else %}
+TFTP_OPTIONS="--secure{% if create_enabled %} --create{% endif %} --blocksize {{ blksize }} --retransmit {{ timeout * 1000000 }}"
+{% endif %}

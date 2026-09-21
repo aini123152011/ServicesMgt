@@ -1,0 +1,10 @@
+{#- 平台渲染契约：后端按 schema.json 校验用户提交的配置值后，用本模板渲染出 local_users.txt 写入配置卷 -#}
+{#- 渲染环境要求：Jinja2 需开启 trim_blocks=True + lstrip_blocks=True（Ansible 同款默认），否则块标签会残留空行 -#}
+{#- defaults/local_users.txt 就是 schema 默认值的渲染产物，改字段需同步 schema.json 并重新生成种子文件 -#}
+# 本文件由 BMC 服务管理平台自动渲染生成，请勿手工编辑
+#
+# FTP 本地用户清单：entrypoint 启动时逐行消费，每行一条 用户名:密码；
+# 用户家目录固定建在数据卷挂载点 /data/<用户名> 下（manifest data_dir）
+{% for user in local_users %}
+{{ user }}
+{% endfor %}

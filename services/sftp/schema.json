@@ -1,0 +1,58 @@
+{
+  "fields": [
+    {
+      "name": "port",
+      "type": "integer",
+      "label": "SFTP 监听端口",
+      "default": 22,
+      "min": 1,
+      "max": 65535,
+      "help": "sshd 监听端口，SFTP 标准端口为 22；修改后需同步调整宿主机端口映射",
+      "group": "base"
+    },
+    {
+      "name": "password_auth",
+      "type": "boolean",
+      "label": "允许密码认证",
+      "default": true,
+      "help": "开启后用户清单中的账号可用密码登录 SFTP；关闭后仅剩密钥认证（本服务未配置密钥，等于禁止登录）",
+      "group": "base"
+    },
+    {
+      "name": "users",
+      "type": "list",
+      "label": "SFTP 用户清单",
+      "default": ["bmcadmin:ChangeMe123"],
+      "required": true,
+      "help": "每项格式 \"用户名:密码\"：用户名以小写字母或下划线开头（3-32 位，可含数字、中划线）；密码至少 6 位且不含冒号。entrypoint 据此创建系统账号并 chroot 隔离",
+      "item_pattern": "^[a-z_][a-z0-9_-]{2,31}:[^:]{6,128}$",
+      "group": "base"
+    },
+    {
+      "name": "root_dir",
+      "type": "string",
+      "label": "chroot 根目录",
+      "default": "/data",
+      "help": "用户家目录的父目录，须位于数据卷挂载点（默认 /data）内；每个用户被 chroot 到 root_dir/<用户名>，只能在其下 data/ 子目录读写",
+      "pattern": "^/[A-Za-z0-9._/\\-]+$",
+      "group": "base"
+    },
+    {
+      "name": "allow_tcp_forwarding",
+      "type": "boolean",
+      "label": "允许 TCP 端口转发",
+      "default": false,
+      "help": "开启后 SFTP 账号可用 ssh -N -L 做纯端口转发（账号 shell 为 nologin，无法取得 shell）；无隧道需求时保持关闭",
+      "group": "base"
+    },
+    {
+      "name": "fault_mode",
+      "type": "enum",
+      "label": "BMC 故障注入模式",
+      "options": ["none", "auth_reject", "readonly_reject"],
+      "default": "none",
+      "help": "故障注入：auth_reject 拒绝所有密码认证；readonly_reject 强制用户目录只读拒绝写入",
+      "group": "fault"
+    }
+  ]
+}

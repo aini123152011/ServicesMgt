@@ -1,0 +1,18 @@
+# 服务元数据：平台 Service Registry 扫描 services/* 时按此识别与展示
+name: nfs-ganesha
+display_name: NFS 网络文件系统
+category: file-share          # 分类枚举: time | file-share | log-monitor
+description: 基于 NFS-Ganesha 的网络文件共享服务，支持 NFSv3/v4、网段访问控制与虚拟介质故障注入
+container_name: bmc-nfs
+config_dir: /etc/ganesha-bmc  # 配置卷在容器内的挂载点
+config_files:                 # 渲染产物相对 config_dir 的路径列表
+  - ganesha.conf
+ports:
+  - port: 2049
+    protocol: tcp
+    description: NFS 服务主端口
+  - port: 111
+    protocol: tcp
+    description: rpcbind 端口
+reload_mode: restart          # NFS-Ganesha 主导出改动需重启服务进程确保缓存与连接状态一致
+data_dir: /data/nfs           # 数据卷在容器内的挂载点：NFS 导出的物理目录

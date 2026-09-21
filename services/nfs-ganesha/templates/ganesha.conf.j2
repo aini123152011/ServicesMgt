@@ -1,0 +1,44 @@
+{#- ganesha.conf.j2: NFS-Ganesha 配置文件模板 -#}
+NFS_CORE_PARAM {
+    NFS_Port = 2049;
+    {% if enable_v3 %}
+    Protocols = 3, 4;
+    {% else %}
+    Protocols = 4;
+    {% endif %}
+}
+
+NFSV4 {
+    Graceless = true;
+}
+
+EXPORT {
+    Export_Id = {{ export_id }};
+    Path = "{{ export_path }}";
+    Pseudo = "{{ export_path }}";
+
+    {% if fault_mode == 'force_readonly' %}
+    # 故障注入：强制只读，拒绝一切写入操作
+    Access_Type = RO;
+    {% else %}
+    Access_Type = {{ access_type }};
+    {% endif %}
+
+    Squash = {{ squash }};
+
+    CLIENT {
+        # NOTE: Clients 的值不能加引号——ganesha 4.3 的解析器会对 CLIENT 块做客户端
+        # 列表校验，遇到双引号字符串报 "Expected a client, got a double quoted
+        # string"，进而让整个 EXPORT 校验失败（导出不加载，客户端挂载报 ENOENT）。
+        {% if fault_mode == 'access_denied' %}
+        # 故障注入：故意限制为不存在的内部地址，使 BMC 挂载时触发 EPERM 拒绝访问
+        Clients = 10.254.254.254/32;
+        {% else %}
+        Clients = {{ allowed_clients }};
+        {% endif %}
+    }
+
+    FSAL {
+        Name = VFS;
+    }
+}

@@ -12,6 +12,7 @@ RUN sed -i "s|deb.debian.org|${APT_MIRROR}|g" /etc/apt/sources.list.d/debian.sou
     && apt-get update \
     && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
         chrony=4.3* \
+        faketime \
     && rm -rf /var/lib/apt/lists/*
 
 # 清空包自带的示例配置：首次挂命名卷时 Docker 会把镜像内该路径内容拷进卷，

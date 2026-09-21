@@ -1,0 +1,114 @@
+{#- nginx.conf.j2: 由平台自动渲染，写入 /etc/nginx-bmc/nginx.conf -#}
+worker_processes auto;
+pid /run/nginx.pid;
+error_log /var/log/nginx/error.log warn;
+
+events {
+    worker_connections 1024;
+}
+
+http {
+    include /etc/nginx/mime.types;
+    default_type application/octet-stream;
+
+    log_format main '$remote_addr - $remote_user [$time_local] "$request" '
+                    '$status $body_bytes_sent "$http_referer" '
+                    '"$http_user_agent"';
+    access_log /var/log/nginx/access.log main;
+
+    sendfile on;
+    tcp_nopush on;
+    tcp_nodelay on;
+    keepalive_timeout 65;
+    types_hash_max_size 2048;
+
+    client_max_body_size {{ max_upload_size_mb }}m;
+
+    server {
+        listen {{ listen_port }};
+        server_name _;
+
+        root /data/nginx;
+
+        {% if auth_basic_enabled %}
+        auth_basic "BMC Service Access";
+        auth_basic_user_file /etc/nginx-bmc/htpasswd;
+        {% endif %}
+
+        {% if fault_mode == 'http_status' %}
+        # BMC 故障注入模式：拦截所有请求并返回指定的异常状态码
+        location / {
+            return {{ mock_status_code }} "BMC fault injection: simulated HTTP error\n";
+        }
+        {% else %}
+        location / {
+            {% if autoindex %}
+            autoindex on;
+            autoindex_exact_size off;
+            autoindex_localtime on;
+            {% else %}
+            autoindex off;
+            {% endif %}
+
+            {% if enable_upload %}
+            dav_methods PUT DELETE MKCOL COPY MOVE;
+            create_full_put_path on;
+            dav_access all:rw;
+            {% endif %}
+
+            {% if fault_mode == 'extreme_slow' %}
+            # BMC 故障注入模式：极端限速测试客户端超时
+            limit_rate {{ throttle_rate_kbs }}k;
+            {% endif %}
+            # NOTE: 此处不能加 try_files：它在 precontent 阶段运行，对不存在的文件直接
+            # 返回 404，会让 DAV 的 PUT 无法新建文件（上传固件正是这条路径）。
+            # 静态文件缺失由 root 处理器自然返回 404，不需要 try_files 兜底。
+        }
+        {% endif %}
+    }
+
+    {% if ssl_enabled %}
+    server {
+        listen {{ ssl_port }} ssl;
+        server_name _;
+
+        root /data/nginx;
+
+        ssl_certificate /etc/nginx-bmc/ssl/cert.pem;
+        ssl_certificate_key /etc/nginx-bmc/ssl/key.pem;
+        ssl_protocols TLSv1.2 TLSv1.3;
+        ssl_ciphers HIGH:!aNULL:!MD5;
+        ssl_prefer_server_ciphers on;
+
+        {% if auth_basic_enabled %}
+        auth_basic "BMC Service Access";
+        auth_basic_user_file /etc/nginx-bmc/htpasswd;
+        {% endif %}
+
+        {% if fault_mode == 'http_status' %}
+        location / {
+            return {{ mock_status_code }} "BMC fault injection: simulated HTTPS error\n";
+        }
+        {% else %}
+        location / {
+            {% if autoindex %}
+            autoindex on;
+            autoindex_exact_size off;
+            autoindex_localtime on;
+            {% endif %}
+
+            {% if enable_upload %}
+            dav_methods PUT DELETE MKCOL COPY MOVE;
+            create_full_put_path on;
+            dav_access all:rw;
+            {% endif %}
+
+            {% if fault_mode == 'extreme_slow' %}
+            limit_rate {{ throttle_rate_kbs }}k;
+            {% endif %}
+            # NOTE: 同 HTTP 段，try_files 会挡住 DAV 的 PUT 新建文件，这里同样不能加
+        }
+        {% endif %}
+    }
+    {% endif %}
+}

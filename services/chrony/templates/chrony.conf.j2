@@ -4,17 +4,32 @@
 # 本文件由 BMC 服务管理平台自动渲染生成，请勿手工编辑
 
 # 上游 NTP 服务器（iburst：首次发送 8 个快速请求，加快初始同步）
+{% if fault_mode == 'stratum_16' %}
+# BMC 故障注入模式：上游全部标记 offline，chronyd 不主动联系任何时间源
+{% for server in servers %}
+server {{ server }} iburst offline
+{% endfor %}
+{% else %}
 {% for server in servers %}
 server {{ server }} iburst
 {% endfor %}
+{% endif %}
 
 # 允许向本机同步时间的网段；为空时本机仅作 NTP 客户端
 {% for cidr in allow_networks %}
 allow {{ cidr }}
 {% endfor %}
 
+{% if fault_mode == 'stratum_16' %}
+# BMC 故障注入模式：宣告未同步，测试 BMC 是否拒收该时间源并告警。
+# NOTE: chrony 的 local 指令只接受 stratum 0-15，写 16 会解析失败让 chronyd 直接起不来，
+# 因此无法用 local 宣告 NTP 语义上的 stratum 16。改为不配置 local 参考：chronyd 既无可用
+# 上游也无本地参考，对外应答 Stratum 0 / Leap status: Not synchronised，
+# 即 BMC 需要识别的"NTP 服务器未同步"状态。
+{% else %}
 # 上游全部失联时仍以本机时钟对外服务，stratum 加 10 标识时钟质量降级
 local stratum 10
+{% endif %}
 
 {% if rtcsync %}
 # 系统时间定期写回硬件 RTC

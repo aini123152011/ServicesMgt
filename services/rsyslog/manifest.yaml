@@ -1,0 +1,19 @@
+# 服务元数据：平台 Service Registry 扫描 services/* 时按此识别与展示
+# 字段名是平台契约，后续服务照此复制，勿改名
+name: rsyslog
+display_name: BMC 日志归集
+category: log-monitor          # 分类枚举: time | file-share | log-monitor
+description: 基于 rsyslog 的集中日志接收服务，按日期目录与来源 IP 归档 BMC 日志
+container_name: bmc-rsyslog
+config_dir: /etc/rsyslog       # 配置卷在容器内的挂载点
+config_files:                  # 渲染产物相对 config_dir 的路径列表
+  - rsyslog.conf
+ports:
+  - port: 514
+    protocol: udp
+    description: Syslog UDP 接收端口
+  - port: 514
+    protocol: tcp
+    description: Syslog TCP 接收端口
+reload_mode: restart           # rsyslogd 收到 SIGHUP 只会重开输出文件、不重读配置，故重启进程生效
+data_dir: /var/log/bmc         # 数据卷在容器内的挂载点（本批新增的可选契约字段）

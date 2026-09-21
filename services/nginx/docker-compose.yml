@@ -1,0 +1,32 @@
+# 单服务独立部署入口：cd services/nginx && docker compose up -d
+# 独立网络 + 独立卷，与其他服务互不干扰（R1 隔离）
+services:
+  nginx:
+    image: bmc/nginx:latest
+    build: .
+    container_name: bmc-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80/tcp"
+      - "443:443/tcp"
+    volumes:
+      # 配置卷：平台渲染的 nginx.conf 和 htpasswd 写入此处
+      - nginx-config:/etc/nginx-bmc
+      # 数据卷：分发与上传的文件持久化存储
+      - nginx-data:/data/nginx
+    networks:
+      - nginx-net
+    healthcheck:
+      test: ["CMD-SHELL", "grep -qs nginx /proc/[0-9]*/comm"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+
+networks:
+  nginx-net:
+    driver: bridge
+
+volumes:
+  nginx-config:
+  nginx-data:

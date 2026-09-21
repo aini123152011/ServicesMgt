@@ -1,0 +1,40 @@
+# 单服务独立部署入口：cd services/vsftpd && docker compose up -d
+# 独立网络 + 独立卷，与其他服务互不影响（R1 隔离）；平台总编排按需引用本文件
+services:
+  vsftpd:
+    # 有 image 时 compose 会把 build 产物打上该 tag，也方便直接使用 CI 构建好的镜像
+    image: bmc/vsftpd:latest
+    build: .
+    container_name: bmc-vsftpd
+    restart: unless-stopped
+    ports:
+      # 默认发布到宿主机所有地址，供内网设备访问；仅本机使用时改为 "127.0.0.1:21:21/tcp"
+      - "21:21/tcp"
+      # 被动模式数据端口：schema 默认范围就是 40000-40100，这里整段发布，
+      # 保证默认配置下数据连接（STOR/RETR）落在已发布端口内。
+      # WARNING: 数据连接在整个 pasv 范围内随机选端口，宿主机发布段必须覆盖
+      # pasv_min_port~pasv_max_port；若把范围改到本段之外，需同步改这里。
+      - "40000-40100:40000-40100/tcp"
+    volumes:
+      # 配置卷：平台把渲染后的 vsftpd.conf / local_users.txt 写入这里，reload.sh 触发生效
+      - vsftpd-config:/etc/vsftpd
+      # 数据卷：各本地用户的家目录（FTP 登录根），上传文件持久化，重建容器不丢失
+      - vsftpd-data:/data
+    networks:
+      - vsftpd-net
+    healthcheck:
+      # 与 Dockerfile 的 HEALTHCHECK 保持一致
+      test: ["CMD-SHELL", "grep -qs vsftpd /proc/[0-9]*/comm"]
+      interval: 30s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
+
+networks:
+  vsftpd-net:
+    # 每服务独立 bridge 网络，服务间互不可见
+    driver: bridge
+
+volumes:
+  vsftpd-config:
+  vsftpd-data:

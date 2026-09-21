@@ -1,0 +1,32 @@
+# 单服务独立部署入口：cd services/samba && docker compose up -d
+# 独立网络 + 独立卷，与其他服务互不干扰（R1 隔离）
+services:
+  samba:
+    image: bmc/samba:latest
+    build: .
+    container_name: bmc-samba
+    restart: unless-stopped
+    ports:
+      - "445:445/tcp"
+      - "139:139/tcp"
+    volumes:
+      # 配置卷：平台渲染的 smb.conf 与 users.txt 写入此处
+      - samba-config:/etc/samba-bmc
+      # 数据卷：Samba 共享文件实际存储目录
+      - samba-data:/data/samba
+    networks:
+      - samba-net
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f smbd"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+
+networks:
+  samba-net:
+    driver: bridge
+
+volumes:
+  samba-config:
+  samba-data:

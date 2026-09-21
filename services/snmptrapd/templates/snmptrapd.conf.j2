@@ -1,0 +1,40 @@
+{#- 平台渲染契约：后端按 schema.json 校验用户提交的配置值后，用本模板渲染出 snmptrapd.conf 写入配置卷 -#}
+{#- 渲染环境要求：Jinja2 需开启 trim_blocks=True + lstrip_blocks=True（Ansible 同款默认），否则块标签会残留空行 -#}
+{#- defaults/snmptrapd.conf 就是 schema 默认值的渲染产物，改字段需同步 schema.json 并重新生成种子文件 -#}
+# 本文件由 BMC 服务管理平台自动渲染生成，请勿手工编辑
+
+# ==== 授权社区 ====
+# 每个社区一行，授权 log/execute/net 三类动作
+# （依据 snmptrapd.conf(5) authCommunity：log=记录日志 execute=允许 traphandle 执行 net=允许转发）
+{% if fault_mode == 'reject_community' %}
+# 故障注入：故意配置不存在的社区，拒绝 BMC 标准社区
+authCommunity log,execute,net __BMC_REJECTED_UNAUTHORIZED_TRAP__
+{% elif fault_mode == 'force_v3_only' %}
+# 故障注入：未配置 v1/v2c authCommunity，仅接收 v3 加密陷阱
+{% else %}
+{% for community in communities %}
+authCommunity log,execute,net {{ community }}
+{% endfor %}
+{% endif %}
+
+# ==== 运行时参数 ====
+# WARNING: 监听地址/输出文件/输出格式是 snmptrapd 的命令行参数，配置文件中没有对应指令；
+# entrypoint 每次重启进程时从下方注释行重读这三个值重新拼装启动命令，
+# 渲染产物是唯一事实来源，勿删这些注释行
+# runtime: output_file={{ output_file }}
+{% if fault_mode == 'blackhole_drop' %}
+# runtime: listen=127.0.0.1:162
+{% else %}
+# runtime: listen={{ listen_address }}:162
+{% endif %}
+# 输出格式映射（依据 net-snmp snmpcmd(1) 输出选项文档）：
+#   default -> 无附加选项（snmptrapd 内建格式：符号名 + 类型 + 值）
+#   brief   -> -Ov（只输出变量值，不带变量名/OID）
+#   full    -> -Of（OID 输出完整路径不缩写，信息最全）
+{% if output_format == 'brief' %}
+# runtime: output_opts=-Ov
+{% elif output_format == 'full' %}
+# runtime: output_opts=-Of
+{% else %}
+# runtime: output_opts=
+{% endif %}

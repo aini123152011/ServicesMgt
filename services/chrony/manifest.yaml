@@ -8,6 +8,8 @@ container_name: bmc-chrony
 config_dir: /etc/chrony       # 配置卷在容器内的挂载点
 config_files:                 # 渲染产物相对 config_dir 的路径列表
   - chrony.conf
+  # 故障注入偏移传递文件：entrypoint 据此决定是否用 faketime 启动 chronyd
+  - faketime.conf
 ports:
   - port: 123
     protocol: udp

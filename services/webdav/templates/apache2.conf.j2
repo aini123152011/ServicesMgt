@@ -1,0 +1,93 @@
+{#- 平台渲染契约：后端按 schema.json 校验用户提交的配置值后，用本模板渲染出 apache2.conf 写入配置卷 -#}
+{#- 渲染环境要求：Jinja2 需开启 trim_blocks=True + lstrip_blocks=True（Ansible 同款默认），否则块标签会残留空行 -#}
+{#- defaults/apache2.conf 就是 schema 默认值的渲染产物，改字段需同步 schema.json 并重新生成种子文件 -#}
+# 本文件由 BMC 服务管理平台自动渲染生成，请勿手工编辑
+#
+# 说明：这是自包含的精简 Apache 配置，不使用 Debian 的 apache2.conf/include 体系；
+# entrypoint 以 apache2 -f 本文件 -DFOREGROUND 启动，模块按需显式加载
+
+# 模块：事件 MPM + 认证与授权 + DAV（含 FS 后端）
+# 注：mod_unixd 与 mod_log_config 在 Debian Bookworm 下已内建编译至 apache2 二进制，无需重复加载
+LoadModule mpm_event_module /usr/lib/apache2/modules/mod_mpm_event.so
+LoadModule authn_core_module /usr/lib/apache2/modules/mod_authn_core.so
+LoadModule authn_file_module /usr/lib/apache2/modules/mod_authn_file.so
+LoadModule authz_core_module /usr/lib/apache2/modules/mod_authz_core.so
+LoadModule authz_user_module /usr/lib/apache2/modules/mod_authz_user.so
+LoadModule auth_basic_module /usr/lib/apache2/modules/mod_auth_basic.so
+LoadModule dav_module /usr/lib/apache2/modules/mod_dav.so
+LoadModule dav_fs_module /usr/lib/apache2/modules/mod_dav_fs.so
+{% if fault_mode in ['lock_conflict_423', 'quota_exceeded_507', 'method_not_allowed_405'] %}
+LoadModule rewrite_module /usr/lib/apache2/modules/mod_rewrite.so
+{% endif %}
+
+ServerRoot /etc/apache2
+# 显式声明 ServerName，避免启动时的 FQDN 解析告警
+ServerName bmc-webdav
+Listen {{ port }}
+
+# 以 www-data 运行工作子进程；PID 与互斥锁落在 /var/run/apache2（entrypoint 兜底创建）
+User www-data
+Group www-data
+DefaultRuntimeDir /var/run/apache2
+PidFile /var/run/apache2/apache2.pid
+
+# 日志直通容器标准输出/错误，由 docker logs 捕获
+ErrorLog /dev/stderr
+LogLevel warn
+LogFormat "%h %l %u %t \"%r\" %>s %O" bmc
+CustomLog /dev/stdout bmc
+
+# DAV 文件锁数据库：必须位于可写目录（数据卷）；路径为前缀，实际生成 .dir/.pag 文件
+DavLockDB {{ root_dir }}/.davlock/DavLock
+
+# 单请求整体超时（秒）：大文件经慢速链路传输时需调大，避免中途被掐断
+Timeout {{ timeout_s }}
+
+# 单请求体上限（字节）：限制单文件上传大小，防止写满数据卷
+LimitRequestBody {{ max_upload_mb * 1048576 }}
+
+DocumentRoot {{ root_dir }}
+
+<Directory {{ root_dir }}>
+    # 开启 WebDAV（mod_dav + mod_dav_fs 提供文件级读写）
+    Dav On
+    AllowOverride None
+{% if fault_mode in ['lock_conflict_423', 'quota_exceeded_507', 'method_not_allowed_405'] %}
+    RewriteEngine On
+{% if fault_mode == 'lock_conflict_423' %}
+    # 故障注入：锁定冲突模拟，对修改请求返回 423 Locked
+    RewriteCond %{REQUEST_METHOD} ^(PUT|POST|MKCOL|LOCK|PROPPATCH)$ [NC]
+    RewriteRule .* - [R=423,L]
+{% elif fault_mode == 'quota_exceeded_507' %}
+    # 故障注入：存储耗尽模拟，对写入请求返回 507 Insufficient Storage
+    RewriteCond %{REQUEST_METHOD} ^(PUT|POST|MKCOL)$ [NC]
+    RewriteRule .* - [R=507,L]
+{% elif fault_mode == 'method_not_allowed_405' %}
+    # 故障注入：禁用关键方法模拟，返回 405 Method Not Allowed
+    RewriteCond %{REQUEST_METHOD} ^(PUT|MKCOL|PROPFIND)$ [NC]
+    RewriteRule .* - [R=405,L]
+{% endif %}
+{% endif %}
+{% if fault_mode == 'auth_reject' %}
+    # 故障注入：强制拒绝认证
+    AuthType Basic
+    AuthName "BMC WebDAV"
+    AuthUserFile /dev/null
+    Require valid-user
+{% elif auth_enabled %}
+    # Basic 认证：凭据文件由 entrypoint 从 users.txt 用 htpasswd -B(bcrypt) 生成
+    AuthType Basic
+    AuthName "BMC WebDAV"
+    AuthUserFile /etc/apache2-bmc/htpasswd
+    Require valid-user
+{% else %}
+    # 匿名访问（仅建议纯内网使用）
+    Require all granted
+{% endif %}
+{% if read_only %}
+    # 只读模式：读取方法之外一律拒绝（含 PUT/MKCOL/DELETE/PROPPATCH/LOCK/MOVE 等）
+    <LimitExcept GET HEAD OPTIONS PROPFIND>
+        Require all denied
+    </LimitExcept>
+{% endif %}
+</Directory>

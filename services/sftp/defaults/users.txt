@@ -1,0 +1,6 @@
+# 本文件由 BMC 服务管理平台自动渲染生成，请勿手工编辑
+#
+# SFTP 用户清单：entrypoint 启动时逐行消费，每行一条 用户名:密码；
+# root_dir 行声明 chroot 根目录（须位于数据卷挂载点内），必须先于用户行
+root_dir=/data
+bmcadmin:ChangeMe123

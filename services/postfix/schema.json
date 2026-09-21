@@ -1,0 +1,71 @@
+{
+  "fields": [
+    {
+      "name": "myhostname",
+      "type": "string",
+      "label": "邮件主机名",
+      "default": "bmc-mail.local",
+      "required": true,
+      "help": "本机对外标识（HELO/日志中的主机名），建议填内网可解析的 FQDN",
+      "pattern": "^[A-Za-z0-9]([A-Za-z0-9.\\-]*[A-Za-z0-9])?$",
+      "group": "base"
+    },
+    {
+      "name": "relayhost",
+      "type": "string",
+      "label": "上游中继服务器",
+      "default": "",
+      "help": "告警邮件经此中继转投，BMC 场景通常填内网 SMTP（推荐 [主机]:端口 形式，如 [smtp.corp]:25，方括号跳过 MX 查询）；留空表示按 DNS MX 直接投递",
+      "pattern": "^$|^(\\[[A-Za-z0-9.\\-]+\\]|[A-Za-z0-9]([A-Za-z0-9.\\-]*[A-Za-z0-9])?)(:[0-9]{1,5})?$",
+      "group": "base"
+    },
+    {
+      "name": "mynetworks",
+      "type": "list",
+      "label": "可信网段",
+      "default": ["127.0.0.0/8", "192.168.0.0/16"],
+      "help": "来源在列表内的客户端允许经本机中继发信（CIDR），应包含全部 BMC 设备所在网段",
+      "item_pattern": "^([0-9]{1,3}\\.){3}[0-9]{1,3}(/(3[0-2]|[12]?[0-9]))?$",
+      "group": "base"
+    },
+    {
+      "name": "message_size_limit_mb",
+      "type": "integer",
+      "label": "单封邮件大小上限（MB）",
+      "default": 10,
+      "min": 1,
+      "max": 1024,
+      "help": "超过该大小的邮件拒收；BMC 告警邮件通常很小，10MB 已充裕",
+      "group": "base"
+    },
+    {
+      "name": "mailbox_size_limit_mb",
+      "type": "integer",
+      "label": "邮箱容量上限（MB）",
+      "default": 512,
+      "min": 1,
+      "max": 10240,
+      "help": "单个本地邮箱的容量上限；需大于单封邮件上限，否则 postfix 告警且投递可能失败",
+      "group": "base"
+    },
+    {
+      "name": "fault_mode",
+      "type": "enum",
+      "label": "BMC 故障注入模式",
+      "options": ["none", "reject_554", "greylist_451", "force_tls", "tarpit_delay"],
+      "default": "none",
+      "help": "故障注入：reject_554 永久拒收测试错误终止；greylist_451 临时拒收测试重试队列；force_tls 强制加密拒绝明文；tarpit_delay 极端延迟握手测试超时处理",
+      "group": "fault"
+    },
+    {
+      "name": "tarpit_delay_seconds",
+      "type": "integer",
+      "label": "Tarpit 响应延迟（秒）",
+      "default": 20,
+      "min": 1,
+      "max": 300,
+      "help": "在 tarpit_delay 故障模式下注入的 SMTP 响应延迟秒数",
+      "group": "fault"
+    }
+  ]
+}

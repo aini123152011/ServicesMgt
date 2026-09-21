@@ -1,0 +1,17 @@
+# 服务元数据：平台 Service Registry 扫描 services/* 时按此识别与展示
+# 字段名是平台契约，后续服务照此复制，勿改名
+name: webdav
+display_name: WebDAV 文件共享
+category: file-share          # 分类枚举: time | file-share | log-monitor
+description: 基于 Apache mod_dav 的 WebDAV 服务，支持 Basic 认证、只读模式与上传限额
+container_name: bmc-webdav
+config_dir: /etc/apache2-bmc  # 配置卷在容器内的挂载点（自定义目录，避开包自带配置）
+config_files:                 # 渲染产物相对 config_dir 的路径列表
+  - apache2.conf
+  - users.txt
+ports:
+  - port: 8080
+    protocol: tcp
+    description: WebDAV 服务端口
+reload_mode: restart          # 端口/根目录等指令无法经 SIGUSR1 热生效，重启进程保证配置整体一致
+data_dir: /var/lib/dav        # 数据卷在容器内的挂载点：DAV 根目录（root_dir）与文件锁数据库

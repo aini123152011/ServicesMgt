@@ -1,0 +1,16 @@
+# 服务元数据：平台 Service Registry 扫描 services/* 时按此识别与展示
+# 字段名是平台契约，后续服务照此复制，勿改名
+name: snmptrapd
+display_name: SNMP Trap 接收
+category: log-monitor          # 分类枚举: time | file-share | log-monitor
+description: 基于 net-snmp snmptrapd 的 Trap 接收服务，接收 BMC 告警事件并落盘
+container_name: bmc-snmptrapd
+config_dir: /etc/snmp          # 配置卷在容器内的挂载点
+config_files:                  # 渲染产物相对 config_dir 的路径列表
+  - snmptrapd.conf
+ports:
+  - port: 162
+    protocol: udp
+    description: SNMP Trap 接收端口
+reload_mode: restart           # SIGHUP 只能重读 conf 内指令，监听/输出等命令行参数需重启进程生效
+data_dir: /var/log/snmp        # 数据卷在容器内的挂载点（本批新增的可选契约字段）

@@ -1,0 +1,63 @@
+{#- 平台渲染契约：后端按 schema.json 校验用户提交的配置值后，用本模板渲染出 vsftpd.conf 写入配置卷 -#}
+{#- 渲染环境要求：Jinja2 需开启 trim_blocks=True + lstrip_blocks=True（Ansible 同款默认），否则块标签会残留空行 -#}
+{#- defaults/vsftpd.conf 就是 schema 默认值的渲染产物，改字段需同步 schema.json 并重新生成种子文件 -#}
+# 本文件由 BMC 服务管理平台自动渲染生成，请勿手工编辑
+
+# 独立监听模式：容器内无 inetd/systemd，必须 standalone；
+# background 保持默认 NO，进程前台运行由 entrypoint 监督
+listen=YES
+listen_ipv6=NO
+
+# FTP 控制端口
+listen_port={{ port }}
+
+# 被动模式数据端口范围：数据连接在此范围内随机选端口，
+# 需与宿主机发布/防火墙放行的端口段一致，否则登录后无法传输
+{% if fault_mode == 'deny_pasv_data' %}
+# 故障注入：故意关闭被动模式或设置不可达端口，导致客户端数据通道超时
+pasv_enable=NO
+{% else %}
+pasv_enable=YES
+pasv_min_port={{ pasv_min_port }}
+pasv_max_port={{ pasv_max_port }}
+{% endif %}
+
+# 匿名访问开关：开启后匿名用户映射到系统 ftp 账号，仅能按其权限访问
+anonymous_enable={{ 'YES' if anonymous_enabled else 'NO' }}
+
+# 本地（系统）用户登录：密码经 PAM（pam_unix）校验 /etc/shadow，
+# 账号由 entrypoint 按用户清单创建（shell 为 nologin，仅作 FTP 用途）
+local_enable=YES
+
+# 写操作开关：关闭后上传/删除/建目录均被拒绝，服务降级为只读 FTP
+{% if fault_mode == 'write_deny_550' %}
+# 故障注入：强制关闭写操作，客户端上传时触发 550 Permission Denied
+write_enable=NO
+{% else %}
+write_enable={{ 'YES' if write_enabled else 'NO' }}
+{% endif %}
+local_umask=022
+
+# 本地用户限速（local_max_rate 单位为字节/秒）；0 = 不限速，不渲染该指令
+{% if fault_mode == 'extreme_throttle' %}
+# 故障注入：注入 500 B/s 极限慢速，验证客户端传输超时机制
+local_max_rate=500
+{% elif max_upload_mbps > 0 %}
+local_max_rate={{ max_upload_mbps * 1048576 }}
+{% endif %}
+
+{% if chroot_local %}
+# 把本地用户限制在自己的家目录（/data/<用户名>）内；
+# 家目录属主为用户本身（可直接读写），vsftpd 默认拒绝 chroot 进可写目录，需显式放行
+chroot_local_user=YES
+allow_writeable_chroot=YES
+{% else %}
+# 不做 chroot：用户登录后可浏览容器文件系统（容器内仅数据卷内容有实际意义）
+chroot_local_user=NO
+{% endif %}
+
+# PAM 服务名：镜像内已把 /etc/pam.d/vsftpd 覆写为纯 pam_unix 实现
+pam_service_name=vsftpd
+
+# 传输日志：落在容器内 /var/log/vsftpd.log，可通过 docker exec 查看
+xferlog_enable=YES

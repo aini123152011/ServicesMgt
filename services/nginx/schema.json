@@ -1,0 +1,119 @@
+{
+  "fields": [
+    {
+      "name": "listen_port",
+      "type": "integer",
+      "description": "HTTP 服务端口",
+      "default": 80,
+      "min": 1,
+      "max": 65535,
+      "required": true,
+      "group": "base"
+    },
+    {
+      "name": "ssl_enabled",
+      "type": "boolean",
+      "description": "是否启用 HTTPS 安全访问",
+      "default": true,
+      "group": "base"
+    },
+    {
+      "name": "ssl_port",
+      "type": "integer",
+      "description": "HTTPS 服务端口",
+      "default": 443,
+      "min": 1,
+      "max": 65535,
+      "group": "base"
+    },
+    {
+      "name": "ssl_cert_pem",
+      "type": "text",
+      "description": "SSL/TLS 证书内容（PEM 格式，留空则自动生成自签证书）",
+      "pem": true,
+      "default": "",
+      "group": "base"
+    },
+    {
+      "name": "ssl_key_pem",
+      "type": "text",
+      "description": "SSL/TLS 私钥内容（PEM 格式，留空则自动生成自签证书）",
+      "pem": true,
+      "secret": true,
+      "default": "",
+      "group": "base"
+    },
+    {
+      "name": "autoindex",
+      "type": "boolean",
+      "description": "开启目录列表浏览",
+      "default": true,
+      "group": "base"
+    },
+    {
+      "name": "enable_upload",
+      "type": "boolean",
+      "description": "允许通过 HTTP PUT 上传文件与日志",
+      "default": true,
+      "group": "base"
+    },
+    {
+      "name": "max_upload_size_mb",
+      "type": "integer",
+      "description": "客户端上传文件大小上限（MB）",
+      "default": 2048,
+      "min": 1,
+      "max": 10240,
+      "group": "base"
+    },
+    {
+      "name": "auth_basic_enabled",
+      "type": "boolean",
+      "description": "启用 HTTP Basic 身份认证",
+      "default": false,
+      "group": "base"
+    },
+    {
+      "name": "auth_basic_user",
+      "type": "string",
+      "description": "Basic 认证用户名",
+      "default": "bmc_admin",
+      "pattern": "^[a-zA-Z0-9_-]{1,32}$",
+      "group": "base"
+    },
+    {
+      "name": "auth_basic_password",
+      "type": "string",
+      "description": "Basic 认证密码",
+      "secret": true,
+      "default": "bmc-fixture-pass",
+      "group": "base"
+    },
+    {
+      "name": "fault_mode",
+      "type": "enum",
+      "description": "BMC 故障注入模式",
+      "options": ["none", "http_status", "extreme_slow", "corrupt_content_length"],
+      "default": "none",
+      "group": "fault"
+    },
+    {
+      "name": "mock_status_code",
+      "type": "integer",
+      "description": "故障注入返回的 HTTP 错误状态码（fault_mode 为 http_status 时生效）",
+      "default": 500,
+      "min": 400,
+      "max": 599,
+      "group": "fault"
+    },
+    {
+      "name": "throttle_rate_kbs",
+      "type": "integer",
+      "description": "传输限速（KB/s，fault_mode 为 extreme_slow 时生效，模拟超慢下载触发超时）",
+      "default": 5,
+      "min": 1,
+      "max": 1024,
+      "group": "fault"
+    }
+  ]
+}

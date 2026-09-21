@@ -1,0 +1,44 @@
+{#- smb.conf.j2: Samba 配置文件模板 -#}
+[global]
+   workgroup = {{ workgroup }}
+   server string = BMC Samba Server
+   security = user
+   map to guest = Bad User
+   dns proxy = no
+   log file = /var/log/samba/log.%m
+   max log size = 1000
+
+   {% if fault_mode == 'force_protocol_mismatch' %}
+   # 故障注入：强制仅允许 SMB3_11，排斥老旧 BMC 或非标准协议客户端
+   server min protocol = SMB3_11
+   server max protocol = SMB3_11
+   {% else %}
+   server min protocol = {{ min_protocol }}
+   {% endif %}
+
+[{{ share_name }}]
+   path = /data/samba
+   {% if read_only %}
+   read only = yes
+   writable = no
+   {% else %}
+   read only = no
+   writable = yes
+   {% endif %}
+
+   {% if guest_ok %}
+   guest ok = yes
+   {% else %}
+   guest ok = no
+   {% endif %}
+
+   {% if fault_mode == 'auth_reject' %}
+   # 故障注入：将有效用户指向不存在的系统账号，强制触发鉴权失败
+   valid users = invalid_fault_user
+   {% else %}
+   valid users = {{ username }} {% if guest_ok %}nobody{% endif %}
+   {% endif %}
+
+   browseable = yes
+   create mask = 0775
+   directory mask = 0775

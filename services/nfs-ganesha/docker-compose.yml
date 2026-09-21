@@ -1,0 +1,41 @@
+# 单服务独立部署入口：cd services/nfs-ganesha && docker compose up -d
+# 独立网络 + 独立卷，与其他服务互不干扰（R1 隔离）
+services:
+  nfs-ganesha:
+    image: bmc/nfs-ganesha:latest
+    build: .
+    container_name: bmc-nfs
+    restart: unless-stopped
+    # NFS-Ganesha 的 VFS FSAL 用 name_to_handle_at/open_by_handle_at 给导出目录发文件句柄，
+    # 在宿主 bind 挂载的 ext4 上这套调用要求容器具备完整能力且不被 seccomp/SELinux 限制，
+    # 实测只有 privileged 能成功（仅 cap_add SYS_ADMIN、加 DAC_READ_SEARCH、seccomp/label
+    # 放开均失败，报 resolve_posix_filesystem ENOENT；overlay 路径直接 EOPNOTSUPP，
+    # tmpfs 可行但不持久，不能作为导出目录）。
+    # 权衡：该容器只是把宿主目录以 NFS 暴露给内网 BMC，与平台本身已挂 docker.sock 的
+    # 权限模型一致；如需收紧，阶段 4 可改为专用数据盘 + 独立 FSAL。
+    privileged: true
+    ports:
+      - "2049:2049/tcp"
+      - "111:111/tcp"
+      - "111:111/udp"
+    volumes:
+      # 配置卷：平台渲染的 ganesha.conf 写入此处
+      - nfs-config:/etc/ganesha-bmc
+      # 数据卷：NFS 导出的实际文件共享目录
+      - nfs-data:/data/nfs
+    networks:
+      - nfs-net
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f ganesha.nfsd"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+
+networks:
+  nfs-net:
+    driver: bridge
+
+volumes:
+  nfs-config:
+  nfs-data:

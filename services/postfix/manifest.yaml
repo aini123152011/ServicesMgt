@@ -1,0 +1,16 @@
+# 服务元数据：平台 Service Registry 扫描 services/* 时按此识别与展示
+# 字段名是平台契约，后续服务照此复制，勿改名
+name: postfix
+display_name: SMTP 邮件中继
+category: log-monitor          # 分类枚举: time | file-share | log-monitor
+description: 基于 postfix 的 SMTP 服务，为 BMC 告警邮件提供中继与投递
+container_name: bmc-postfix
+config_dir: /etc/postfix       # 配置卷在容器内的挂载点
+config_files:                  # 渲染产物相对 config_dir 的路径列表
+  - main.cf
+ports:
+  - port: 25
+    protocol: tcp
+    description: SMTP 服务端口
+reload_mode: restart           # inet_interfaces 等参数与 master.cf 结构变更官方要求重启生效
+data_dir: /var/spool/postfix   # 数据卷在容器内的挂载点（本批新增的可选契约字段）

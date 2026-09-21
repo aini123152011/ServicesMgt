@@ -1,0 +1,36 @@
+# 单服务独立部署入口：cd services/snmptrapd && docker compose up -d
+# 独立网络 + 独立卷，与其他服务互不影响（R1 隔离）；平台总编排按需引用本文件
+services:
+  snmptrapd:
+    # 有 image 时 compose 会把 build 产物打上该 tag，也方便直接使用 CI 构建好的镜像
+    image: bmc/snmptrapd:latest
+    build: .
+    container_name: bmc-snmptrapd
+    restart: unless-stopped
+    ports:
+      # 默认发布到宿主机所有地址，供内网 BMC 设备发送 Trap；
+      # 仅本机使用时改为 "127.0.0.1:162:162/udp"
+      - "162:162/udp"
+    volumes:
+      # 配置卷：平台把渲染后的 snmptrapd.conf 写入这里，reload.sh 触发生效
+      - snmptrapd-config:/etc/snmp
+      # 数据卷：Trap 日志落盘地（默认 output_file 所在目录），重建容器不丢失已收 Trap
+      - snmptrapd-data:/var/log/snmp
+    networks:
+      - snmptrapd-net
+    healthcheck:
+      # 与 Dockerfile 的 HEALTHCHECK 保持一致
+      test: ["CMD-SHELL", "grep -qs snmptrapd /proc/[0-9]*/comm"]
+      interval: 30s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
+
+networks:
+  snmptrapd-net:
+    # 每服务独立 bridge 网络，服务间互不可见
+    driver: bridge
+
+volumes:
+  snmptrapd-config:
+  snmptrapd-data:

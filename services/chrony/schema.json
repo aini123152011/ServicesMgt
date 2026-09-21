@@ -7,7 +7,8 @@
       "default": ["ntp.aliyun.com", "cn.pool.ntp.org", "time.windows.com"],
       "required": true,
       "help": "上游 NTP 服务器列表（域名或 IP），每项生成一条 server <host> iburst",
-      "item_pattern": "^[A-Za-z0-9]([A-Za-z0-9.\\-:]*[A-Za-z0-9])?$"
+      "item_pattern": "^[A-Za-z0-9]([A-Za-z0-9.\\-:]*[A-Za-z0-9])?$",
+      "group": "base"
     },
     {
       "name": "allow_networks",
@@ -15,7 +16,8 @@
       "label": "允许同步的网段",
       "default": ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"],
       "help": "允许向本机同步时间的 IPv4 网段（CIDR，掩码 0-32）；为空则本机仅作客户端、不对外提供 NTP 服务",
-      "item_pattern": "^([0-9]{1,3}\\.){3}[0-9]{1,3}(/(3[0-2]|[12]?[0-9]))?$"
+      "item_pattern": "^([0-9]{1,3}\\.){3}[0-9]{1,3}(/(3[0-2]|[12]?[0-9]))?$",
+      "group": "base"
     },
     {
       "name": "makestep",
@@ -23,14 +25,16 @@
       "label": "启动期步进校准",
       "default": "1.0 3",
       "help": "格式 \"<秒数> <stratum>\"：启动后指定秒数内、时钟源 stratum 不高于阈值时，偏差过大直接步进校准而非缓慢逼近",
-      "pattern": "^[0-9]+(\\.[0-9]+)? [0-9]+$"
+      "pattern": "^[0-9]+(\\.[0-9]+)? [0-9]+$",
+      "group": "base"
     },
     {
       "name": "rtcsync",
       "type": "boolean",
       "label": "同步硬件时钟",
       "default": true,
-      "help": "开启后系统定期把内核时间写回硬件 RTC，断电重启后时间不漂移"
+      "help": "开启后系统定期把内核时间写回硬件 RTC，断电重启后时间不漂移",
+      "group": "base"
     },
     {
       "name": "driftfile",
@@ -38,7 +42,8 @@
       "label": "频率漂移文件",
       "default": "/var/lib/chrony/drift",
       "help": "记录时钟频率偏差的文件路径，需位于持久化数据卷（/var/lib/chrony）内，重建容器不丢失校准结果",
-      "pattern": "^/[A-Za-z0-9._/\\-]+$"
+      "pattern": "^/[A-Za-z0-9._/\\-]+$",
+      "group": "base"
     },
     {
       "name": "maxdistance",
@@ -47,7 +52,26 @@
       "default": 3,
       "min": 1,
       "max": 15,
-      "help": "时钟源的根距离超过该值（秒）视为不可信并忽略；内网无外部源时可适当调大"
+      "help": "时钟源的根距离超过该值（秒）视为不可信并忽略；内网无外部源时可适当调大",
+      "group": "base"
+    },
+    {
+      "name": "fault_mode",
+      "type": "enum",
+      "label": "BMC 故障注入模式",
+      "options": ["none", "fake_offset", "stratum_16"],
+      "default": "none",
+      "help": "测试桩异常注入：none 正常授时；fake_offset 用 libfaketime 授出偏移后的虚假时间（偏移变化会重启 chronyd 进程）；stratum_16 上游全部标记 offline 且不配置本地参考，对外应答未同步状态（stratum 0 / Not synchronised）",
+      "group": "fault"
+    },
+    {
+      "name": "fake_time_offset",
+      "type": "string",
+      "label": "虚假时间偏移",
+      "default": "+1y",
+      "help": "通过 libfaketime 注入的时间偏移量，如 +3h (时钟前进三小时), -30d (时钟倒流), 2038-01-01 (跳到指定日期)；仅在 fault_mode=fake_offset 时生效",
+      "pattern": "^(\\+|-)?[0-9]+[smhdwy]?$|^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+      "group": "fault"
     }
   ]
 }

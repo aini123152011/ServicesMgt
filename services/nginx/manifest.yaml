@@ -1,0 +1,20 @@
+# 服务元数据：平台 Service Registry 扫描 services/* 时按此识别与展示
+# 字段名是平台契约，各服务保持规范一致
+name: nginx
+display_name: HTTP / HTTPS 文件服务
+category: file-share          # 分类枚举: time | file-share | log-monitor
+description: 提供高性能固件分发与日志收集的 HTTP/HTTPS 服务，支持 Basic 认证、限速与故障注入
+container_name: bmc-nginx
+config_dir: /etc/nginx-bmc    # 配置卷在容器内的挂载点
+config_files:                 # 渲染产物相对 config_dir 的路径列表
+  - nginx.conf
+  - htpasswd
+ports:
+  - port: 80
+    protocol: tcp
+    description: HTTP 文件下载与上传端口
+  - port: 443
+    protocol: tcp
+    description: HTTPS 安全端口
+reload_mode: hot              # nginx 原生支持热重载，发 SIGHUP / nginx -s reload 零停机生效
+data_dir: /data/nginx         # 数据卷在容器内的挂载点：存储分发固件与上传文件

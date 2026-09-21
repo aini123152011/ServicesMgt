@@ -1,0 +1,30 @@
+# 本文件由 BMC 服务管理平台自动渲染生成，请勿手工编辑
+
+# 本机邮件名：对外 HELO 标识与日志中的主机名
+myhostname = bmc-mail.local
+
+# 本地投递域留空：BMC 场景只做告警邮件转发/中继，不在本机投递 mailbox，
+# 邮件按 mynetworks 中继规则交给 relayhost 或按 DNS MX 直接投递
+mydestination =
+
+# 监听所有网卡，供内网 BMC 设备投递告警邮件
+inet_interfaces = all
+
+# 可信网段：来源在列表内的客户端允许经本机中继
+# （smtpd_relay_restrictions 默认策略 permit_mynetworks，其余外部来源禁止中继防开放转发）
+mynetworks = 127.0.0.0/8, 192.168.0.0/16
+
+# 单封邮件大小上限：平台按 MB 换算为字节（postfix 以字节计）
+message_size_limit = 10485760
+
+# 单用户邮箱容量上限：同上换算，需大于单封邮件上限
+mailbox_size_limit = 536870912
+
+# 别名表：entrypoint 启动时执行 newaliases 生成 /etc/aliases.db
+alias_maps = hash:/etc/aliases
+alias_database = hash:/etc/aliases
+
+# 兼容级别：对齐 postfix 3.6 行为，关闭 3.7 新默认值引起的迁移告警
+compatibility_level = 3.6
+
+# ==== BMC 故障注入 ====

@@ -1,0 +1,29 @@
+# 本文件由 BMC 服务管理平台自动渲染生成，请勿手工编辑
+
+# 监听端口（BMC/内网设备通过该端口进行 SFTP 文件传输）
+Port 22
+
+# 密码认证开关；关闭后仅剩密钥认证（本服务未配置密钥，等于禁止登录）
+PasswordAuthentication yes
+# 禁用键盘交互挑战应答，登录只走密码，不引入额外认证堆栈
+KbdInteractiveAuthentication no
+# 容器内无 systemd/DBus，PAM 会话模块（pam_systemd 等）不可用；
+# 关闭 PAM 后 sshd 直接读取 /etc/shadow 校验密码（entrypoint 用 chpasswd 写入）
+UsePAM no
+
+# root 仅用于容器管理，不对外提供登录
+PermitRootLogin no
+
+# TCP 转发开关：SFTP 账号 shell 为 nologin，开启后可用 ssh -N -L 做纯端口转发
+AllowTcpForwarding no
+X11Forwarding no
+
+# 精简登录展示
+PrintMotd no
+
+# SFTP 子系统：internal-sftp 为 sshd 内建实现，chroot 目录内无需放置任何二进制文件
+Subsystem sftp internal-sftp
+
+# 所有用户 chroot 到各自家目录（root_dir/<用户名>，由 entrypoint 创建）；
+# ChrootDirectory 要求目录属 root 且用户不可写，用户在其下 data/ 子目录内读写
+ChrootDirectory %h

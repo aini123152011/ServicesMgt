@@ -1,0 +1,17 @@
+# 服务元数据：平台 Service Registry 扫描 services/* 时按此识别与展示
+# 字段名是平台契约，后续服务照此复制，勿改名
+name: sftp
+display_name: SFTP 文件传输
+category: file-share          # 分类枚举: time | file-share | log-monitor
+description: 基于 OpenSSH 的 SFTP 文件传输服务，多用户密码登录并按目录 chroot 隔离
+container_name: bmc-sftp
+config_dir: /etc/ssh          # 配置卷在容器内的挂载点
+config_files:                 # 渲染产物相对 config_dir 的路径列表
+  - sshd_config
+  - users.txt
+ports:
+  - port: 22
+    protocol: tcp
+    description: SFTP 服务端口
+reload_mode: restart          # sshd 收到 SIGHUP 虽会重读配置，但用户变更需 entrypoint 重建账号，统一重启进程生效
+data_dir: /data               # 数据卷在容器内的挂载点：各用户 chroot 根目录（root_dir）

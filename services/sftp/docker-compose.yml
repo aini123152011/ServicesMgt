@@ -1,0 +1,37 @@
+# 单服务独立部署入口：cd services/sftp && docker compose up -d
+# 独立网络 + 独立卷，与其他服务互不影响（R1 隔离）；平台总编排按需引用本文件
+services:
+  sftp:
+    # 有 image 时 compose 会把 build 产物打上该 tag，也方便直接使用 CI 构建好的镜像
+    image: bmc/sftp:latest
+    build: .
+    container_name: bmc-sftp
+    restart: unless-stopped
+    ports:
+      # 默认发布到宿主机所有地址，供内网设备传输文件；
+      # 仅本机使用时改为 "127.0.0.1:22:22/tcp"
+      - "22:22/tcp"
+    volumes:
+      # 配置卷：平台把渲染后的 sshd_config / users.txt 写入这里，reload.sh 触发生效
+      - sftp-config:/etc/ssh
+      # 数据卷：各用户的 chroot 根目录（schema root_dir，默认 /data），
+      # 用户文件持久化，重建容器不丢失
+      - sftp-data:/data
+    networks:
+      - sftp-net
+    healthcheck:
+      # 与 Dockerfile 的 HEALTHCHECK 保持一致
+      test: ["CMD-SHELL", "grep -qs sshd /proc/[0-9]*/comm"]
+      interval: 30s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
+
+networks:
+  sftp-net:
+    # 每服务独立 bridge 网络，服务间互不可见
+    driver: bridge
+
+volumes:
+  sftp-config:
+  sftp-data:

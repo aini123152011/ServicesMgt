@@ -1,0 +1,64 @@
+{#- 平台渲染契约：后端按 schema.json 校验用户提交的配置值后，用本模板渲染出 rsyslog.conf 写入配置卷 -#}
+{#- 渲染环境要求：Jinja2 需开启 trim_blocks=True + lstrip_blocks=True（Ansible 同款默认），否则块标签会残留空行 -#}
+{#- defaults/rsyslog.conf 就是 schema 默认值的渲染产物，改字段需同步 schema.json 并重新生成种子文件 -#}
+# 本文件由 BMC 服务管理平台自动渲染生成，请勿手工编辑
+
+# ==== 模块与监听端口 ====
+{% if protocols in ['both', 'udp'] %}
+# UDP 接收：BMC 设备 syslog 最常用的传输方式
+module(load="imudp")
+input(type="imudp" port="{{ listen_port }}")
+{% endif %}
+{% if protocols in ['both', 'tcp'] %}
+# TCP 接收：可靠传输，适合大流量或要求不丢日志的场景
+module(load="imtcp")
+input(type="imtcp" port="{{ listen_port }}")
+{% endif %}
+
+# ==== 归档模板 ====
+# 动态文件模板 BmcLogs：路径 = log_root + 日期目录段（按 date_dir）+ 来源文件名。
+# NOTE: rsyslog 模板属性名不区分大小写（源码 propNameToID 用 strcasecmp 比对，
+# fromhost-ip 与 FROMHOST-IP 等价），按官方文档惯例统一写大写；
+# %$YEAR%/%$MONTH%/%$DAY% 为系统属性，取消息接收时刻的日期
+{% set bmc_file = '%FROMHOST-IP%' if filename_by_ip else '%HOSTNAME%' %}
+{% if date_dir == 'daily' %}
+$template BmcLogs,"{{ log_root }}/%$YEAR%-%$MONTH%-%$DAY%/{{ bmc_file }}.log"
+{% elif date_dir == 'monthly' %}
+$template BmcLogs,"{{ log_root }}/%$YEAR%-%$MONTH%/{{ bmc_file }}.log"
+{% else %}
+$template BmcLogs,"{{ log_root }}/{{ bmc_file }}.log"
+{% endif %}
+
+# ==== 文件格式与生效参数 ====
+# 消息落盘格式：file_format 是 rsyslog 内建模板名（RSYSLOG_FileFormat 高精度 ISO 时间戳 /
+# RSYSLOG_TraditionalFileFormat 传统短格式），挂到下方 omfile action 的 template 参数。
+# NOTE: rsyslog 8 的 global() 参数表没有 fileFormat 这一项（8.2302 源码 glbl.c 共 74 项，已核实），
+# 在 global() 里写该参数会因未知参数启动失败；用 action(template=) 引用同名内建模板是等效且合法的写法
+# 动态文件缓存：同时归档的 BMC 数量有限，200 个文件句柄缓存足够，减少反复开关文件的开销
+# 文件/目录创建权限：日志需要被平台按 IP/日期读取，用 644/755 而非保守的 600/700
+$UMask 0022
+$DynaFileCacheSize 200
+$FileCreateMode 0644
+$DirCreateMode 0755
+
+# ==== 允许的发送源 ====
+# $AllowedSender 按 CIDR/IP 白名单过滤发送端，防日志伪造与滥用（legacy 指令，imudp/imtcp 均支持）
+# rsyslog 规范：若允许所有来源（0.0.0.0/0），不能配置 0 掩码，直接省略 $AllowedSender 即可放行所有 IP
+{% set senders = allowed_senders | reject('equalto', '0.0.0.0/0') | reject('equalto', '::/0') | list %}
+{% if senders | length > 0 %}
+{% if protocols in ['both', 'udp'] %}
+$AllowedSender UDP, {{ senders | join(', ') }}
+{% endif %}
+{% if protocols in ['both', 'tcp'] %}
+$AllowedSender TCP, {{ senders | join(', ') }}
+{% endif %}
+{% endif %}
+
+# ==== 归档规则 ====
+{% if fault_mode in ['port_blackhole', 'drop_all'] %}
+# BMC 故障注入模式：所有接收到的日志静默丢弃（测试 BMC 本地缓冲区溢出告警）
+stop
+{% else %}
+# 全部消息写入动态文件：dynaFile=BmcLogs 由上面模板逐条解析出实际落盘路径
+action(type="omfile" dynaFile="BmcLogs" template="{{ file_format }}")
+{% endif %}

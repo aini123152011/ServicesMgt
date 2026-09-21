@@ -1,0 +1,87 @@
+{
+  "fields": [
+    {
+      "name": "port",
+      "type": "integer",
+      "label": "FTP 控制端口",
+      "default": 21,
+      "min": 1,
+      "max": 65535,
+      "help": "FTP 控制连接端口，标准端口为 21；修改后需同步调整宿主机端口映射",
+      "group": "base"
+    },
+    {
+      "name": "anonymous_enabled",
+      "type": "boolean",
+      "label": "允许匿名访问",
+      "default": false,
+      "help": "开启后允许 anonymous/ftp 匿名登录（映射到系统 ftp 账号）；开放公网时建议保持关闭",
+      "group": "base"
+    },
+    {
+      "name": "local_users",
+      "type": "list",
+      "label": "FTP 用户清单",
+      "default": ["bmcuser:ChangeMe123"],
+      "required": true,
+      "help": "每项格式 \"用户名:密码\"：用户名以小写字母或下划线开头（3-32 位，可含数字、中划线）；密码至少 6 位且不含冒号。entrypoint 据此创建系统账号，家目录位于数据卷 /data/<用户名>",
+      "item_pattern": "^[a-z_][a-z0-9_-]{2,31}:[^:]{6,128}$",
+      "group": "base"
+    },
+    {
+      "name": "write_enabled",
+      "type": "boolean",
+      "label": "允许写操作",
+      "default": true,
+      "help": "开启后允许上传、删除、建目录等写操作；关闭后服务降级为只读 FTP",
+      "group": "base"
+    },
+    {
+      "name": "pasv_min_port",
+      "type": "integer",
+      "label": "被动模式数据端口下界",
+      "default": 40000,
+      "min": 1024,
+      "max": 65535,
+      "help": "被动模式（PASV）数据连接的起始端口；需落在宿主机发布/防火墙放行的端口段内",
+      "group": "base"
+    },
+    {
+      "name": "pasv_max_port",
+      "type": "integer",
+      "label": "被动模式数据端口上界",
+      "default": 40100,
+      "min": 1024,
+      "max": 65535,
+      "help": "被动模式数据连接的结束端口，需不小于端口下界；经网关/NAT 部署时整段端口必须对外可达（或上下界设为同一端口）",
+      "group": "base"
+    },
+    {
+      "name": "chroot_local",
+      "type": "boolean",
+      "label": "限制用户在自家目录",
+      "default": true,
+      "help": "开启后本地用户登录后被限制在自己的家目录（/data/<用户名>）内，无法浏览容器文件系统",
+      "group": "base"
+    },
+    {
+      "name": "max_upload_mbps",
+      "type": "integer",
+      "label": "传输限速（MB/s）",
+      "default": 0,
+      "min": 0,
+      "max": 1000,
+      "help": "本地用户的传输速率上限（MB/s），vsftpd 对上传与下载统一生效；0 表示不限速",
+      "group": "base"
+    },
+    {
+      "name": "fault_mode",
+      "type": "enum",
+      "label": "BMC 故障注入模式",
+      "options": ["none", "deny_pasv_data", "write_deny_550", "extreme_throttle"],
+      "default": "none",
+      "help": "故障注入：deny_pasv_data 破坏被动数据端口连接；write_deny_550 拒绝写操作；extreme_throttle 注入 500B/s 超慢速度测试超时",
+      "group": "fault"
+    }
+  ]
+}

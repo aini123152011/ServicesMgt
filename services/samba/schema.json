@@ -1,0 +1,70 @@
+{
+  "fields": [
+    {
+      "name": "workgroup",
+      "type": "string",
+      "description": "Samba 工作组名称",
+      "default": "WORKGROUP",
+      "pattern": "^[a-zA-Z0-9_-]{1,32}$",
+      "required": true,
+      "group": "base"
+    },
+    {
+      "name": "share_name",
+      "type": "string",
+      "description": "共享名称（客户端访问路径：\\\\host\\<share_name>）",
+      "default": "bmc_share",
+      "pattern": "^[a-zA-Z0-9_-]{1,32}$",
+      "required": true,
+      "group": "base"
+    },
+    {
+      "name": "read_only",
+      "type": "boolean",
+      "description": "只读共享开关",
+      "default": false,
+      "group": "base"
+    },
+    {
+      "name": "guest_ok",
+      "type": "boolean",
+      "description": "允许 Guest 匿名读取",
+      "default": false,
+      "group": "base"
+    },
+    {
+      "name": "min_protocol",
+      "type": "enum",
+      "description": "支持的最低 SMB 协议版本",
+      "options": ["SMB2_02", "SMB2_10", "SMB3_00", "SMB3_11"],
+      "default": "SMB2_02",
+      "group": "base"
+    },
+    {
+      "name": "username",
+      "type": "string",
+      "description": "Samba 认证用户名",
+      "default": "smbuser",
+      "pattern": "^[a-zA-Z0-9_-]{1,32}$",
+      "required": true,
+      "group": "base"
+    },
+    {
+      "name": "password",
+      "type": "string",
+      "description": "Samba 认证密码",
+      "secret": true,
+      "default": "bmc-fixture-pass",
+      "required": true,
+      "group": "base"
+    },
+    {
+      "name": "fault_mode",
+      "type": "enum",
+      "description": "BMC 故障注入模式",
+      "options": ["none", "force_protocol_mismatch", "auth_reject"],
+      "default": "none",
+      "group": "fault"
+    }
+  ]
+}
