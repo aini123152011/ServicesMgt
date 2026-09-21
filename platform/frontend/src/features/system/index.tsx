@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
+import { LanguageSwitch } from '@/components/language-switch'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 import { ProfileDropdown } from '@/components/profile-dropdown'
@@ -67,6 +68,7 @@ export function System() {
       <Header fixed>
         <Search />
         <div className='ms-auto flex items-center gap-2'>
+          <LanguageSwitch />
           <ThemeSwitch />
           <ProfileDropdown />
         </div>
