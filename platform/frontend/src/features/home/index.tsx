@@ -5,11 +5,13 @@ import {
   CircleSlash,
   ListChecks,
   RefreshCw,
+  RotateCcw,
   ScrollText,
   Server,
   type LucideIcon,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 import { type AuditLogEntry } from '@/api/audit'
 import { type ServiceStatusResponse, type ServiceSummary } from '@/api/services'
 import { cn } from '@/lib/utils'
@@ -47,7 +49,7 @@ import {
   useServicesQuery,
   useServicesStatusQuery,
 } from '@/features/services/hooks/use-services'
-import { useAuditLogsQuery } from './hooks/use-home'
+import { useAuditLogsQuery, useResetFaultModeMutation } from './hooks/use-home'
 
 /** 缺失字段的占位符，避免单元格出现空白让人以为渲染出错 */
 const EMPTY_PLACEHOLDER = '—'
@@ -70,6 +72,19 @@ export function Home() {
   const statusQuery = useServicesStatusQuery(services.map((s) => s.name))
   const statuses = statusQuery.data ?? {}
   const auditQuery = useAuditLogsQuery(isAdmin)
+  const resetFault = useResetFaultModeMutation()
+
+  // 处于非 none 故障注入模式的服务：首页一眼可见，并可一键复位
+  const faultingServices = services.filter(
+    (service) => service.fault_mode && service.fault_mode !== 'none'
+  )
+
+  const handleResetFault = (serviceName: string) => {
+    resetFault.mutate(serviceName, {
+      onSuccess: () => toast.success(t('home.fault.resetDone')),
+      onError: () => toast.error(t('home.fault.resetFailed')),
+    })
+  }
 
   const runningCount = services.filter(
     (service) => statuses[service.name]?.running === true
@@ -167,6 +182,51 @@ export function Home() {
                     })
                   }
                 />
+              </CardContent>
+            </Card>
+
+            {/* 故障注入面板：测试仪器平台的核心状态，永远渲染（无异常时给出「全部正常」） */}
+            <Card
+              className={cn(
+                faultingServices.length > 0 && 'border-destructive/40'
+              )}
+            >
+              <CardHeader>
+                <CardTitle>{t('home.fault.title')}</CardTitle>
+                <CardDescription>{t('home.fault.description')}</CardDescription>
+              </CardHeader>
+              <CardContent className='space-y-2'>
+                {faultingServices.length === 0 ? (
+                  <p className='text-sm text-muted-foreground'>
+                    {t('home.fault.none')}
+                  </p>
+                ) : (
+                  faultingServices.map((service) => (
+                    <div
+                      key={service.name}
+                      className='flex flex-wrap items-center gap-2'
+                    >
+                      <Link
+                        to='/services/$serviceName'
+                        params={{ serviceName: service.name }}
+                        className='font-medium hover:underline'
+                      >
+                        {service.display_name}
+                      </Link>
+                      <Badge variant='destructive'>{service.fault_mode}</Badge>
+                      <Button
+                        size='sm'
+                        variant='outline'
+                        className='ms-auto'
+                        disabled={resetFault.isPending}
+                        onClick={() => handleResetFault(service.name)}
+                      >
+                        <RotateCcw />
+                        {t('home.fault.reset')}
+                      </Button>
+                    </div>
+                  ))
+                )}
               </CardContent>
             </Card>
 

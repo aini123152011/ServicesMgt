@@ -19,6 +19,7 @@ vi.mock('@/features/services/hooks/use-services', () => ({
 
 vi.mock('./hooks/use-home', () => ({
   useAuditLogsQuery: mocks.useAuditLogsQuery,
+  useResetFaultModeMutation: () => ({ mutate: vi.fn(), isPending: false }),
 }))
 
 vi.mock('@/hooks/use-permissions', () => ({
@@ -258,5 +259,44 @@ describe('Home', () => {
     expect(logLink.element().getAttribute('href')).toBe(
       '/services/$serviceName'
     )
+  })
+})
+
+describe('故障注入面板', () => {
+  it('全部服务为 none 时提示「全部正常」', async () => {
+    mocks.useServicesQuery.mockReturnValue({
+      data: [{ ...SERVICES[0], fault_mode: 'none' }],
+      isPending: false,
+      isError: false,
+      refetch: vi.fn(),
+    })
+    mocks.useServicesStatusQuery.mockReturnValue({
+      data: STATUSES,
+      isPending: false,
+    })
+    const screen = await render(<Home />)
+
+    await expect
+      .element(screen.getByText(/全部服务均处于正常模式/))
+      .toBeInTheDocument()
+  })
+
+  it('处于非 none 模式时列出服务、模式与复位按钮', async () => {
+    mocks.useServicesQuery.mockReturnValue({
+      data: [{ ...SERVICES[0], fault_mode: 'stratum_16' }],
+      isPending: false,
+      isError: false,
+      refetch: vi.fn(),
+    })
+    mocks.useServicesStatusQuery.mockReturnValue({
+      data: STATUSES,
+      isPending: false,
+    })
+    const screen = await render(<Home />)
+
+    await expect.element(screen.getByText('stratum_16')).toBeInTheDocument()
+    await expect
+      .element(screen.getByRole('button', { name: /复位为正常/ }))
+      .toBeInTheDocument()
   })
 })

@@ -353,3 +353,18 @@ def record_audit_log(
     session.commit()
     session.refresh(entry)
     return entry
+
+
+def get_fault_modes(*, session: Session) -> dict[str, str]:
+    """一次查询取出所有服务当前生效的 fault_mode（供服务概要列表复用）。
+
+    Returns:
+        {服务名: fault_mode}；未保存过配置或配置里没有该字段的服务不出现在结果里。
+    """
+    modes: dict[str, str] = {}
+    for config in session.exec(select(ServiceConfig)).all():
+        values = config.values or {}
+        mode = values.get("fault_mode")
+        if isinstance(mode, str) and mode:
+            modes[config.service_name] = mode
+    return modes

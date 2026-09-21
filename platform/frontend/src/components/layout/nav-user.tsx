@@ -1,4 +1,5 @@
-import { ChevronsUpDown, LogOut } from 'lucide-react'
+import { Link } from '@tanstack/react-router'
+import { BadgeCheck, ChevronsUpDown, LogOut, Settings } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/stores/auth-store'
 import useDialogState from '@/hooks/use-dialog-state'
@@ -6,6 +7,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -77,6 +79,23 @@ export function NavUser() {
                   </div>
                 </div>
               </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {/* 设置入口：模板原版这里是 Account/Billing/Notifications 三项（Billing 是模板
+                  自带的假功能、Notifications 无后端），本项目收敛为「账号」与「设置」两项 */}
+              <DropdownMenuGroup>
+                <DropdownMenuItem asChild>
+                  <Link to='/settings/account'>
+                    <BadgeCheck />
+                    {t('common.account')}
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link to='/settings'>
+                    <Settings />
+                    {t('common.settings')}
+                  </Link>
+                </DropdownMenuItem>
+              </DropdownMenuGroup>
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 variant='destructive'

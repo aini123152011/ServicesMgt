@@ -14,7 +14,12 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from app import config_renderer, lifecycle, registry
 from app.api.deps import CurrentUser, RequireOperator, SessionDep, get_current_user
-from app.crud import get_service_config, record_audit_log, upsert_service_config
+from app.crud import (
+    get_fault_modes,
+    get_service_config,
+    record_audit_log,
+    upsert_service_config,
+)
 from app.models import (
     Message,
     ServiceConfigApplyResult,
@@ -57,16 +62,26 @@ def _get_plugin_or_404(name: str) -> ServicePlugin:
 
 
 @router.get("/", response_model=ServicesPublic)
-def read_services() -> Any:
-    """列出全部服务概要。
+def read_services(session: SessionDep) -> Any:
+    """列出全部服务概要（含当前生效的故障注入模式）。
 
     每次调用现扫 SERVICES_DIR；manifest 不合规的目录被跳过而非报错。
+    fault_mode 取自已保存配置（一次查询），供首页「当前故障注入」面板直接使用。
+
+    Args:
+        session: 数据库会话，用于一次性读取各服务的 fault_mode。
 
     Returns:
         ServicesPublic：概要列表与数量；目录为空时 data 为空列表。
     """
     plugins = registry.list_services()
-    summaries = [ServiceSummary.model_validate(plugin.manifest) for plugin in plugins]
+    fault_modes = get_fault_modes(session=session)
+    summaries = [
+        ServiceSummary.model_validate(plugin.manifest).model_copy(
+            update={"fault_mode": fault_modes.get(plugin.name)}
+        )
+        for plugin in plugins
+    ]
     return ServicesPublic(data=summaries, count=len(summaries))
 
 

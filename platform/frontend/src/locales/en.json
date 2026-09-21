@@ -26,7 +26,9 @@
     "skipToMain": "Skip to Main",
     "search": "Search",
     "showPassword": "Show password",
-    "hidePassword": "Hide password"
+    "hidePassword": "Hide password",
+    "account": "Account",
+    "settings": "Settings"
   },
   "nav": {
     "groupServices": "Services",
@@ -77,6 +79,14 @@
       "services": "Service list",
       "logs": "Browse logs",
       "updates": "System updates"
+    },
+    "fault": {
+      "title": "Active fault injection",
+      "description": "Services running in a non-normal mode; they deliberately behave abnormally until reset.",
+      "none": "All services are in normal mode (none).",
+      "reset": "Reset to normal",
+      "resetDone": "Reset to normal mode",
+      "resetFailed": "Failed to reset"
     }
   },
   "settings": {

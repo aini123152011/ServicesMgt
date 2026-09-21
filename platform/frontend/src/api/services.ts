@@ -15,6 +15,8 @@ export interface ServiceSummary {
   container_name: string
   ports: ServicePort[]
   reload_mode: ReloadMode
+  /** 当前生效的故障注入模式；未保存过配置时为 null。首页据此列出非正常模式的服务 */
+  fault_mode?: string | null
 }
 
 export interface ServicePort {

@@ -26,7 +26,9 @@
     "skipToMain": "跳到主要内容",
     "search": "搜索",
     "showPassword": "显示密码",
-    "hidePassword": "隐藏密码"
+    "hidePassword": "隐藏密码",
+    "account": "账号",
+    "settings": "设置"
   },
   "nav": {
     "groupServices": "服务管理",
@@ -77,6 +79,14 @@
       "services": "服务列表",
       "logs": "日志浏览",
       "updates": "系统更新"
+    },
+    "fault": {
+      "title": "当前故障注入",
+      "description": "处于非正常模式的服务；这些服务对外表现的是被构造的异常，测试结束后请复位。",
+      "none": "全部服务均处于正常模式（none）。",
+      "reset": "复位为正常",
+      "resetDone": "已复位为正常模式",
+      "resetFailed": "复位失败"
     }
   },
   "settings": {

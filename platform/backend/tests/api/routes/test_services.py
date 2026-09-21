@@ -13,8 +13,8 @@ from sqlmodel import Session, select
 
 from app import config_renderer, lifecycle
 from app.core.config import settings
-from app.crud import get_service_config
-from app.models import ServiceConfig
+from app.crud import get_service_config, upsert_service_config
+from app.models import ServiceConfig, get_datetime_utc
 
 # 服务目录统一取 settings.SERVICES_DIR：本地默认按 config.py 锚定解析到仓库 services/，
 # 容器内由环境变量指向挂载目录——不要按测试文件层级回溯（容器内层级不同会失效）
@@ -90,9 +90,10 @@ def _clear_service_configs(db: Session) -> None:
 
 
 def test_read_services(
-    client: TestClient, superuser_token_headers: dict[str, str]
+    client: TestClient, superuser_token_headers: dict[str, str], db: Session
 ) -> None:
-    """服务列表返回 data+count，且 chrony 概要字段与 manifest 一致。"""
+    """服务列表返回 data+count，chrony 概要字段与 manifest 一致，并带上当前故障注入模式。"""
+    _clear_service_configs(db)
     response = client.get(
         f"{settings.API_V1_STR}/services/", headers=superuser_token_headers
     )
@@ -109,7 +110,41 @@ def test_read_services(
         "container_name": "bmc-chrony",
         "ports": [{"port": 123, "protocol": "udp", "description": "NTP 服务端口"}],
         "reload_mode": "hot",
+        # 未保存过配置时没有故障模式（首页据此判断是否处于非正常模式）
+        "fault_mode": None,
     }
+
+
+def test_read_services_reports_saved_fault_mode(
+    client: TestClient, superuser_token_headers: dict[str, str], db: Session
+) -> None:
+    """已保存配置的服务在列表里带上 fault_mode，供首页「当前故障注入」面板直接使用。"""
+    upsert_service_config(
+        session=db,
+        service_name="chrony",
+        values={
+            "servers": ["ntp.aliyun.com"],
+            "allow_networks": ["0.0.0.0/0"],
+            "makestep": "1.0 3",
+            "rtcsync": True,
+            "driftfile": "/var/lib/chrony/drift",
+            "maxdistance": 6,
+            "fault_mode": "stratum_16",
+        },
+        rendered_at=get_datetime_utc(),
+        applied=True,
+    )
+    try:
+        response = client.get(
+            f"{settings.API_V1_STR}/services/", headers=superuser_token_headers
+        )
+        assert response.status_code == 200
+        chrony = next(
+            item for item in response.json()["data"] if item["name"] == "chrony"
+        )
+        assert chrony["fault_mode"] == "stratum_16"
+    finally:
+        _clear_service_configs(db)
 
 
 def test_read_service_detail(

@@ -124,6 +124,9 @@ class ServiceSummary(SQLModel):
     container_name: str
     ports: list[ServicePort] = Field(default_factory=list)
     reload_mode: str
+    # 当前生效的故障注入模式（来自已保存配置；未保存过配置时为 None）。
+    # 首页「当前故障注入」面板据此列出处于非 none 模式的服务，无需逐个拉详情
+    fault_mode: str | None = None
 
 
 # 服务详情中的 manifest：在概要之上补充配置目录与配置文件清单
