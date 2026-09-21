@@ -35,7 +35,9 @@
     "groupUsers": "用户管理",
     "services": "服务列表",
     "users": "用户列表",
-    "serviceDetail": "服务详情"
+    "serviceDetail": "服务详情",
+    "groupSystem": "系统",
+    "system": "系统信息与更新"
   },
   "auth": {
     "emailLabel": "邮箱",
@@ -220,7 +222,49 @@
       "rolesRequired": "至少选择一个角色。"
     }
   },
-  "system": {},
+  "system": {
+    "title": "系统信息与更新",
+    "subtitle": "查看平台版本与各服务镜像，检查并应用更新。",
+    "check": "检查更新",
+    "dockerUnavailable": "Docker 不可达：无法读取镜像信息，请确认平台已挂载 docker.sock。",
+    "runningHint": "更新任务执行中，页面会自动刷新状态。",
+    "version": {
+      "title": "平台版本",
+      "description": "版本与构建号在平台镜像构建时注入。",
+      "current": "当前版本",
+      "build": "构建号",
+      "registry": "镜像仓库",
+      "registryUnset": "未配置（仅支持离线包）",
+      "task": "最近更新任务"
+    },
+    "status": {
+      "idle": "暂无任务",
+      "running": "执行中",
+      "succeeded": "成功",
+      "failed": "失败"
+    },
+    "package": {
+      "label": "离线镜像包",
+      "upload": "上传镜像包",
+      "hint": "实验室无镜像仓库时：上传镜像 tar 包（docker load），再对目标点「更新」。"
+    },
+    "targets": {
+      "title": "更新目标",
+      "description": "平台自身与 11 个服务容器；「有新版本」表示容器所用镜像与同名 tag 当前指向不一致。"
+    },
+    "table": {
+      "target": "目标",
+      "image": "镜像",
+      "running": "运行中镜像",
+      "available": "可用镜像",
+      "state": "状态",
+      "actions": "操作",
+      "apply": "更新",
+      "upToDate": "已是最新",
+      "updateAvailable": "有新版本",
+      "empty": "没有可显示的更新目标"
+    }
+  },
   "errors": {
     "back": "返回上一页",
     "home": "回到首页",

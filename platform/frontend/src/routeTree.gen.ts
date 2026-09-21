@@ -19,6 +19,7 @@ import { Route as errors401RouteImport } from './routes/(errors)/401'
 import { Route as authSignInRouteImport } from './routes/(auth)/sign-in'
 import { Route as authForgotPasswordRouteImport } from './routes/(auth)/forgot-password'
 import { Route as AuthenticatedUsersIndexRouteImport } from './routes/_authenticated/users/index'
+import { Route as AuthenticatedSystemIndexRouteImport } from './routes/_authenticated/system/index'
 import { Route as AuthenticatedServicesIndexRouteImport } from './routes/_authenticated/services/index'
 import { Route as AuthenticatedServicesServiceNameRouteImport } from './routes/_authenticated/services/$serviceName'
 import { Route as AuthenticatedErrorsErrorRouteImport } from './routes/_authenticated/errors/$error'
@@ -72,6 +73,12 @@ const AuthenticatedUsersIndexRoute = AuthenticatedUsersIndexRouteImport.update({
   path: '/users/',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedSystemIndexRoute =
+  AuthenticatedSystemIndexRouteImport.update({
+    id: '/system/',
+    path: '/system/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedServicesIndexRoute =
   AuthenticatedServicesIndexRouteImport.update({
     id: '/services/',
@@ -103,6 +110,7 @@ export interface FileRoutesByFullPath {
   '/errors/$error': typeof AuthenticatedErrorsErrorRoute
   '/services/$serviceName': typeof AuthenticatedServicesServiceNameRoute
   '/services/': typeof AuthenticatedServicesIndexRoute
+  '/system/': typeof AuthenticatedSystemIndexRoute
   '/users/': typeof AuthenticatedUsersIndexRoute
 }
 export interface FileRoutesByTo {
@@ -117,6 +125,7 @@ export interface FileRoutesByTo {
   '/errors/$error': typeof AuthenticatedErrorsErrorRoute
   '/services/$serviceName': typeof AuthenticatedServicesServiceNameRoute
   '/services': typeof AuthenticatedServicesIndexRoute
+  '/system': typeof AuthenticatedSystemIndexRoute
   '/users': typeof AuthenticatedUsersIndexRoute
 }
 export interface FileRoutesById {
@@ -133,6 +142,7 @@ export interface FileRoutesById {
   '/_authenticated/errors/$error': typeof AuthenticatedErrorsErrorRoute
   '/_authenticated/services/$serviceName': typeof AuthenticatedServicesServiceNameRoute
   '/_authenticated/services/': typeof AuthenticatedServicesIndexRoute
+  '/_authenticated/system/': typeof AuthenticatedSystemIndexRoute
   '/_authenticated/users/': typeof AuthenticatedUsersIndexRoute
 }
 export interface FileRouteTypes {
@@ -149,6 +159,7 @@ export interface FileRouteTypes {
     | '/errors/$error'
     | '/services/$serviceName'
     | '/services/'
+    | '/system/'
     | '/users/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -163,6 +174,7 @@ export interface FileRouteTypes {
     | '/errors/$error'
     | '/services/$serviceName'
     | '/services'
+    | '/system'
     | '/users'
   id:
     | '__root__'
@@ -178,6 +190,7 @@ export interface FileRouteTypes {
     | '/_authenticated/errors/$error'
     | '/_authenticated/services/$serviceName'
     | '/_authenticated/services/'
+    | '/_authenticated/system/'
     | '/_authenticated/users/'
   fileRoutesById: FileRoutesById
 }
@@ -264,6 +277,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedUsersIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/system/': {
+      id: '/_authenticated/system/'
+      path: '/system'
+      fullPath: '/system/'
+      preLoaderRoute: typeof AuthenticatedSystemIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/services/': {
       id: '/_authenticated/services/'
       path: '/services'
@@ -293,6 +313,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedErrorsErrorRoute: typeof AuthenticatedErrorsErrorRoute
   AuthenticatedServicesServiceNameRoute: typeof AuthenticatedServicesServiceNameRoute
   AuthenticatedServicesIndexRoute: typeof AuthenticatedServicesIndexRoute
+  AuthenticatedSystemIndexRoute: typeof AuthenticatedSystemIndexRoute
   AuthenticatedUsersIndexRoute: typeof AuthenticatedUsersIndexRoute
 }
 
@@ -301,6 +322,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedErrorsErrorRoute: AuthenticatedErrorsErrorRoute,
   AuthenticatedServicesServiceNameRoute: AuthenticatedServicesServiceNameRoute,
   AuthenticatedServicesIndexRoute: AuthenticatedServicesIndexRoute,
+  AuthenticatedSystemIndexRoute: AuthenticatedSystemIndexRoute,
   AuthenticatedUsersIndexRoute: AuthenticatedUsersIndexRoute,
 }
 

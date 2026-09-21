@@ -35,7 +35,9 @@
     "groupUsers": "Users",
     "services": "Service list",
     "users": "User list",
-    "serviceDetail": "Service detail"
+    "serviceDetail": "Service detail",
+    "groupSystem": "System",
+    "system": "System & updates"
   },
   "auth": {
     "emailLabel": "Email",
@@ -220,7 +222,49 @@
       "rolesRequired": "Select at least one role."
     }
   },
-  "system": {},
+  "system": {
+    "title": "System & updates",
+    "subtitle": "Inspect the platform version and service images, then check and apply updates.",
+    "check": "Check for updates",
+    "dockerUnavailable": "Docker is unreachable: image details are unavailable. Make sure docker.sock is mounted.",
+    "runningHint": "An update task is running; the status refreshes automatically.",
+    "version": {
+      "title": "Platform version",
+      "description": "Version and build are injected when the platform image is built.",
+      "current": "Current version",
+      "build": "Build",
+      "registry": "Registry",
+      "registryUnset": "Not configured (offline packages only)",
+      "task": "Latest update task"
+    },
+    "status": {
+      "idle": "No task yet",
+      "running": "Running",
+      "succeeded": "Succeeded",
+      "failed": "Failed"
+    },
+    "package": {
+      "label": "Offline image package",
+      "upload": "Upload package",
+      "hint": "Without a registry: upload an image tar (docker load), then press Update on the target."
+    },
+    "targets": {
+      "title": "Update targets",
+      "description": "The platform itself plus 11 service containers; \"update available\" means the running image differs from what the tag now points to."
+    },
+    "table": {
+      "target": "Target",
+      "image": "Image",
+      "running": "Running image",
+      "available": "Available image",
+      "state": "State",
+      "actions": "Actions",
+      "apply": "Update",
+      "upToDate": "Up to date",
+      "updateAvailable": "Update available",
+      "empty": "No update targets to show"
+    }
+  },
   "errors": {
     "back": "Go back",
     "home": "Back to home",

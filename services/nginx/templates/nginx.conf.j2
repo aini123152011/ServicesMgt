@@ -1,4 +1,9 @@
 {#- nginx.conf.j2: 由平台自动渲染，写入 /etc/nginx-bmc/nginx.conf -#}
+{#- NOTE: user 指令必须显式写出来。平台用 -c 指定本配置，镜像里 /etc/nginx/nginx.conf
+    的 `user www-data;` 不会生效，缺省会退化成编译期的 nobody——而数据目录 /data/nginx
+    与 Basic 认证凭据都属 www-data，worker 以 nobody 运行会导致上传写入被拒（403/500）
+    且读不到凭据文件。-#}
+user www-data;
 worker_processes auto;
 pid /run/nginx.pid;
 error_log /var/log/nginx/error.log warn;

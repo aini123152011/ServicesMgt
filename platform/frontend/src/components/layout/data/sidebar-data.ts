@@ -1,4 +1,4 @@
-import { Server, Users } from 'lucide-react'
+import { Server, Settings2, Users } from 'lucide-react'
 import { type SidebarData } from '../types'
 
 /**
@@ -16,6 +16,18 @@ export const sidebarData: SidebarData = {
           titleKey: 'nav.services',
           url: '/services',
           icon: Server,
+        },
+      ],
+    },
+    {
+      titleKey: 'nav.groupSystem',
+      items: [
+        {
+          titleKey: 'nav.system',
+          url: '/system',
+          icon: Settings2,
+          // 更新会重建容器、影响在线服务，仅管理员可见
+          adminOnly: true,
         },
       ],
     },
