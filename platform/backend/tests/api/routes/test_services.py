@@ -124,7 +124,7 @@ def test_read_service_detail(
     content = response.json()
     assert content["manifest"]["name"] == "chrony"
     assert content["manifest"]["config_dir"] == "/etc/chrony"
-    assert content["manifest"]["config_files"] == ["chrony.conf"]
+    assert content["manifest"]["config_files"] == ["chrony.conf", "faketime.conf"]
     field_names = [field["name"] for field in content["schema"]["fields"]]
     assert field_names == [
         "servers",
@@ -133,6 +133,8 @@ def test_read_service_detail(
         "rtcsync",
         "driftfile",
         "maxdistance",
+        "fault_mode",
+        "fake_time_offset",
     ]
     assert content["config"] == {"values": None, "applied": None, "rendered_at": None}
 

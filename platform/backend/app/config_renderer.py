@@ -24,6 +24,9 @@ logger = logging.getLogger(__name__)
 TRUE_STRINGS = {"true", "1", "yes", "on"}
 FALSE_STRINGS = {"false", "0", "no", "off"}
 
+# 敏感字段脱敏输出与回填保护占位符
+MASKED_SECRET_PLACEHOLDER = "********"
+
 
 class ConfigValidationError(ValueError):
     """提交的配置值与 schema 不匹配（用户输入问题，路由层转 400）。"""
@@ -133,24 +136,45 @@ def _validate_list(field_def: dict[str, Any], raw: Any, name: str) -> list[str]:
     return items
 
 
+def _validate_text(field_def: dict[str, Any], raw: Any, name: str) -> str:
+    """校验 text 多行文本字段：必须是字符串，可选 PEM 格式验证。"""
+    if not isinstance(raw, str):
+        raise ConfigValidationError(f"Field '{name}' must be a string")
+    if field_def.get("pem") is True and raw.strip():
+        # PEM 证书或私钥基本结构校验
+        stripped = raw.strip()
+        if not (stripped.startswith("-----BEGIN ") and "-----END " in stripped):
+            raise ConfigValidationError(
+                f"Field '{name}' must be a valid PEM format certificate or key"
+            )
+    return raw
+
+
 _FIELD_TYPE_VALIDATORS = {
     "string": _validate_string,
     "integer": _validate_integer,
     "boolean": _validate_boolean,
     "enum": _validate_enum,
     "list": _validate_list,
+    "text": _validate_text,
 }
 
 
-def validate_values(schema: dict[str, Any], values: dict[str, Any]) -> dict[str, Any]:
+def validate_values(
+    schema: dict[str, Any],
+    values: dict[str, Any],
+    existing_values: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """按服务 schema 逐项校验提交值并返回归一化后的值。
 
     只接受 schema 定义过的字段（未知键整体拒绝）；缺省字段先回填 schema 默认值，
     必填且无默认值才报错；所有字段的错误一次性收集抛出，不返回半通过的结果。
+    支持 secret 敏感字段的占位符合并（若提交为掩码则保留 existing_values 真实原值）。
 
     Args:
         schema: 服务 schema.json 解析后的字典，含 fields 字段定义列表。
         values: 用户提交的配置值，键与 schema 字段名对应。
+        existing_values: 数据库中已保存的历史配置，用于 secret 占位回填。
 
     Returns:
         归一化后的值：仅含 schema 字段，类型按字段定义转换（如 "5" → 5）。
@@ -182,8 +206,17 @@ def validate_values(schema: dict[str, Any], values: dict[str, Any]) -> dict[str,
             # schema 结构在 registry 已校验，此处兜底
             continue
         name = field_def["name"]
+        is_secret = bool(field_def.get("secret"))
+
         if name in values:
             raw = values[name]
+            # 针对 secret 字段做占位符保护合并
+            if is_secret and raw == MASKED_SECRET_PLACEHOLDER:
+                if existing_values and existing_values.get(name) is not None:
+                    raw = existing_values[name]
+                else:
+                    errors.append(f"Field '{name}' requires a non-masked secret value")
+                    continue
         elif "default" in field_def:
             raw = field_def["default"]
         elif field_def.get("required"):
@@ -208,11 +241,46 @@ def validate_values(schema: dict[str, Any], values: dict[str, Any]) -> dict[str,
     return normalized
 
 
+def mask_secret_values(
+    schema: dict[str, Any], values: dict[str, Any] | None
+) -> dict[str, Any] | None:
+    """按 schema 脱敏输出敏感字段（如 secret=True 的密码/私钥）。
+
+    Args:
+        schema: 服务 schema.json 解析后的字典。
+        values: 原始配置字典（含明文 secret）。
+
+    Returns:
+        脱敏后的新字典副本；若原本为 None 则返回 None。
+    """
+    if values is None:
+        return None
+    fields = schema.get("fields")
+    if not isinstance(fields, list):
+        return values
+    secret_fields = {
+        field_def["name"]
+        for field_def in fields
+        if isinstance(field_def, dict) and field_def.get("secret") is True
+    }
+    if not secret_fields:
+        return dict(values)
+    masked = dict(values)
+    for name in secret_fields:
+        if name in masked and masked[name] not in (None, ""):
+            masked[name] = MASKED_SECRET_PLACEHOLDER
+    return masked
+
+
 def _atomic_write(target: Path, content: str) -> None:
     """原子写入单个配置文件：同目录写临时文件后 os.replace 覆盖。
 
     同目录临时文件保证与目标同一文件系统，os.replace 才是原子操作；
     读取方要么看到旧文件、要么看到完整新文件，不会读到半成品。
+
+    权限：mkstemp 建出的临时文件是 0600，而服务容器里的守护进程常以非 root 用户
+    运行（如 nginx worker 是 www-data），读不到配置文件会直接 500。因此渲染产物
+    统一按普通配置文件口径写 0644（每次写入都重设，已存在的 0600 文件也会被修正）。
 
     Raises:
         TemplateRenderError: 目录创建或文件写入失败时。
@@ -226,6 +294,7 @@ def _atomic_write(target: Path, content: str) -> None:
         try:
             with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as tmp_file:
                 tmp_file.write(content)
+            os.chmod(tmp_name, 0o644)
             os.replace(tmp_name, target)
         except BaseException:
             # 清理残留临时文件后原样上抛，卷内不留垃圾

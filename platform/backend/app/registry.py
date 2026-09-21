@@ -21,7 +21,8 @@ logger = logging.getLogger(__name__)
 # 插件契约约定的取值枚举，与 services/*/manifest.yaml、schema.json 的注释保持一致
 ALLOWED_CATEGORIES = {"time", "file-share", "log-monitor"}
 ALLOWED_RELOAD_MODES = {"hot", "restart"}
-ALLOWED_FIELD_TYPES = {"string", "integer", "boolean", "enum", "list"}
+ALLOWED_FIELD_TYPES = {"string", "integer", "boolean", "enum", "list", "text"}
+ALLOWED_GROUPS = {"base", "fault"}
 
 
 @dataclass
@@ -53,6 +54,26 @@ class ServicePlugin:
         因此平台直接写宿主机该前缀，容器内即映射到 manifest.config_dir。
         """
         return Path(settings.VOLUMES_MOUNT_ROOT) / f"{self.name}-config"
+
+    @property
+    def data_dir(self) -> str | None:
+        """服务在容器内的数据目录路径；None 表示该服务没有数据卷。
+
+        manifest 里缺省或显式 null 都视为无数据卷，数据浏览入口（tree/content）
+        仅对声明了此字段的服务开放。
+        """
+        data_dir = self.manifest.get("data_dir")
+        return data_dir if isinstance(data_dir, str) and data_dir else None
+
+    @property
+    def data_volume_dir(self) -> Path:
+        """数据卷在宿主机上的根目录，即数据浏览接口的可浏览根。
+
+        根 compose 把名为 <name>-data 的卷挂载到 VOLUMES_MOUNT_ROOT/<name>-data；
+        manifest.data_dir 只是容器内视角路径，宿主机卷内不做子路径映射——
+        数据卷根即可浏览根（如 rsyslog 的 <日期>/<IP>.log 结构由 rsyslog 自己写）。
+        """
+        return Path(settings.VOLUMES_MOUNT_ROOT) / f"{self.name}-data"
 
 
 def _check_manifest(manifest: dict[str, Any], dir_name: str) -> list[str]:
@@ -107,6 +128,10 @@ def _check_manifest(manifest: dict[str, Any], dir_name: str) -> list[str]:
                 problems.append(
                     f"ports[{index}] must contain an integer 'port' and a string 'protocol'"
                 )
+    # data_dir 是可选字段（有数据卷的服务才声明），缺省/显式 null 都合法
+    data_dir = manifest.get("data_dir")
+    if data_dir is not None and (not isinstance(data_dir, str) or not data_dir):
+        problems.append("data_dir must be a non-empty string or null")
     return problems
 
 
@@ -133,6 +158,21 @@ def _check_schema(schema: dict[str, Any]) -> list[str]:
             problems.append(f"field '{field_name}' has invalid type '{field_type}'")
         if field_type == "enum" and not isinstance(field_def.get("options"), list):
             problems.append(f"enum field '{field_name}' requires an 'options' list")
+        secret = field_def.get("secret")
+        if secret is not None and not isinstance(secret, bool):
+            problems.append(
+                f"field '{field_name}' has invalid 'secret' attribute; must be boolean"
+            )
+        group = field_def.get("group")
+        if group is not None and group not in ALLOWED_GROUPS:
+            problems.append(
+                f"field '{field_name}' has invalid 'group' attribute '{group}'; must be one of {sorted(ALLOWED_GROUPS)}"
+            )
+        pem = field_def.get("pem")
+        if pem is not None and not isinstance(pem, bool):
+            problems.append(
+                f"field '{field_name}' has invalid 'pem' attribute; must be boolean"
+            )
     return problems
 
 

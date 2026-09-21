@@ -49,11 +49,15 @@ def test_use_access_token(
 def test_recovery_password(
     client: TestClient, normal_user_token_headers: dict[str, str]
 ) -> None:
-    # NOTE: 同时 mock 掉发信动作，测试不依赖真实 SMTP 网络（否则环境相关必挂）
+    # NOTE: mock 掉发信动作，测试不依赖真实 SMTP 网络（否则环境相关必挂）。
+    # 路由定义在 app/api/routes/login.py，patch 目标必须是该模块内的名字；
+    # emails_enabled 由 SMTP_HOST + EMAILS_FROM_EMAIL 共同决定，两个都要给，
+    # 否则真实 send_email 会因"未配置邮件变量"断言失败。
     with (
         patch("app.core.config.settings.SMTP_HOST", "smtp.example.com"),
         patch("app.core.config.settings.SMTP_USER", "admin@example.com"),
-        patch("app.api.routes.users.send_email"),
+        patch("app.core.config.settings.EMAILS_FROM_EMAIL", "noreply@example.com"),
+        patch("app.api.routes.login.send_email"),
     ):
         email = "test@example.com"
         r = client.post(

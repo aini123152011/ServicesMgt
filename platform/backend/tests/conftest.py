@@ -25,15 +25,15 @@ def db() -> Generator[Session]:
         yield session
         # 清理顺序按外键依赖：审计/关联/条目先删，再删用户与角色
         statement = delete(AuditLog)
-        session.execute(statement)
+        session.exec(statement)
         statement = delete(UserRole)
-        session.execute(statement)
+        session.exec(statement)
         statement = delete(Item)
-        session.execute(statement)
+        session.exec(statement)
         statement = delete(User)
-        session.execute(statement)
+        session.exec(statement)
         statement = delete(Role)
-        session.execute(statement)
+        session.exec(statement)
         session.commit()
 
 

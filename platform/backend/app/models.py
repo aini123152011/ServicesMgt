@@ -179,6 +179,8 @@ class ServiceSummary(SQLModel):
 class ServiceManifest(ServiceSummary):
     config_dir: str
     config_files: list[str]
+    # 容器内数据目录；None=服务未声明数据卷（前端据此隐藏数据浏览入口）
+    data_dir: str | None = None
 
 
 # 服务当前配置状态：从未保存过配置时三个字段均为 None
@@ -210,6 +212,28 @@ class ServiceStatus(SQLModel):
 # 服务日志查询结果
 class ServiceLogs(SQLModel):
     logs: str
+
+
+# 服务数据卷内单个条目：modified 为最后修改时间（序列化为 ISO8601，取不到时为 null）
+class ServiceDataEntry(SQLModel):
+    name: str
+    type: Literal["file", "dir"]
+    size: int
+    modified: datetime | None = None
+
+
+# GET /services/{name}/data/tree 响应：path 为归一化后的相对子路径（卷根为空串）
+class ServiceDataTree(SQLModel):
+    path: str
+    entries: list[ServiceDataEntry]
+
+
+# GET /services/{name}/data/content 响应：size 为文件总字节数，truncated 表示头部超出读取窗口被丢弃
+class ServiceDataContent(SQLModel):
+    path: str
+    size: int
+    truncated: bool
+    lines: list[str]
 
 
 class ServicesPublic(SQLModel):

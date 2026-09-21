@@ -6,7 +6,7 @@
 """
 
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import pytest
 
@@ -54,8 +54,10 @@ def test_validate_rejects_unknown_fields(chrony_plugin: registry.ServicePlugin) 
 
 def test_validate_rejects_non_object(chrony_plugin: registry.ServicePlugin) -> None:
     """values 不是 JSON 对象时直接拒绝。"""
+    # 故意传非对象：类型系统用 cast 放行，运行时由 validate_values 兜住
+    bad_values = cast("dict[str, Any]", ["not", "an", "object"])
     with pytest.raises(config_renderer.ConfigValidationError, match="JSON object"):
-        config_renderer.validate_values(chrony_plugin.schema, ["not", "an", "object"])  # type: ignore[arg-type]
+        config_renderer.validate_values(chrony_plugin.schema, bad_values)
 
 
 def test_validate_integer_coercion_and_bounds(
@@ -120,9 +122,9 @@ def test_render_with_defaults_contains_server_lines(
     """默认值渲染出合法 chrony.conf：包含 server 行、无残留模板标签。"""
     values = config_renderer.validate_values(chrony_plugin.schema, {})
     written = config_renderer.render_config(chrony_plugin, values)
-    assert len(written) == 1
+    # chrony 声明两个渲染产物：主配置 + 故障注入偏移传递文件
+    assert [p.name for p in written] == ["chrony.conf", "faketime.conf"]
     target = written[0]
-    assert target.name == "chrony.conf"
     assert target.parent == tmp_path / "chrony-config"
     content = target.read_text(encoding="utf-8")
     # 断言放宽为"包含 server 行"，与实现说明保持一致
@@ -148,8 +150,11 @@ def test_render_overwrites_existing_file(
     )
     assert first == second
     assert "maxdistance 7" in second[0].read_text(encoding="utf-8")
-    # 临时文件不留残留
-    assert [p.name for p in second[0].parent.iterdir()] == ["chrony.conf"]
+    # 临时文件不留残留：目录内只剩 manifest 声明的渲染产物
+    assert sorted(p.name for p in second[0].parent.iterdir()) == [
+        "chrony.conf",
+        "faketime.conf",
+    ]
 
 
 def test_render_rejects_path_traversal(
@@ -177,3 +182,68 @@ def test_render_missing_template_raises(tmp_path: Path) -> None:
         config_renderer.TemplateRenderError, match="Failed to render template"
     ):
         config_renderer.render_config(plugin, {})
+
+
+def test_validate_text_and_pem() -> None:
+    """text 字段多行支持，以及 pem 证书校验。"""
+    schema = {
+        "fields": [
+            {"name": "description", "type": "text"},
+            {"name": "cert", "type": "text", "pem": True},
+        ]
+    }
+    # 正常值
+    values = config_renderer.validate_values(
+        schema,
+        {
+            "description": "line 1\nline 2",
+            "cert": "-----BEGIN CERTIFICATE-----\nMIIB...\n-----END CERTIFICATE-----",
+        },
+    )
+    assert values["description"] == "line 1\nline 2"
+    assert "BEGIN CERTIFICATE" in values["cert"]
+
+    # 非法 PEM
+    with pytest.raises(config_renderer.ConfigValidationError, match="valid PEM format"):
+        config_renderer.validate_values(
+            schema,
+            {"description": "ok", "cert": "invalid content without pem markers"},
+        )
+
+
+def test_validate_secret_placeholder_and_masking() -> None:
+    """secret 字段脱敏与占位符合并回填。"""
+    schema = {
+        "fields": [
+            {"name": "username", "type": "string"},
+            {"name": "password", "type": "string", "secret": True},
+        ]
+    }
+    # 首次提交明文
+    first_values = config_renderer.validate_values(
+        schema, {"username": "admin", "password": "supersecretpassword"}
+    )
+    assert first_values["password"] == "supersecretpassword"
+
+    # API 脱敏输出
+    masked = config_renderer.mask_secret_values(schema, first_values)
+    assert masked is not None
+    assert masked["password"] == "********"
+    assert masked["username"] == "admin"
+
+    # 二次提交带掩码占位符：保留 existing_values 里的原值
+    second_values = config_renderer.validate_values(
+        schema,
+        {"username": "admin2", "password": "********"},
+        existing_values=first_values,
+    )
+    assert second_values["username"] == "admin2"
+    assert second_values["password"] == "supersecretpassword"
+
+    # 无历史原值但提交掩码应拒绝
+    with pytest.raises(
+        config_renderer.ConfigValidationError, match="requires a non-masked"
+    ):
+        config_renderer.validate_values(
+            schema, {"username": "admin", "password": "********"}
+        )

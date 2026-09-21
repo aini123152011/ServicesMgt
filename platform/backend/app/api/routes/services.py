@@ -87,12 +87,17 @@ def read_service(session: SessionDep, name: str) -> Any:
     """
     plugin = _get_plugin_or_404(name)
     config = get_service_config(session=session, service_name=name)
+    masked_values = (
+        config_renderer.mask_secret_values(plugin.schema, config.values)
+        if config and config.values
+        else None
+    )
     # 手工组响应而非 response_model：顶层键 "schema" 与 pydantic 保留名冲突，直传 dict 保证形状逐字一致
     return {
         "manifest": ServiceManifest.model_validate(plugin.manifest),
         "schema": plugin.schema,
         "config": ServiceConfigState(
-            values=config.values if config else None,
+            values=masked_values,
             applied=config.applied if config else None,
             rendered_at=config.rendered_at if config else None,
         ),
@@ -130,8 +135,12 @@ def update_service_config(
             400 values 与 schema 不匹配；502 渲染/写卷/Docker 调用失败。
     """
     plugin = _get_plugin_or_404(name)
+    existing_config = get_service_config(session=session, service_name=name)
+    existing_values = existing_config.values if existing_config else None
     try:
-        values = config_renderer.validate_values(plugin.schema, config_in.values)
+        values = config_renderer.validate_values(
+            plugin.schema, config_in.values, existing_values=existing_values
+        )
     except config_renderer.ConfigValidationError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
     rendered_at = get_datetime_utc()

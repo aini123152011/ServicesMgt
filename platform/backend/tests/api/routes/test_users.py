@@ -444,7 +444,7 @@ def test_delete_user_me(client: TestClient, db: Session) -> None:
     assert result is None
 
     user_query = select(User).where(User.id == user_id)
-    user_db = db.execute(user_query).first()
+    user_db = db.exec(user_query).first()
     assert user_db is None
 
 
