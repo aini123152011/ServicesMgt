@@ -38,6 +38,28 @@ export function useServiceStatusQuery(name: string) {
   })
 }
 
+/**
+ * 批量轮询多个服务的状态，返回以服务名为键的映射，供首页健康表与统计卡使用。
+ *
+ * 与单服务 hook 分开而不是循环调用：首页要同时显示全部服务，逐个挂 5s 轮询会让请求数
+ * 随服务数量线性膨胀；这里合并成一次并发请求，并把间隔放宽到 15s（首页是总览，不需要秒级）。
+ */
+export function useServicesStatusQuery(names: string[], intervalMs = 15000) {
+  return useQuery({
+    queryKey: ['services', 'statuses', names],
+    queryFn: async () => {
+      const statuses = await Promise.all(
+        names.map((name) => getServiceStatus(name))
+      )
+      return Object.fromEntries(
+        statuses.map((status) => [status.name, status] as const)
+      )
+    },
+    enabled: names.length > 0,
+    refetchInterval: intervalMs,
+  })
+}
+
 /** 容器日志，仅在日志弹窗打开时请求，避免无谓流量 */
 export function useServiceLogsQuery(name: string, enabled: boolean) {
   return useQuery({

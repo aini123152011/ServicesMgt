@@ -79,7 +79,11 @@ export function ConfigDrawer() {
   )
 }
 
-function SectionTitle({
+/**
+ * 分节标题。与下方的各配置分节一并导出，供「设置 → 外观」页复用：
+ * 抽屉与设置页要显示同一套主题/侧边栏/布局开关，重复实现会立刻出现两套不一致的行为。
+ */
+export function SectionTitle({
   title,
   showReset = false,
   onReset,
@@ -173,7 +177,7 @@ function RadioGroupItem({
   )
 }
 
-function ThemeConfig() {
+export function ThemeConfig() {
   const { defaultTheme, theme, setTheme } = useTheme()
   const { t } = useTranslation()
   return (
@@ -218,7 +222,7 @@ function ThemeConfig() {
   )
 }
 
-function SidebarConfig() {
+export function SidebarConfig() {
   const { defaultVariant, variant, setVariant } = useLayout()
   const { t } = useTranslation()
   return (
@@ -263,7 +267,7 @@ function SidebarConfig() {
   )
 }
 
-function LayoutConfig() {
+export function LayoutConfig() {
   const { open, setOpen } = useSidebar()
   const { defaultCollapsible, collapsible, setCollapsible } = useLayout()
   const { t } = useTranslation()

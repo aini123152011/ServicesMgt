@@ -36,9 +36,10 @@ export function AppSidebar() {
         <AppTitle />
       </SidebarHeader>
       <SidebarContent>
-        {navGroups.map((props) => (
-          // 分组标题可能是 key 或服务名原文，取其一作为稳定 key
-          <NavGroup key={props.titleKey ?? props.title} {...props} />
+        {navGroups.map((props, index) => (
+          // 分组标题可能是 key 或服务名原文；无标题的分组（首页、设置）退回下标，
+          // 否则 key 为 undefined，React 会按顺序复用节点而报重复 key 警告
+          <NavGroup key={props.titleKey ?? props.title ?? index} {...props} />
         ))}
       </SidebarContent>
       <SidebarFooter>

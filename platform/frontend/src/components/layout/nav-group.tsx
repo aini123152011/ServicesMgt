@@ -39,9 +39,11 @@ export function NavGroup({ items, ...group }: NavGroupProps) {
   const href = useLocation({ select: (location) => location.href })
   // 分组标题与菜单项标题都可能是 key（平台文案）或原文（服务名），统一在这里翻译
   const navLabel = useNavLabel()
+  // 单入口分组（首页、设置）不设标题：给了标题就会出现「首页 / 首页」两行
+  const groupLabel = navLabel(group)
   return (
     <SidebarGroup>
-      <SidebarGroupLabel>{navLabel(group)}</SidebarGroupLabel>
+      {groupLabel && <SidebarGroupLabel>{groupLabel}</SidebarGroupLabel>}
       <SidebarMenu>
         {items.map((item) => {
           const key = `${navLabel(item)}-${item.url}`

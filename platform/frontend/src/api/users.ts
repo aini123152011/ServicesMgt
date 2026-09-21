@@ -29,6 +29,18 @@ export interface UserUpdatePayload {
   roles?: RoleName[]
 }
 
+/** PATCH /users/me 请求体：只改自身资料，角色与启用状态不在此接口范围内 */
+export interface UserSelfUpdatePayload {
+  full_name?: string | null
+  email?: string
+}
+
+/** PATCH /users/me/password 请求体；后端要求两个字段都不短于 8 位 */
+export interface PasswordUpdatePayload {
+  current_password: string
+  new_password: string
+}
+
 /** GET /users?skip&limit，后端以 { data, count } 包裹；当前一次全量拉取、前端本地分页 */
 export async function listUsers(skip = 0, limit = 100): Promise<UserPublic[]> {
   const { data } = await apiClient.get<{
@@ -59,6 +71,31 @@ export async function updateUser(
 /** DELETE /users/{id}，成功返回 Message */
 export async function deleteUser(id: string): Promise<Message> {
   const { data } = await apiClient.delete<Message>(`/api/v1/users/${id}`)
+  return data
+}
+
+/**
+ * 修改当前登录用户的姓名/邮箱。
+ * 邮箱与他人重复时后端返回 409，由全局错误处理展示。
+ */
+export async function updateCurrentUser(
+  payload: UserSelfUpdatePayload
+): Promise<UserPublic> {
+  const { data } = await apiClient.patch<UserPublic>(
+    '/api/v1/users/me',
+    payload
+  )
+  return data
+}
+
+/** 修改当前登录用户的密码；当前密码错误或新旧相同时后端返回 400 */
+export async function updateCurrentUserPassword(
+  payload: PasswordUpdatePayload
+): Promise<Message> {
+  const { data } = await apiClient.patch<Message>(
+    '/api/v1/users/me/password',
+    payload
+  )
   return data
 }
 

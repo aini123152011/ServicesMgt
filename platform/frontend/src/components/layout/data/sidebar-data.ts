@@ -1,4 +1,4 @@
-import { Server, Settings2, Users } from 'lucide-react'
+import { LayoutDashboard, Server, Settings, Users } from 'lucide-react'
 import { type SidebarData } from '../types'
 
 /**
@@ -7,6 +7,16 @@ import { type SidebarData } from '../types'
  */
 export const sidebarData: SidebarData = {
   navGroups: [
+    {
+      // 不设分组标题：首页是单入口，加了标题会出现「首页」重复两行
+      items: [
+        {
+          titleKey: 'nav.home',
+          url: '/',
+          icon: LayoutDashboard,
+        },
+      ],
+    },
     {
       titleKey: 'nav.groupServices',
       // 其下除「服务列表」外，还会按分类动态追加各服务入口
@@ -20,18 +30,6 @@ export const sidebarData: SidebarData = {
       ],
     },
     {
-      titleKey: 'nav.groupSystem',
-      items: [
-        {
-          titleKey: 'nav.system',
-          url: '/system',
-          icon: Settings2,
-          // 更新会重建容器、影响在线服务，仅管理员可见
-          adminOnly: true,
-        },
-      ],
-    },
-    {
       titleKey: 'nav.groupUsers',
       items: [
         {
@@ -40,6 +38,16 @@ export const sidebarData: SidebarData = {
           icon: Users,
           // 仅 admin（含 is_superuser）可见，渲染处按 usePermissions 过滤
           adminOnly: true,
+        },
+      ],
+    },
+    {
+      // 同上：单入口不设分组标题，避免「设置」出现两行
+      items: [
+        {
+          titleKey: 'nav.settings',
+          url: '/settings',
+          icon: Settings,
         },
       ],
     },

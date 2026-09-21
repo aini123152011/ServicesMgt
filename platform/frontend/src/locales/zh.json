@@ -31,11 +31,141 @@
   "nav": {
     "groupServices": "服务管理",
     "groupUsers": "用户管理",
+    "settings": "设置",
+    "home": "首页",
     "services": "服务列表",
     "users": "用户列表",
-    "serviceDetail": "服务详情",
-    "groupSystem": "系统",
-    "system": "系统信息与更新"
+    "serviceDetail": "服务详情"
+  },
+  "home": {
+    "title": "平台概览",
+    "description": "服务运行状态、健康检查与最近变更一览。",
+    "loadFailed": "平台概览数据加载失败。",
+    "stats": {
+      "services": "服务总数",
+      "running": "运行中",
+      "healthIssues": "健康异常",
+      "stopped": "未运行"
+    },
+    "health": {
+      "title": "服务健康",
+      "description": "点击行进入服务详情；状态每 15 秒刷新一次。",
+      "empty": "暂无纳管服务，请检查后端 Service Registry。",
+      "name": "名称",
+      "category": "分类",
+      "status": "状态",
+      "healthCheck": "健康检查",
+      "reloadMode": "生效方式",
+      "healthy": "健康",
+      "unhealthy": "异常",
+      "starting": "检查中",
+      "noCheck": "无健康检查"
+    },
+    "recent": {
+      "title": "最近变更",
+      "description": "平台最近的审计事件（仅管理员可见）。",
+      "empty": "暂无审计记录。",
+      "time": "时间",
+      "action": "动作",
+      "operator": "操作者",
+      "target": "对象",
+      "detail": "说明"
+    },
+    "shortcuts": {
+      "title": "快捷入口",
+      "description": "常用功能直达。",
+      "services": "服务列表",
+      "logs": "日志浏览",
+      "updates": "系统更新"
+    }
+  },
+  "settings": {
+    "title": "设置",
+    "description": "账号资料、界面外观与平台信息。",
+    "nav": {
+      "label": "设置分区",
+      "account": "账号",
+      "appearance": "外观",
+      "updates": "系统更新",
+      "about": "关于"
+    },
+    "account": {
+      "title": "账号",
+      "description": "维护你的个人资料与登录密码。",
+      "profile": {
+        "title": "个人资料",
+        "description": "修改姓名与邮箱；邮箱同时用于登录。",
+        "fullName": "姓名",
+        "fullNamePlaceholder": "请输入姓名",
+        "email": "邮箱",
+        "emailPlaceholder": "请输入邮箱",
+        "submit": "保存资料",
+        "saved": "个人资料已更新"
+      },
+      "password": {
+        "title": "修改密码",
+        "description": "修改后请用新密码登录其他设备。",
+        "current": "当前密码",
+        "new": "新密码",
+        "confirm": "确认新密码",
+        "submit": "修改密码",
+        "saved": "密码已修改"
+      },
+      "validation": {
+        "email": "请输入有效邮箱",
+        "fullNameMax": "姓名不能超过 255 个字符",
+        "passwordMin": "密码至少 8 位",
+        "passwordMismatch": "两次输入的新密码不一致"
+      }
+    },
+    "appearance": {
+      "title": "外观",
+      "description": "主题、语言与侧边栏布局；与顶栏快捷切换共用同一份设置。",
+      "language": "语言",
+      "languageHint": "切换后立即生效，刷新后保持所选语言。"
+    },
+    "updates": {
+      "title": "系统更新",
+      "description": "查看平台版本，检查并应用平台与服务的镜像更新。"
+    },
+    "about": {
+      "title": "关于",
+      "description": "平台版本、部署形态、纳管服务与开源组件说明。",
+      "version": {
+        "title": "版本与构建",
+        "description": "当前运行平台的版本信息。",
+        "platform": "平台版本",
+        "build": "构建号",
+        "registry": "更新镜像仓库",
+        "registryUnset": "未配置（仅支持离线包）",
+        "lastTask": "最近更新任务"
+      },
+      "deployment": {
+        "title": "部署形态",
+        "description": "平台运行方式与依赖。",
+        "shape": "部署形态",
+        "shapeValue": "单容器同源部署：前端产物与 /api/v1 由同一后端提供。",
+        "docker": "Docker 连接",
+        "dockerAvailable": "可用",
+        "dockerUnavailable": "不可达（服务状态与更新不可用）"
+      },
+      "services": {
+        "title": "纳管服务",
+        "description": "平台纳管的服务容器与镜像现状。",
+        "empty": "未获取到服务镜像信息。",
+        "name": "对象",
+        "image": "镜像",
+        "running": "容器",
+        "runningYes": "运行中",
+        "runningNo": "未运行"
+      },
+      "license": {
+        "title": "开源组件与许可",
+        "description": "平台基于以下开源项目构建，许可条款遵循各项目自身声明。",
+        "frontend": "前端：shadcn/ui 组件与 Tailwind CSS，构建于 React、Vite 与 TanStack Router / Query 之上。",
+        "backend": "后端：FastAPI + SQLModel，数据库 PostgreSQL，容器运行时经 Docker SDK 访问。"
+      }
+    }
   },
   "auth": {
     "emailLabel": "邮箱",
@@ -221,8 +351,6 @@
     }
   },
   "system": {
-    "title": "系统信息与更新",
-    "subtitle": "查看平台版本与各服务镜像，检查并应用更新。",
     "check": "检查更新",
     "dockerUnavailable": "Docker 不可达：无法读取镜像信息，请确认平台已挂载 docker.sock。",
     "runningHint": "更新任务执行中，页面会自动刷新状态。",

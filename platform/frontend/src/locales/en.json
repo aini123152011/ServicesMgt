@@ -31,11 +31,141 @@
   "nav": {
     "groupServices": "Services",
     "groupUsers": "Users",
+    "settings": "Settings",
+    "home": "Home",
     "services": "Service list",
     "users": "User list",
-    "serviceDetail": "Service detail",
-    "groupSystem": "System",
-    "system": "System & updates"
+    "serviceDetail": "Service detail"
+  },
+  "home": {
+    "title": "Overview",
+    "description": "Service status, health checks and recent changes at a glance.",
+    "loadFailed": "Failed to load the overview.",
+    "stats": {
+      "services": "Services",
+      "running": "Running",
+      "healthIssues": "Health issues",
+      "stopped": "Stopped"
+    },
+    "health": {
+      "title": "Service health",
+      "description": "Click a row to open the service; status refreshes every 15 seconds.",
+      "empty": "No managed service yet, please check the backend service registry.",
+      "name": "Name",
+      "category": "Category",
+      "status": "Status",
+      "healthCheck": "Health check",
+      "reloadMode": "Applied by",
+      "healthy": "Healthy",
+      "unhealthy": "Unhealthy",
+      "starting": "Starting",
+      "noCheck": "No health check"
+    },
+    "recent": {
+      "title": "Recent changes",
+      "description": "Latest audit events of the platform (administrators only).",
+      "empty": "No audit record yet.",
+      "time": "Time",
+      "action": "Action",
+      "operator": "Operator",
+      "target": "Target",
+      "detail": "Detail"
+    },
+    "shortcuts": {
+      "title": "Shortcuts",
+      "description": "Jump straight to frequently used pages.",
+      "services": "Service list",
+      "logs": "Browse logs",
+      "updates": "System updates"
+    }
+  },
+  "settings": {
+    "title": "Settings",
+    "description": "Account profile, appearance and platform information.",
+    "nav": {
+      "label": "Settings section",
+      "account": "Account",
+      "appearance": "Appearance",
+      "updates": "System updates",
+      "about": "About"
+    },
+    "account": {
+      "title": "Account",
+      "description": "Maintain your profile and sign-in password.",
+      "profile": {
+        "title": "Profile",
+        "description": "Change your name and email; the email is also your sign-in name.",
+        "fullName": "Name",
+        "fullNamePlaceholder": "Enter your name",
+        "email": "Email",
+        "emailPlaceholder": "Enter your email",
+        "submit": "Save profile",
+        "saved": "Profile updated"
+      },
+      "password": {
+        "title": "Password",
+        "description": "After changing it, sign in again on your other devices.",
+        "current": "Current password",
+        "new": "New password",
+        "confirm": "Confirm new password",
+        "submit": "Change password",
+        "saved": "Password updated"
+      },
+      "validation": {
+        "email": "Enter a valid email address",
+        "fullNameMax": "Name must be at most 255 characters",
+        "passwordMin": "Password must be at least 8 characters",
+        "passwordMismatch": "The two new passwords do not match"
+      }
+    },
+    "appearance": {
+      "title": "Appearance",
+      "description": "Theme, language and sidebar layout; shared with the header shortcuts.",
+      "language": "Language",
+      "languageHint": "Takes effect immediately and is kept after a refresh."
+    },
+    "updates": {
+      "title": "System updates",
+      "description": "Check the platform version and apply image updates for the platform and its services."
+    },
+    "about": {
+      "title": "About",
+      "description": "Platform version, deployment shape, managed services and open-source components.",
+      "version": {
+        "title": "Version and build",
+        "description": "Version information of the running platform.",
+        "platform": "Platform version",
+        "build": "Build",
+        "registry": "Update registry",
+        "registryUnset": "Not configured (offline packages only)",
+        "lastTask": "Last update task"
+      },
+      "deployment": {
+        "title": "Deployment",
+        "description": "How the platform runs and what it depends on.",
+        "shape": "Shape",
+        "shapeValue": "Single container, same origin: the frontend bundle and /api/v1 are served by one backend.",
+        "docker": "Docker connection",
+        "dockerAvailable": "Available",
+        "dockerUnavailable": "Unreachable (service status and updates unavailable)"
+      },
+      "services": {
+        "title": "Managed services",
+        "description": "Containers and images currently managed by the platform.",
+        "empty": "No service image information available.",
+        "name": "Target",
+        "image": "Image",
+        "running": "Container",
+        "runningYes": "Running",
+        "runningNo": "Stopped"
+      },
+      "license": {
+        "title": "Open-source components",
+        "description": "The platform is built on the following open-source projects; their own licences apply.",
+        "frontend": "Frontend: shadcn/ui components and Tailwind CSS, built on React, Vite and TanStack Router / Query.",
+        "backend": "Backend: FastAPI + SQLModel with PostgreSQL, container runtime accessed through the Docker SDK."
+      }
+    }
   },
   "auth": {
     "emailLabel": "Email",
@@ -221,8 +351,6 @@
     }
   },
   "system": {
-    "title": "System & updates",
-    "subtitle": "Inspect the platform version and service images, then check and apply updates.",
     "check": "Check for updates",
     "dockerUnavailable": "Docker is unreachable: image details are unavailable. Make sure docker.sock is mounted.",
     "runningHint": "An update task is running; the status refreshes automatically.",

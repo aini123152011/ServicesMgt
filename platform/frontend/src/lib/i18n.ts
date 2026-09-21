@@ -21,6 +21,19 @@ export type Language = (typeof SUPPORTED_LANGUAGES)[number]
 /** 默认语言固定中文：没选过语言的用户首屏必须是中文 */
 export const DEFAULT_LANGUAGE: Language = 'zh'
 
+/**
+ * 语言选项：**每种语言用它自己的文字显示**（中文 / English），不跟随当前界面语言。
+ * 界面已经是用户看不懂的语言时，用户仍能认出自己那一项；若按当前语言翻译
+ * （英文界面下显示 Chinese/English），反而让人找不到母语入口。
+ *
+ * 放在这里而不是某个组件文件里：顶栏切换器与「设置 → 外观」页共用同一份列表，
+ * 各写一份迟早会漂移。
+ */
+export const LANGUAGE_OPTIONS: { value: Language; label: string }[] = [
+  { value: 'zh', label: '中文' },
+  { value: 'en', label: 'English' },
+]
+
 export function isLanguage(value: unknown): value is Language {
   return SUPPORTED_LANGUAGES.some((language) => language === value)
 }

@@ -2,9 +2,9 @@ import { Check, Languages } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import {
   DEFAULT_LANGUAGE,
+  LANGUAGE_OPTIONS,
   isLanguage,
   setLanguage,
-  type Language,
 } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -14,16 +14,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-
-/**
- * 语言选项：**每种语言用它自己的文字显示**（中文 / English），不跟随当前界面语言。
- * 这是语言选择器的通行做法：界面已经是用户看不懂的语言时，用户仍能认出自己那一项；
- * 若按当前语言翻译（英文界面下显示 Chinese/English），反而让人找不到母语入口。
- */
-const LANGUAGE_OPTIONS: { value: Language; label: string }[] = [
-  { value: 'zh', label: '中文' },
-  { value: 'en', label: 'English' },
-]
 
 /**
  * 顶栏语言切换（放在主题切换旁）。

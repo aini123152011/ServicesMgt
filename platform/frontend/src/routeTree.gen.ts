@@ -18,9 +18,15 @@ import { Route as errors403RouteImport } from './routes/(errors)/403'
 import { Route as errors401RouteImport } from './routes/(errors)/401'
 import { Route as authSignInRouteImport } from './routes/(auth)/sign-in'
 import { Route as authForgotPasswordRouteImport } from './routes/(auth)/forgot-password'
+import { Route as AuthenticatedSettingsRouteRouteImport } from './routes/_authenticated/settings/route'
 import { Route as AuthenticatedUsersIndexRouteImport } from './routes/_authenticated/users/index'
 import { Route as AuthenticatedSystemIndexRouteImport } from './routes/_authenticated/system/index'
+import { Route as AuthenticatedSettingsIndexRouteImport } from './routes/_authenticated/settings/index'
 import { Route as AuthenticatedServicesIndexRouteImport } from './routes/_authenticated/services/index'
+import { Route as AuthenticatedSettingsUpdatesRouteImport } from './routes/_authenticated/settings/updates'
+import { Route as AuthenticatedSettingsAppearanceRouteImport } from './routes/_authenticated/settings/appearance'
+import { Route as AuthenticatedSettingsAccountRouteImport } from './routes/_authenticated/settings/account'
+import { Route as AuthenticatedSettingsAboutRouteImport } from './routes/_authenticated/settings/about'
 import { Route as AuthenticatedServicesServiceNameRouteImport } from './routes/_authenticated/services/$serviceName'
 import { Route as AuthenticatedErrorsErrorRouteImport } from './routes/_authenticated/errors/$error'
 
@@ -68,6 +74,12 @@ const authForgotPasswordRoute = authForgotPasswordRouteImport.update({
   path: '/forgot-password',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedSettingsRouteRoute =
+  AuthenticatedSettingsRouteRouteImport.update({
+    id: '/settings',
+    path: '/settings',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedUsersIndexRoute = AuthenticatedUsersIndexRouteImport.update({
   id: '/users/',
   path: '/users/',
@@ -79,11 +91,41 @@ const AuthenticatedSystemIndexRoute =
     path: '/system/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedSettingsIndexRoute =
+  AuthenticatedSettingsIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => AuthenticatedSettingsRouteRoute,
+  } as any)
 const AuthenticatedServicesIndexRoute =
   AuthenticatedServicesIndexRouteImport.update({
     id: '/services/',
     path: '/services/',
     getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedSettingsUpdatesRoute =
+  AuthenticatedSettingsUpdatesRouteImport.update({
+    id: '/updates',
+    path: '/updates',
+    getParentRoute: () => AuthenticatedSettingsRouteRoute,
+  } as any)
+const AuthenticatedSettingsAppearanceRoute =
+  AuthenticatedSettingsAppearanceRouteImport.update({
+    id: '/appearance',
+    path: '/appearance',
+    getParentRoute: () => AuthenticatedSettingsRouteRoute,
+  } as any)
+const AuthenticatedSettingsAccountRoute =
+  AuthenticatedSettingsAccountRouteImport.update({
+    id: '/account',
+    path: '/account',
+    getParentRoute: () => AuthenticatedSettingsRouteRoute,
+  } as any)
+const AuthenticatedSettingsAboutRoute =
+  AuthenticatedSettingsAboutRouteImport.update({
+    id: '/about',
+    path: '/about',
+    getParentRoute: () => AuthenticatedSettingsRouteRoute,
   } as any)
 const AuthenticatedServicesServiceNameRoute =
   AuthenticatedServicesServiceNameRouteImport.update({
@@ -100,6 +142,7 @@ const AuthenticatedErrorsErrorRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedIndexRoute
+  '/settings': typeof AuthenticatedSettingsRouteRouteWithChildren
   '/forgot-password': typeof authForgotPasswordRoute
   '/sign-in': typeof authSignInRoute
   '/401': typeof errors401Route
@@ -109,7 +152,12 @@ export interface FileRoutesByFullPath {
   '/503': typeof errors503Route
   '/errors/$error': typeof AuthenticatedErrorsErrorRoute
   '/services/$serviceName': typeof AuthenticatedServicesServiceNameRoute
+  '/settings/about': typeof AuthenticatedSettingsAboutRoute
+  '/settings/account': typeof AuthenticatedSettingsAccountRoute
+  '/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
+  '/settings/updates': typeof AuthenticatedSettingsUpdatesRoute
   '/services/': typeof AuthenticatedServicesIndexRoute
+  '/settings/': typeof AuthenticatedSettingsIndexRoute
   '/system/': typeof AuthenticatedSystemIndexRoute
   '/users/': typeof AuthenticatedUsersIndexRoute
 }
@@ -124,13 +172,19 @@ export interface FileRoutesByTo {
   '/': typeof AuthenticatedIndexRoute
   '/errors/$error': typeof AuthenticatedErrorsErrorRoute
   '/services/$serviceName': typeof AuthenticatedServicesServiceNameRoute
+  '/settings/about': typeof AuthenticatedSettingsAboutRoute
+  '/settings/account': typeof AuthenticatedSettingsAccountRoute
+  '/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
+  '/settings/updates': typeof AuthenticatedSettingsUpdatesRoute
   '/services': typeof AuthenticatedServicesIndexRoute
+  '/settings': typeof AuthenticatedSettingsIndexRoute
   '/system': typeof AuthenticatedSystemIndexRoute
   '/users': typeof AuthenticatedUsersIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
+  '/_authenticated/settings': typeof AuthenticatedSettingsRouteRouteWithChildren
   '/(auth)/forgot-password': typeof authForgotPasswordRoute
   '/(auth)/sign-in': typeof authSignInRoute
   '/(errors)/401': typeof errors401Route
@@ -141,7 +195,12 @@ export interface FileRoutesById {
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/_authenticated/errors/$error': typeof AuthenticatedErrorsErrorRoute
   '/_authenticated/services/$serviceName': typeof AuthenticatedServicesServiceNameRoute
+  '/_authenticated/settings/about': typeof AuthenticatedSettingsAboutRoute
+  '/_authenticated/settings/account': typeof AuthenticatedSettingsAccountRoute
+  '/_authenticated/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
+  '/_authenticated/settings/updates': typeof AuthenticatedSettingsUpdatesRoute
   '/_authenticated/services/': typeof AuthenticatedServicesIndexRoute
+  '/_authenticated/settings/': typeof AuthenticatedSettingsIndexRoute
   '/_authenticated/system/': typeof AuthenticatedSystemIndexRoute
   '/_authenticated/users/': typeof AuthenticatedUsersIndexRoute
 }
@@ -149,6 +208,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/settings'
     | '/forgot-password'
     | '/sign-in'
     | '/401'
@@ -158,7 +218,12 @@ export interface FileRouteTypes {
     | '/503'
     | '/errors/$error'
     | '/services/$serviceName'
+    | '/settings/about'
+    | '/settings/account'
+    | '/settings/appearance'
+    | '/settings/updates'
     | '/services/'
+    | '/settings/'
     | '/system/'
     | '/users/'
   fileRoutesByTo: FileRoutesByTo
@@ -173,12 +238,18 @@ export interface FileRouteTypes {
     | '/'
     | '/errors/$error'
     | '/services/$serviceName'
+    | '/settings/about'
+    | '/settings/account'
+    | '/settings/appearance'
+    | '/settings/updates'
     | '/services'
+    | '/settings'
     | '/system'
     | '/users'
   id:
     | '__root__'
     | '/_authenticated'
+    | '/_authenticated/settings'
     | '/(auth)/forgot-password'
     | '/(auth)/sign-in'
     | '/(errors)/401'
@@ -189,7 +260,12 @@ export interface FileRouteTypes {
     | '/_authenticated/'
     | '/_authenticated/errors/$error'
     | '/_authenticated/services/$serviceName'
+    | '/_authenticated/settings/about'
+    | '/_authenticated/settings/account'
+    | '/_authenticated/settings/appearance'
+    | '/_authenticated/settings/updates'
     | '/_authenticated/services/'
+    | '/_authenticated/settings/'
     | '/_authenticated/system/'
     | '/_authenticated/users/'
   fileRoutesById: FileRoutesById
@@ -270,6 +346,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof authForgotPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/settings': {
+      id: '/_authenticated/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof AuthenticatedSettingsRouteRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/users/': {
       id: '/_authenticated/users/'
       path: '/users'
@@ -284,12 +367,47 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSystemIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/settings/': {
+      id: '/_authenticated/settings/'
+      path: '/'
+      fullPath: '/settings/'
+      preLoaderRoute: typeof AuthenticatedSettingsIndexRouteImport
+      parentRoute: typeof AuthenticatedSettingsRouteRoute
+    }
     '/_authenticated/services/': {
       id: '/_authenticated/services/'
       path: '/services'
       fullPath: '/services/'
       preLoaderRoute: typeof AuthenticatedServicesIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/settings/updates': {
+      id: '/_authenticated/settings/updates'
+      path: '/updates'
+      fullPath: '/settings/updates'
+      preLoaderRoute: typeof AuthenticatedSettingsUpdatesRouteImport
+      parentRoute: typeof AuthenticatedSettingsRouteRoute
+    }
+    '/_authenticated/settings/appearance': {
+      id: '/_authenticated/settings/appearance'
+      path: '/appearance'
+      fullPath: '/settings/appearance'
+      preLoaderRoute: typeof AuthenticatedSettingsAppearanceRouteImport
+      parentRoute: typeof AuthenticatedSettingsRouteRoute
+    }
+    '/_authenticated/settings/account': {
+      id: '/_authenticated/settings/account'
+      path: '/account'
+      fullPath: '/settings/account'
+      preLoaderRoute: typeof AuthenticatedSettingsAccountRouteImport
+      parentRoute: typeof AuthenticatedSettingsRouteRoute
+    }
+    '/_authenticated/settings/about': {
+      id: '/_authenticated/settings/about'
+      path: '/about'
+      fullPath: '/settings/about'
+      preLoaderRoute: typeof AuthenticatedSettingsAboutRouteImport
+      parentRoute: typeof AuthenticatedSettingsRouteRoute
     }
     '/_authenticated/services/$serviceName': {
       id: '/_authenticated/services/$serviceName'
@@ -308,7 +426,30 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface AuthenticatedSettingsRouteRouteChildren {
+  AuthenticatedSettingsAboutRoute: typeof AuthenticatedSettingsAboutRoute
+  AuthenticatedSettingsAccountRoute: typeof AuthenticatedSettingsAccountRoute
+  AuthenticatedSettingsAppearanceRoute: typeof AuthenticatedSettingsAppearanceRoute
+  AuthenticatedSettingsUpdatesRoute: typeof AuthenticatedSettingsUpdatesRoute
+  AuthenticatedSettingsIndexRoute: typeof AuthenticatedSettingsIndexRoute
+}
+
+const AuthenticatedSettingsRouteRouteChildren: AuthenticatedSettingsRouteRouteChildren =
+  {
+    AuthenticatedSettingsAboutRoute: AuthenticatedSettingsAboutRoute,
+    AuthenticatedSettingsAccountRoute: AuthenticatedSettingsAccountRoute,
+    AuthenticatedSettingsAppearanceRoute: AuthenticatedSettingsAppearanceRoute,
+    AuthenticatedSettingsUpdatesRoute: AuthenticatedSettingsUpdatesRoute,
+    AuthenticatedSettingsIndexRoute: AuthenticatedSettingsIndexRoute,
+  }
+
+const AuthenticatedSettingsRouteRouteWithChildren =
+  AuthenticatedSettingsRouteRoute._addFileChildren(
+    AuthenticatedSettingsRouteRouteChildren,
+  )
+
 interface AuthenticatedRouteRouteChildren {
+  AuthenticatedSettingsRouteRoute: typeof AuthenticatedSettingsRouteRouteWithChildren
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
   AuthenticatedErrorsErrorRoute: typeof AuthenticatedErrorsErrorRoute
   AuthenticatedServicesServiceNameRoute: typeof AuthenticatedServicesServiceNameRoute
@@ -318,6 +459,7 @@ interface AuthenticatedRouteRouteChildren {
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
+  AuthenticatedSettingsRouteRoute: AuthenticatedSettingsRouteRouteWithChildren,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
   AuthenticatedErrorsErrorRoute: AuthenticatedErrorsErrorRoute,
   AuthenticatedServicesServiceNameRoute: AuthenticatedServicesServiceNameRoute,
