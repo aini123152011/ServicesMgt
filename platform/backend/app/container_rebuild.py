@@ -129,6 +129,57 @@ def extract_run_params(container: _HasAttrs) -> dict[str, Any]:
     if host_config.get("Privileged"):
         params["privileged"] = True
 
+    # security_opt / devices / tmpfs / ulimits / sysctls / dns / extra_hosts / labels：
+    # 这些同样是「重建必须原样复现」的运行条件——本机 nfs-ganesha 实际带
+    # `label=disable`（SELinux enforcing 下访问 bind 卷必需），漏掉会让服务起得来但功能残缺
+    security_opt = host_config.get("SecurityOpt") or []
+    if security_opt:
+        params["security_opt"] = security_opt
+    devices = host_config.get("Devices") or []
+    if devices:
+        params["devices"] = [
+            (
+                device.get("PathOnHost"),
+                device.get("PathInContainer"),
+                device.get("CgroupPermissions"),
+            )
+            for device in devices
+            if device.get("PathOnHost")
+        ]
+    tmpfs = host_config.get("Tmpfs") or {}
+    if tmpfs:
+        params["tmpfs"] = (
+            list(tmpfs.values()) if isinstance(tmpfs, dict) else list(tmpfs)
+        )
+    ulimits = host_config.get("Ulimits") or []
+    if ulimits:
+        params["ulimits"] = [
+            {
+                "Name": limit.get("Name"),
+                "Soft": limit.get("Soft"),
+                "Hard": limit.get("Hard"),
+            }
+            for limit in ulimits
+        ]
+    sysctls = host_config.get("Sysctls") or {}
+    if sysctls:
+        params["sysctls"] = sysctls
+    dns = host_config.get("Dns") or []
+    if dns:
+        params["dns"] = dns
+    extra_hosts = host_config.get("ExtraHosts") or []
+    if extra_hosts:
+        params["extra_hosts"] = extra_hosts
+    labels = config.get("Labels") or {}
+    # 只带自定义标签：com.docker.* 由 Docker 自己维护，传了反而可能冲突
+    custom_labels = {
+        key: value
+        for key, value in labels.items()
+        if not key.startswith(("com.docker.", "org.opencontainers."))
+    }
+    if custom_labels:
+        params["labels"] = custom_labels
+
     if config.get("Entrypoint"):
         params["entrypoint"] = config["Entrypoint"]
     if config.get("Cmd"):
@@ -194,10 +245,18 @@ def rebuild_container(
     try:
         old.rename(backup_name)
         old.stop(timeout=20)
-    except (APIError, OSError) as e:
-        # 改名/停止失败：尽量把名字改回去，保持原状
-        with_client_restore = client.containers.get(backup_name)
-        with_client_restore.rename(container_name)
+    except (APIError, OSError, NotFound) as e:
+        # 改名/停止失败：尽量把名字改回去，保持原状。
+        # NOTE: 恢复动作本身也可能失败（容器根本没改名成功 → get 抛 NotFound），
+        # 必须单独兜住，否则异常会逃出本函数、违反 docstring 的 RebuildError 契约，
+        # 调用方的状态机会因此卡在 running（复核发现的 P1）
+        try:
+            client.containers.get(backup_name).rename(container_name)
+        except (NotFound, APIError, OSError) as restore_error:
+            logger.error(
+                f"Failed to restore container name '{container_name}' "
+                f"from '{backup_name}': {restore_error}"
+            )
         raise RebuildError(f"Failed to stop container '{container_name}': {e}") from e
 
     try:

@@ -41,6 +41,11 @@ type ServiceConfigFormProps = {
 
 export type ConfigTab = 'base' | 'fault'
 
+/** 类型守卫：Radix Tabs 回调给的是 string，收敛成 ConfigTab（spec 禁 as 断言） */
+function toConfigTab(value: string): ConfigTab {
+  return value === 'fault' ? 'fault' : 'base'
+}
+
 // 空串/纯空白视为未填写，交给 required 或 optional 逻辑处理
 function emptyToUndefined(v: unknown) {
   return typeof v === 'string' && v.trim() === '' ? undefined : v
@@ -458,7 +463,7 @@ export function ServiceConfigForm({
         {faultFields.length > 0 ? (
           <Tabs
             value={activeTab}
-            onValueChange={(value) => onTabChange(value as ConfigTab)}
+            onValueChange={(value) => onTabChange(toConfigTab(value))}
             className='w-full'
           >
             <TabsList className='mb-4'>

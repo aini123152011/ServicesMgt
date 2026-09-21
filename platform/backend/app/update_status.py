@@ -42,7 +42,10 @@ def write(path: Path, **fields: Any) -> dict[str, Any]:
     Raises:
         OSError: 目录创建或写入失败（调用方决定如何呈现）。
     """
-    payload = {"updated_at": now_iso(), **fields}
+    # 与既有内容合并：更新过程中只改 phase/status/message 等字段，
+    # 整体覆盖会把 id/started_at/old_image 丢掉（复核发现的状态文件丢字段问题）
+    previous = read(path) or {}
+    payload = {**previous, "updated_at": now_iso(), **fields}
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp_name = tempfile.mkstemp(
         dir=path.parent, prefix=f".{path.name}.", suffix=".tmp"

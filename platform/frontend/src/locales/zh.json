@@ -18,8 +18,6 @@
     "signOutTitle": "退出登录",
     "signOutDesc": "确定要退出登录吗？退出后需要重新登录才能访问平台。",
     "language": "语言",
-    "languageZh": "中文",
-    "languageEn": "English",
     "toggleTheme": "切换主题",
     "themeLight": "浅色",
     "themeDark": "深色",

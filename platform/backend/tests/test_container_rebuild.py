@@ -115,3 +115,55 @@ def test_extract_run_params_drops_image_owned_version_env() -> None:
     assert params["environment"] == {
         "DATABASE_URL": "postgresql://bmc:pwd@pg:5432/bmc_platform"
     }
+
+
+def test_extract_run_params_restores_security_opt_and_extra_conditions() -> None:
+    """security_opt 等运行条件也必须还原：本机 nfs-ganesha 实际带 label=disable。"""
+    attrs = {
+        "Config": {"Image": "bmc/nfs-ganesha:latest", "Labels": {"bmc.role": "nfs"}},
+        "HostConfig": {
+            "RestartPolicy": {"Name": "unless-stopped"},
+            "Privileged": True,
+            "SecurityOpt": ["label=disable"],
+            "Devices": [
+                {
+                    "PathOnHost": "/dev/fuse",
+                    "PathInContainer": "/dev/fuse",
+                    "CgroupPermissions": "rwm",
+                }
+            ],
+            "Tmpfs": {"/run": "rw,size=64m"},
+            "Ulimits": [{"Name": "nofile", "Soft": 1024, "Hard": 2048}],
+            "Sysctls": {"net.ipv4.ip_forward": "1"},
+            "Dns": ["1.1.1.1"],
+            "ExtraHosts": ["host.local:127.0.0.1"],
+        },
+        "NetworkSettings": {"Networks": {"bmc-net": {}}},
+    }
+
+    params = container_rebuild.extract_run_params(_FakeContainer(attrs))
+
+    assert params["security_opt"] == ["label=disable"]
+    assert params["devices"] == [("/dev/fuse", "/dev/fuse", "rwm")]
+    assert params["tmpfs"] == ["rw,size=64m"]
+    assert params["ulimits"] == [{"Name": "nofile", "Soft": 1024, "Hard": 2048}]
+    assert params["sysctls"] == {"net.ipv4.ip_forward": "1"}
+    assert params["dns"] == ["1.1.1.1"]
+    assert params["extra_hosts"] == ["host.local:127.0.0.1"]
+    assert params["labels"] == {"bmc.role": "nfs"}
+
+
+def test_extract_run_params_skips_docker_managed_labels() -> None:
+    """Docker 自己维护的标签不回传，避免与 daemon 冲突。"""
+    attrs = {
+        "Config": {
+            "Image": "bmc/nginx:latest",
+            "Labels": {"com.docker.compose.project": "x", "bmc.owner": "ops"},
+        },
+        "HostConfig": {"RestartPolicy": {"Name": "no"}},
+        "NetworkSettings": {"Networks": {}},
+    }
+
+    params = container_rebuild.extract_run_params(_FakeContainer(attrs))
+
+    assert params["labels"] == {"bmc.owner": "ops"}

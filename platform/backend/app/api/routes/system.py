@@ -11,7 +11,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 
-from app import registry, system_update
+from app import container_rebuild, registry, system_update
 from app.api.deps import CurrentUser, RequireAdmin, SessionDep, get_current_user
 from app.crud import record_audit_log
 from app.models import Message, SystemInfo, UpdateApplyRequest, UpdateCheckResult
@@ -73,6 +73,13 @@ async def upload_package(file: UploadFile = File(...)) -> Any:
     Raises:
         HTTPException: 400 包为空/超限；502 docker load 失败（包损坏等）。
     """
+    # 先按声明大小挡掉超大包，避免为了判断大小把整个文件读进内存
+    declared = getattr(file, "size", None)
+    if declared is not None and declared > MAX_PACKAGE_BYTES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Uploaded package exceeds {MAX_PACKAGE_BYTES} bytes",
+        )
     data = await file.read()
     if not data:
         raise HTTPException(status_code=400, detail="Uploaded package is empty")
@@ -114,7 +121,9 @@ def apply_update(
         )
     except UpdateBusyError as e:
         raise HTTPException(status_code=409, detail=str(e)) from e
-    except UpdateError as e:
+    except (UpdateError, container_rebuild.RebuildError) as e:
+        # RebuildError 也要转 502：自更新派生 helper 前要取平台容器，
+        # 容器名不符或平台正被重建时它抛的是 RebuildError（复核 P1）
         raise HTTPException(status_code=502, detail=str(e)) from e
 
     record_audit_log(

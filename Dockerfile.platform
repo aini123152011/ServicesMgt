@@ -27,4 +27,11 @@ COPY platform/frontend/dist /app/backend/app/frontend
 RUN uv sync --frozen --package app
 
 EXPOSE 8000
+
+# 判活依据：健康检查端点返回 200 即视为可用。
+# 用 python 而不是 curl：基础镜像里没有 curl，装它只为健康检查不值当。
+# NOTE: 平台自更新的「健康检查失败自动回滚」依赖这条——容器没有 HEALTHCHECK 时
+# Docker 不会给出 healthy，重建器只能看到 Running 就判成功，回滚形同虚设（复核 P1）
+HEALTHCHECK --interval=15s --timeout=5s --start-period=30s --retries=5     CMD python -c "import urllib.request;urllib.request.urlopen('http://127.0.0.1:8000/api/v1/utils/health-check/', timeout=4)" || exit 1
+
 CMD ["fastapi", "run", "--workers", "2"]

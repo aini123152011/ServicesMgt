@@ -11,6 +11,7 @@
 """
 
 import calendar
+import contextlib
 import json
 import logging
 import threading
@@ -27,15 +28,16 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
-PLATFORM_CONTAINER_NAME = "bmc-platform-backend"
+# 平台容器名取自配置（部署名可能不同；spec 禁止硬编码）
+PLATFORM_CONTAINER_NAME = settings.PLATFORM_CONTAINER_NAME
 SELF_UPDATE_CONTAINER_NAME = "bmc-platform-selfupdate"
 UPLOADS_DIRNAME = "uploads"
 STATUS_FILENAME = "system-update.json"
 # 平台自更新的 helper 等待时间：先让触发它的 API 把响应返回给前端
 SELF_UPDATE_DELAY_SECONDS = 3
-# 平台自更新任务的宽限期：helper 尚未动手前不判失败；超过它且 helper 已不在、
-# 平台也没切到目标镜像，就判定失败（否则任务会永远停在 running 挡住后续更新）
-SELF_UPDATE_GRACE_SECONDS = 120
+# 更新任务的宽限期：动手前不判失败；超过它仍未切换镜像就判定失败。
+# 没有这条，一次进程重启或线程异常逃逸就会让任务永远停在 running，并挡住后续所有更新（复核 P0）
+UPDATE_GRACE_SECONDS = 120
 
 _worker_lock = threading.Lock()
 _worker_running = False
@@ -216,7 +218,11 @@ def import_package(filename: str, data: bytes) -> dict[str, Any]:
     try:
         with target.open("rb") as handle:
             loaded = client.images.load(handle)
-    except (APIError, OSError) as e:
+    except (DockerException, OSError) as e:
+        # NOTE: 包损坏时 docker SDK 抛的是 ImageLoadError，它的 MRO 是
+        # ImageLoadError → DockerException（不是 APIError/OSError），只接后两者会漏成 500
+        with contextlib.suppress(OSError):
+            target.unlink()  # 坏包不留盘，避免污染 uploads 目录
         raise UpdateError(f"Failed to load image package '{safe_name}': {e}") from e
 
     tags = sorted(
@@ -243,14 +249,16 @@ def _run_rebuild(target: str, container_name: str, image: str) -> None:
     )
     try:
         result = container_rebuild.rebuild_container(container_name, image)
-    except container_rebuild.RebuildError as e:
-        logger.error(f"Update failed for '{target}': {e}")
+    except Exception as e:  # noqa: BLE001 - 任何异常都必须落状态
+        # 只接 RebuildError 是不够的：docker SDK 的 NotFound/APIError 等都可能逃逸，
+        # 线程一旦死亡状态就永远停在 running，后续更新全部被 409 挡住（复核 P0）
+        logger.exception(f"Update failed for '{target}'")
         write_status(
             target=target,
             image=image,
             phase="failed",
             status="failed",
-            message=str(e),
+            message=f"{type(e).__name__}: {e}",
             finished_at=update_status.now_iso(),
         )
     else:
@@ -444,17 +452,25 @@ def _status_age_seconds(status: dict[str, Any]) -> float:
     return max(0.0, time.time() - calendar.timegm(parsed))
 
 
+def _container_matches_image(
+    client: docker.DockerClient, container_name: str, image: str
+) -> bool:
+    """容器当前所用镜像是否已经是目标 tag 指向的镜像。"""
+    if not image:
+        return False
+    tag_id, _ = _image_ids(client, image)
+    if tag_id is None:
+        return False
+    return _container_state(client, container_name).get("image_id") == tag_id
+
+
 def _platform_matches_target(
     client: docker.DockerClient, status: dict[str, Any]
 ) -> bool:
     """平台容器当前所用镜像是否已经是目标 tag 指向的镜像。"""
-    target_image = str(status.get("image") or "")
-    if not target_image:
-        return False
-    tag_id, _ = _image_ids(client, target_image)
-    if tag_id is None:
-        return False
-    return _container_state(client, PLATFORM_CONTAINER_NAME).get("image_id") == tag_id
+    return _container_matches_image(
+        client, PLATFORM_CONTAINER_NAME, str(status.get("image") or "")
+    )
 
 
 def _helper_failure(status: dict[str, Any]) -> str | None:
@@ -495,7 +511,7 @@ def _helper_failure(status: dict[str, Any]) -> str | None:
     # helper 不在了或正常退出：看平台是否真的切到了目标镜像
     if _platform_matches_target(client, status):
         return None  # 已经切过去了，属于成功（只是没记录）
-    if _status_age_seconds(status) < SELF_UPDATE_GRACE_SECONDS:
+    if _status_age_seconds(status) < UPDATE_GRACE_SECONDS:
         return None  # 宽限期内，等 helper 动手
     return (
         "Self-update helper did not complete and the platform is still running "
@@ -503,13 +519,66 @@ def _helper_failure(status: dict[str, Any]) -> str | None:
     )
 
 
+def _reconcile_service_status(status: dict[str, Any], target: str) -> dict[str, Any]:
+    """服务更新的状态对账：线程在跑就继续，否则按镜像是否已切换给出结论。
+
+    服务更新跑在线程里，两种情形会让状态永远停在 running——平台进程重启（线程随之消失）、
+    线程内抛出未捕获异常。两者都表现为「没有 worker 在跑」，所以这里用
+    「宽限期 + 容器镜像是否已是目标镜像」判定，避免更新能力被静默砖化。
+    """
+    with _worker_lock:
+        in_flight = _worker_running
+    if in_flight or _status_age_seconds(status) < UPDATE_GRACE_SECONDS:
+        return status
+
+    container_name = _service_container(registry_plugins(), target) or ""
+    image = str(status.get("image") or "")
+    try:
+        client = _client()
+        matched = bool(container_name) and _container_matches_image(
+            client, container_name, image
+        )
+    except UpdateError:
+        return status  # Docker 不可达时不对账，保持原状态
+
+    if matched:
+        return write_status(
+            target=target,
+            image=image,
+            phase="succeeded",
+            status="succeeded",
+            message=f"Container '{container_name}' already runs the target image",
+            finished_at=update_status.now_iso(),
+        )
+    logger.error(f"Service update for '{target}' did not complete")
+    return write_status(
+        target=target,
+        image=image,
+        phase="failed",
+        status="failed",
+        message=(
+            f"Update for '{target}' did not complete (no worker running and the "
+            "container still runs the previous image)"
+        ),
+        finished_at=update_status.now_iso(),
+    )
+
+
+def registry_plugins() -> list[Any]:
+    """取当前注册的服务插件（延迟 import，避免模块级依赖 registry/settings）。"""
+    from app import registry
+
+    return list(registry.list_services())
+
+
 def current_status() -> dict[str, Any] | None:
     """读取状态并在必要时对账：helper 已失败的任务改判为 failed 并落盘。"""
     status = read_status()
     if not status or status.get("status") != "running":
         return status
-    if status.get("target") != "platform":
-        return status
+    target = str(status.get("target") or "")
+    if target != "platform":
+        return _reconcile_service_status(status, target)
     reason = _helper_failure(status)
     if reason is None:
         # helper 正常退出但没来得及写成功状态时，用「平台镜像已是目标镜像」补记，
