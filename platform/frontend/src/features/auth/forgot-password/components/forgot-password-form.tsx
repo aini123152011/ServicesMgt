@@ -43,7 +43,8 @@ export function ForgotPasswordForm({
       success: () => {
         setIsLoading(false)
         form.reset()
-        navigate({ to: '/otp' })
+        // 模板的 OTP 页已移除，重置入口不在界面内，这里回登录页
+        navigate({ to: '/sign-in' })
         return `Email sent to ${data.email}`
       },
       error: 'Error',

@@ -1,17 +1,5 @@
 import { type LinkProps } from '@tanstack/react-router'
 
-type User = {
-  name: string
-  email: string
-  avatar: string
-}
-
-type Team = {
-  name: string
-  logo: React.ElementType
-  plan: string
-}
-
 type BaseNavItem = {
   title: string
   badge?: string
@@ -38,9 +26,6 @@ type NavGroup = {
 }
 
 type SidebarData = {
-  /** 模板遗留的占位身份，已不再使用：侧边栏身份一律取 auth store 的当前登录用户 */
-  user?: User
-  teams: Team[]
   navGroups: NavGroup[]
 }
 

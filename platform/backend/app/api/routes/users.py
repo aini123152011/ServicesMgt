@@ -2,7 +2,7 @@ import uuid
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlmodel import col, delete, func, select
+from sqlmodel import col, func, select
 
 from app import crud
 from app.api.deps import (
@@ -13,13 +13,11 @@ from app.api.deps import (
 from app.core.config import settings
 from app.core.security import get_password_hash, verify_password
 from app.models import (
-    Item,
     Message,
     UpdatePassword,
     User,
     UserCreate,
     UserPublic,
-    UserRegister,
     UsersPublic,
     UserUpdate,
     UserUpdateMe,
@@ -184,31 +182,6 @@ def delete_user_me(session: SessionDep, current_user: CurrentUser) -> Any:
     return Message(message="User deleted successfully")
 
 
-@router.post("/signup", response_model=UserPublic)
-def register_user(session: SessionDep, user_in: UserRegister) -> Any:
-    """公开注册新用户，缺省授予 readonly 角色（不可自选角色）。
-
-    Args:
-        session: 数据库会话。
-        user_in: 注册请求体（email/password/full_name，无 roles 字段）。
-
-    Returns:
-        UserPublic：新用户（含 roles=["readonly"]）。
-
-    Raises:
-        HTTPException: 400 邮箱已存在。
-    """
-    user = crud.get_user_by_email(session=session, email=user_in.email)
-    if user:
-        raise HTTPException(
-            status_code=400,
-            detail="The user with this email already exists in the system",
-        )
-    user_create = UserCreate.model_validate(user_in, update={"roles": ["readonly"]})
-    user = crud.create_user(session=session, user_create=user_create)
-    return crud.build_user_public(session=session, user=user)
-
-
 @router.get("/{user_id}", response_model=UserPublic)
 def read_user_by_id(
     user_id: uuid.UUID, session: SessionDep, current_user: CurrentUser
@@ -319,8 +292,6 @@ def delete_user(
         )
     # 审计要在删除前取出目标邮箱；user_id 仍记操作者
     deleted_email = user.email
-    statement = delete(Item).where(col(Item.owner_id) == user_id)
-    session.exec(statement)
     session.delete(user)
     session.commit()
     crud.record_audit_log(

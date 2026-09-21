@@ -125,7 +125,7 @@ describe('UserAuthForm', () => {
 
   it('navigates to redirectTo when provided', async () => {
     const { getByRole, getByLabelText } = await render(
-      <UserAuthForm redirectTo='/settings' />
+      <UserAuthForm redirectTo='/services' />
     )
 
     await userEvent.fill(getByRole('textbox', { name: /Email/i }), 'a@b.com')
@@ -138,7 +138,7 @@ describe('UserAuthForm', () => {
 
     await vi.waitFor(() =>
       expect(navigate).toHaveBeenCalledWith({
-        to: '/settings',
+        to: '/services',
         replace: true,
       })
     )

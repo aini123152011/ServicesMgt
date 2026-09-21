@@ -8,7 +8,7 @@ from app.core.config import settings
 from app.core.db import engine, init_db
 from app.initial_data import seed
 from app.main import app
-from app.models import AuditLog, Item, Role, User, UserRole
+from app.models import AuditLog, Role, User, UserRole
 from tests.utils.user import (
     authentication_token_from_email,
     create_user_token_headers,
@@ -23,12 +23,10 @@ def db() -> Generator[Session]:
         # 角色种子与首超管 admin 角色：RBAC 测试依赖 role 表非空
         seed(session)
         yield session
-        # 清理顺序按外键依赖：审计/关联/条目先删，再删用户与角色
+        # 清理顺序按外键依赖：审计/关联先删，再删用户与角色
         statement = delete(AuditLog)
         session.exec(statement)
         statement = delete(UserRole)
-        session.exec(statement)
-        statement = delete(Item)
         session.exec(statement)
         statement = delete(User)
         session.exec(statement)

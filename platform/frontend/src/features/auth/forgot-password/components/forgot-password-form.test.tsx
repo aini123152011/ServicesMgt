@@ -40,12 +40,12 @@ describe('ForgotPasswordForm', () => {
       .toBeInTheDocument()
   })
 
-  it('resets the form and navigates to /otp on success', async () => {
+  it('resets the form and navigates back to sign-in on success', async () => {
     await userEvent.fill(emailInput, 'a@b.com')
     await userEvent.click(continueButton)
 
     await vi.waitFor(() =>
-      expect(navigateMock).toHaveBeenCalledWith({ to: '/otp' })
+      expect(navigateMock).toHaveBeenCalledWith({ to: '/sign-in' })
     )
 
     // Form should reset on success
