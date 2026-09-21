@@ -1,5 +1,9 @@
 FROM python:3.14
-ENV PYTHONUNBUFFERED=1
+# 平台版本与构建号：构建时注入（--build-arg PLATFORM_VERSION=x.y.z），
+# 由后端 /api/v1/system/info 暴露，供界面显示与更新后核对
+ARG PLATFORM_VERSION=dev
+ARG PLATFORM_BUILD=
+ENV PYTHONUNBUFFERED=1 \n    PLATFORM_VERSION=${PLATFORM_VERSION} \n    PLATFORM_BUILD=${PLATFORM_BUILD}
 ENV PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple/
 ENV UV_HTTP_TIMEOUT=60
 RUN pip install --no-cache-dir uv

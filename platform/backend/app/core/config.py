@@ -41,6 +41,12 @@ class Settings(BaseSettings):
                 return database_url.replace(scheme, "postgresql+psycopg://", 1)
         return database_url
 
+    # 平台版本与构建号：镜像构建时经 Dockerfile 的 ARG/ENV 注入；缺省 dev 便于本地运行
+    PLATFORM_VERSION: str = "dev"
+    PLATFORM_BUILD: str = ""
+    # 可选的镜像仓库（如 registry.local:5000）：配置后「检查更新」会先尝试 docker pull，
+    # 未配置则只认离线包导入的镜像
+    UPDATE_REGISTRY: str = ""
     # 服务插件目录（含 manifest.yaml 的子目录）；相对路径按后端项目目录解析
     SERVICES_DIR: str = "../../services"
     # 配置卷在宿主机上的根路径，每个服务的卷按 {VOLUMES_MOUNT_ROOT}/{name}-config 挂载

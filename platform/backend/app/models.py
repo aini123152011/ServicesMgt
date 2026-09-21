@@ -281,3 +281,52 @@ class TokenPayload(SQLModel):
 class NewPassword(SQLModel):
     token: str
     new_password: str = Field(min_length=8, max_length=128)
+
+
+# 更新目标（平台自身或某个服务）的镜像现状；update_available 由「容器所用镜像 ID
+# 与同名 tag 当前 ID 是否一致」判定，离线包 load 会覆盖同名 tag，故离线场景同样成立
+class UpdateTarget(SQLModel):
+    target: str
+    display_name: str
+    container_name: str
+    image: str
+    running_image_id: str | None = None
+    available_image_id: str | None = None
+    image_created: str | None = None
+    container_running: bool = False
+    update_available: bool = False
+
+
+# 最近一次更新任务的状态（状态文件持久化，平台自更新重启后仍可读）
+class UpdateTaskState(SQLModel):
+    status: str
+    phase: str | None = None
+    target: str | None = None
+    image: str | None = None
+    message: str | None = None
+    updated_at: str | None = None
+    finished_at: str | None = None
+
+
+# GET /system/info 响应：平台版本/构建 + 最近任务状态 + 各更新目标镜像现状
+class SystemInfo(SQLModel):
+    version: str
+    build: str
+    update_registry: str
+    # Docker 不可达时为 False（targets 为空）：版本信息仍要能看到，不整页 502
+    docker_available: bool = True
+    status: UpdateTaskState | None = None
+    targets: list[UpdateTarget]
+
+
+# POST /system/updates/check 与 /package 响应
+class UpdateCheckResult(SQLModel):
+    registry: str
+    targets: list[UpdateTarget]
+    update_available: list[str]
+
+
+# POST /system/updates/apply 请求体：target 为 "platform" 或服务名
+class UpdateApplyRequest(SQLModel):
+    target: str
+    image: str
