@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import {
   createUser,
@@ -22,10 +23,11 @@ export function useRolesQuery() {
 
 export function useCreateUserMutation() {
   const queryClient = useQueryClient()
+  const { t } = useTranslation()
   return useMutation({
     mutationFn: (payload: UserCreatePayload) => createUser(payload),
     onSuccess: () => {
-      toast.success('用户已创建')
+      toast.success(t('users.created'))
       queryClient.invalidateQueries({ queryKey: ['users'] })
     },
     // 失败经 main.tsx 全局 mutation onError 展示后端 detail，不在此重复处理
@@ -34,11 +36,12 @@ export function useCreateUserMutation() {
 
 export function useUpdateUserMutation() {
   const queryClient = useQueryClient()
+  const { t } = useTranslation()
   return useMutation({
     mutationFn: ({ id, payload }: { id: string; payload: UserUpdatePayload }) =>
       updateUser(id, payload),
     onSuccess: () => {
-      toast.success('用户已更新')
+      toast.success(t('users.updated'))
       queryClient.invalidateQueries({ queryKey: ['users'] })
     },
   })
@@ -46,10 +49,11 @@ export function useUpdateUserMutation() {
 
 export function useDeleteUserMutation() {
   const queryClient = useQueryClient()
+  const { t } = useTranslation()
   return useMutation({
     mutationFn: (id: string) => deleteUser(id),
     onSuccess: () => {
-      toast.success('用户已删除')
+      toast.success(t('users.deleted'))
       queryClient.invalidateQueries({ queryKey: ['users'] })
     },
   })

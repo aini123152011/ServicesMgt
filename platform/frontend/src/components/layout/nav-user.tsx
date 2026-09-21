@@ -1,4 +1,5 @@
 import { ChevronsUpDown, LogOut } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/stores/auth-store'
 import useDialogState from '@/hooks/use-dialog-state'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -21,10 +22,13 @@ import { SignOutDialog } from '@/components/sign-out-dialog'
 export function NavUser() {
   const { isMobile } = useSidebar()
   const [open, setOpen] = useDialogState()
+  const { t } = useTranslation()
   // 身份必须显示当前登录用户；未登录或 /users/me 尚未返回时回退到"未登录"，避免出现空白
   const currentUser = useAuthStore((state) => state.auth.user)
   const displayName =
-    currentUser?.full_name || currentUser?.email?.split('@')[0] || '未登录'
+    currentUser?.full_name ||
+    currentUser?.email?.split('@')[0] ||
+    t('common.notLoggedIn')
   const displayEmail = currentUser?.email || ''
   const initials = displayName.slice(0, 2).toUpperCase()
 
@@ -79,7 +83,7 @@ export function NavUser() {
                 onClick={() => setOpen(true)}
               >
                 <LogOut />
-                Sign out
+                {t('common.signOut')}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

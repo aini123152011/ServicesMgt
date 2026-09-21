@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { AlertTriangle, LoaderCircle } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { type ServiceConfig, type ServiceField } from '@/api/services'
 import { usePermissions } from '@/hooks/use-permissions'
 import { Button } from '@/components/ui/button'
@@ -13,7 +14,6 @@ import {
   FormField,
   FormItem,
   FormLabel,
-  FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import {
@@ -26,6 +26,7 @@ import {
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
+import { LocalizedFormMessage } from '@/components/localized-form-message'
 import { PasswordInput } from '@/components/password-input'
 import { useUpdateConfigMutation } from '../hooks/use-services'
 
@@ -33,7 +34,12 @@ type ServiceConfigFormProps = {
   name: string
   fields: ServiceField[]
   config: ServiceConfig
+  /** 当前页签（受控）：保存后表单重挂载也不会跳回「基础服务配置」 */
+  activeTab: ConfigTab
+  onTabChange: (tab: ConfigTab) => void
 }
+
+export type ConfigTab = 'base' | 'fault'
 
 // 空串/纯空白视为未填写，交给 required 或 optional 逻辑处理
 function emptyToUndefined(v: unknown) {
@@ -61,6 +67,7 @@ function SecretTextarea({
   placeholder: string
 }) {
   const [visible, setVisible] = useState(false)
+  const { t } = useTranslation()
   return (
     <div className='space-y-1'>
       <Textarea
@@ -83,7 +90,9 @@ function SecretTextarea({
         disabled={disabled}
         onClick={() => setVisible((v) => !v)}
       >
-        {visible ? '隐藏内容' : '显示内容'}
+        {visible
+          ? t('services.config.hideSecret')
+          : t('services.config.showSecret')}
       </Button>
     </div>
   )
@@ -110,26 +119,31 @@ function splitList(raw: string): string[] {
 /**
  * 据单个 ServiceField 构造 zod 校验器：提交时 integer 已转数字、list 已转数组。
  * 输出类型统一收敛为 ZodType，便于动态拼进 z.object。
+ *
+ * 校验消息一律存 i18n key（由 LocalizedFormMessage 在渲染处翻译）：schema 由 useMemo
+ * 构建、被 zodResolver 捕获，若在这里写死文案，语言切换后已显示的提示不会跟着变。
  */
 function buildFieldSchema(field: ServiceField): z.ZodType {
   switch (field.type) {
     case 'boolean':
-      return z.boolean({ error: '必须为布尔值' })
+      return z.boolean({ error: 'services.validation.boolean' })
     case 'integer': {
       const num = z.coerce
         .number({
           // 空值在 preprocess 已转为 undefined，借此区分"必填缺失"与"不是数字"
           error: (iss) =>
-            iss.input === undefined ? '此项为必填' : '必须为整数',
+            iss.input === undefined
+              ? 'services.validation.required'
+              : 'services.validation.integer',
         })
-        .int('必须为整数')
+        .int('services.validation.integer')
       const withMin =
         field.min !== undefined
-          ? num.min(field.min, `不能小于 ${field.min}`)
+          ? num.min(field.min, `services.validation.min|min=${field.min}`)
           : num
       const withMax =
         field.max !== undefined
-          ? withMin.max(field.max, `不能大于 ${field.max}`)
+          ? withMin.max(field.max, `services.validation.max|max=${field.max}`)
           : withMin
       // 非必填允许留空，输出 undefined 后 JSON 序列化会自动丢弃该键
       return z.preprocess(
@@ -142,12 +156,18 @@ function buildFieldSchema(field: ServiceField): z.ZodType {
       return z.string().superRefine((v, ctx) => {
         if (v === '') {
           if (field.required) {
-            ctx.addIssue({ code: 'custom', message: '此项为必填' })
+            ctx.addIssue({
+              code: 'custom',
+              message: 'services.validation.required',
+            })
           }
           return
         }
         if (!options.includes(v)) {
-          ctx.addIssue({ code: 'custom', message: '请选择有效选项' })
+          ctx.addIssue({
+            code: 'custom',
+            message: 'services.validation.enumOption',
+          })
         }
       })
     }
@@ -159,7 +179,10 @@ function buildFieldSchema(field: ServiceField): z.ZodType {
           const items = splitList(v)
           if (items.length === 0) {
             if (field.required) {
-              ctx.addIssue({ code: 'custom', message: '至少填写一项' })
+              ctx.addIssue({
+                code: 'custom',
+                message: 'services.validation.listRequired',
+              })
             }
             return
           }
@@ -169,7 +192,7 @@ function buildFieldSchema(field: ServiceField): z.ZodType {
               if (!itemRe.test(item)) {
                 ctx.addIssue({
                   code: 'custom',
-                  message: `第 ${idx + 1} 行「${item}」不符合格式要求`,
+                  message: `services.validation.listItem|line=${idx + 1}|item=${item}`,
                 })
               }
             })
@@ -180,7 +203,10 @@ function buildFieldSchema(field: ServiceField): z.ZodType {
     case 'text': {
       return z.string().superRefine((v, ctx) => {
         if (field.required && v.trim() === '') {
-          ctx.addIssue({ code: 'custom', message: '此项为必填' })
+          ctx.addIssue({
+            code: 'custom',
+            message: 'services.validation.required',
+          })
           return
         }
         if (field.pem && v.trim()) {
@@ -189,10 +215,7 @@ function buildFieldSchema(field: ServiceField): z.ZodType {
             !stripped.startsWith('-----BEGIN ') ||
             !stripped.includes('-----END ')
           ) {
-            ctx.addIssue({
-              code: 'custom',
-              message: '必须为有效的 PEM 格式证书或密钥',
-            })
+            ctx.addIssue({ code: 'custom', message: 'services.validation.pem' })
           }
         }
       })
@@ -202,11 +225,17 @@ function buildFieldSchema(field: ServiceField): z.ZodType {
       const re = compilePattern(field.pattern)
       return z.string().superRefine((v, ctx) => {
         if (field.required && v.trim() === '') {
-          ctx.addIssue({ code: 'custom', message: '此项为必填' })
+          ctx.addIssue({
+            code: 'custom',
+            message: 'services.validation.required',
+          })
           return
         }
         if (re && v !== '' && !re.test(v)) {
-          ctx.addIssue({ code: 'custom', message: '内容不符合格式要求' })
+          ctx.addIssue({
+            code: 'custom',
+            message: 'services.validation.pattern',
+          })
         }
       })
     }
@@ -227,11 +256,14 @@ export function ServiceConfigForm({
   name,
   fields,
   config,
+  activeTab,
+  onTabChange,
 }: ServiceConfigFormProps) {
   const updateMutation = useUpdateConfigMutation(name)
   // readonly 角色只看不改：字段与提交按钮一并禁用
   const { isOperator } = usePermissions()
   const canEdit = isOperator
+  const { t } = useTranslation()
 
   // 分离基础配置与故障注入字段
   const baseFields = useMemo(
@@ -289,7 +321,7 @@ export function ServiceConfigForm({
             {f.required && <span className='text-destructive'> *</span>}
             {f.secret && (
               <span className='ml-1 text-xs text-muted-foreground'>
-                (敏感脱敏字段)
+                {t('services.config.secretField')}
               </span>
             )}
           </FormLabel>
@@ -309,7 +341,9 @@ export function ServiceConfigForm({
                 disabled={!canEdit}
               >
                 <SelectTrigger className='w-72'>
-                  <SelectValue placeholder='请选择' />
+                  <SelectValue
+                    placeholder={t('services.config.selectPlaceholder')}
+                  />
                 </SelectTrigger>
                 <SelectContent>
                   {f.options?.map((opt) => (
@@ -331,7 +365,7 @@ export function ServiceConfigForm({
                 )}
                 className='font-mono'
                 disabled={!canEdit}
-                placeholder={'每行一项'}
+                placeholder={t('services.config.listPlaceholder')}
               />
             </FormControl>
           ) : f.type === 'text' && f.secret ? (
@@ -344,7 +378,7 @@ export function ServiceConfigForm({
                 disabled={!canEdit}
                 placeholder={
                   field.value === '********'
-                    ? '保持既有内容不变（输入新值覆盖）'
+                    ? t('services.config.secretKeepText')
                     : '-----BEGIN ...-----\n...\n-----END ...-----'
                 }
               />
@@ -371,8 +405,8 @@ export function ServiceConfigForm({
                 value={String(field.value ?? '')}
                 placeholder={
                   field.value === '********'
-                    ? '保持既有密钥不变（输入新值覆盖）'
-                    : '请输入密码或密钥'
+                    ? t('services.config.secretKeepPassword')
+                    : t('services.config.secretPlaceholder')
                 }
                 className='w-72'
                 disabled={!canEdit}
@@ -392,7 +426,7 @@ export function ServiceConfigForm({
             </FormControl>
           )}
           {f.help && <FormDescription>{f.help}</FormDescription>}
-          <FormMessage />
+          <LocalizedFormMessage />
         </FormItem>
       )}
     />
@@ -407,31 +441,35 @@ export function ServiceConfigForm({
       >
         {!canEdit && (
           <p className='text-sm text-muted-foreground'>
-            只读角色无权修改配置。
+            {t('services.config.readonly')}
           </p>
         )}
         {config.applied === false && (
           <p className='text-sm text-amber-600 dark:text-amber-400'>
-            当前保存的配置尚未生效（容器未运行），启动服务后加载。
+            {t('services.config.appliedPending')}
           </p>
         )}
         {config.rendered_at && (
           <p className='text-sm text-muted-foreground'>
-            最近渲染时间：{config.rendered_at}
+            {t('services.config.renderedAt', { time: config.rendered_at })}
           </p>
         )}
 
         {faultFields.length > 0 ? (
-          <Tabs defaultValue='base' className='w-full'>
+          <Tabs
+            value={activeTab}
+            onValueChange={(value) => onTabChange(value as ConfigTab)}
+            className='w-full'
+          >
             <TabsList className='mb-4'>
               <TabsTrigger value='base'>
-                基础服务配置 ({baseFields.length})
+                {t('services.config.tabBase')} ({baseFields.length})
               </TabsTrigger>
               <TabsTrigger
                 value='fault'
                 className='text-amber-600 dark:text-amber-400'
               >
-                BMC 故障注入 ({faultFields.length})
+                {t('services.config.tabFault')} ({faultFields.length})
               </TabsTrigger>
             </TabsList>
             <TabsContent value='base' className='space-y-6'>
@@ -441,10 +479,8 @@ export function ServiceConfigForm({
               <div className='flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-900 dark:text-amber-200'>
                 <AlertTriangle className='mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400' />
                 <div>
-                  <strong>BMC 故障注入模式：</strong>
-                  本分组配置项专用于 BMC
-                  带外管理服务器的健壮性、超时重试与异常处理逻辑测试。在正常测试模式下请保持为
-                  &quot;none&quot;。
+                  <strong>{t('services.config.faultNoticeTitle')}</strong>
+                  {t('services.config.faultNoticeBody')}
                 </div>
               </div>
               {faultFields.map(renderField)}
@@ -458,12 +494,12 @@ export function ServiceConfigForm({
           <Button
             type='submit'
             disabled={!canEdit || updateMutation.isPending}
-            title={canEdit ? undefined : '只读角色无权修改配置'}
+            title={canEdit ? undefined : t('services.config.readonly')}
           >
             {updateMutation.isPending && (
               <LoaderCircle className='animate-spin' />
             )}
-            保存配置
+            {t('common.save')}
           </Button>
           <Button
             type='button'
@@ -471,7 +507,7 @@ export function ServiceConfigForm({
             onClick={() => form.reset(defaultValues)}
             disabled={!canEdit}
           >
-            还原
+            {t('common.revert')}
           </Button>
         </div>
       </form>

@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { useTranslation } from 'react-i18next'
 import { type UserPublic } from '@/api/auth'
 import { ROLE_NAMES, type UserUpdatePayload } from '@/api/users'
 import { Button } from '@/components/ui/button'
@@ -20,10 +21,10 @@ import {
   FormField,
   FormItem,
   FormLabel,
-  FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
+import { LocalizedFormMessage } from '@/components/localized-form-message'
 import { PasswordInput } from '@/components/password-input'
 import { isKnownRole, roleMeta } from '../data/data'
 import {
@@ -32,16 +33,20 @@ import {
   useUpdateUserMutation,
 } from '../hooks/use-users'
 
+// 校验消息存 key：schema 在模块级创建，那时取不到最新语言，渲染处由 LocalizedFormMessage 翻译
 const formSchema = z
   .object({
     email: z.email({
-      error: (iss) => (iss.input === '' ? '请输入邮箱。' : undefined),
+      error: (iss) =>
+        iss.input === ''
+          ? 'users.validation.emailRequired'
+          : 'users.validation.emailInvalid',
     }),
     fullName: z.string(),
     // 编辑时留空表示不修改密码
     password: z.string().transform((pwd) => pwd.trim()),
     confirmPassword: z.string().transform((pwd) => pwd.trim()),
-    roles: z.array(z.enum(ROLE_NAMES)).min(1, '至少选择一个角色。'),
+    roles: z.array(z.enum(ROLE_NAMES)).min(1, 'users.validation.rolesRequired'),
     isActive: z.boolean(),
     isEdit: z.boolean(),
   })
@@ -51,7 +56,7 @@ const formSchema = z
       return password.length > 0
     },
     {
-      message: '请输入密码。',
+      message: 'users.validation.passwordRequired',
       path: ['password'],
     }
   )
@@ -61,7 +66,7 @@ const formSchema = z
       return password.length >= 8
     },
     {
-      message: '密码长度至少 8 个字符。',
+      message: 'users.validation.passwordMin',
       path: ['password'],
     }
   )
@@ -71,7 +76,7 @@ const formSchema = z
       return /[a-z]/.test(password)
     },
     {
-      message: '密码需至少包含一个小写字母。',
+      message: 'users.validation.passwordLowercase',
       path: ['password'],
     }
   )
@@ -81,7 +86,7 @@ const formSchema = z
       return /\d/.test(password)
     },
     {
-      message: '密码需至少包含一个数字。',
+      message: 'users.validation.passwordDigit',
       path: ['password'],
     }
   )
@@ -91,7 +96,7 @@ const formSchema = z
       return password === confirmPassword
     },
     {
-      message: '两次输入的密码不一致。',
+      message: 'users.validation.passwordMismatch',
       path: ['confirmPassword'],
     }
   )
@@ -110,10 +115,13 @@ export function UsersActionDialog({
 }: UserActionDialogProps) {
   const isEdit = !!currentRow
   const rolesQuery = useRolesQuery()
+  const { t } = useTranslation()
   // 角色选项以 GET /roles 返回为准；契约外角色名不进入多选，避免表单值越出 z.enum
-  const roleChoices = (rolesQuery.data ?? []).flatMap((role) =>
-    isKnownRole(role) ? [{ value: role, label: roleMeta(role).label }] : []
-  )
+  const roleChoices = (rolesQuery.data ?? []).flatMap((role) => {
+    if (!isKnownRole(role)) return []
+    const meta = roleMeta(role)
+    return [{ value: role, label: meta.labelKey ? t(meta.labelKey) : role }]
+  })
   const createUserMutation = useCreateUserMutation()
   const updateUserMutation = useUpdateUserMutation()
   const isSaving = createUserMutation.isPending || updateUserMutation.isPending
@@ -195,11 +203,9 @@ export function UsersActionDialog({
     >
       <DialogContent className='sm:max-w-lg'>
         <DialogHeader className='text-start'>
-          <DialogTitle>{isEdit ? '编辑用户' : '新建用户'}</DialogTitle>
+          <DialogTitle>{isEdit ? t('users.edit') : t('users.new')}</DialogTitle>
           <DialogDescription>
-            {isEdit
-              ? '修改用户信息、角色或激活状态，保存后立即生效。'
-              : '创建平台用户并分配角色，创建后可用邮箱加密码登录。'}
+            {isEdit ? t('users.editDesc') : t('users.createDesc')}
           </DialogDescription>
         </DialogHeader>
         <div className='h-105 w-[calc(100%+0.75rem)] overflow-y-auto py-1 pe-3'>
@@ -214,7 +220,9 @@ export function UsersActionDialog({
                 name='email'
                 render={({ field }) => (
                   <FormItem className='grid grid-cols-6 items-center space-y-0 gap-x-4 gap-y-1'>
-                    <FormLabel className='col-span-2 text-end'>邮箱</FormLabel>
+                    <FormLabel className='col-span-2 text-end'>
+                      {t('users.field.email')}
+                    </FormLabel>
                     <FormControl>
                       <Input
                         placeholder='name@example.com'
@@ -223,7 +231,7 @@ export function UsersActionDialog({
                         {...field}
                       />
                     </FormControl>
-                    <FormMessage className='col-span-4 col-start-3' />
+                    <LocalizedFormMessage className='col-span-4 col-start-3' />
                   </FormItem>
                 )}
               />
@@ -232,16 +240,18 @@ export function UsersActionDialog({
                 name='fullName'
                 render={({ field }) => (
                   <FormItem className='grid grid-cols-6 items-center space-y-0 gap-x-4 gap-y-1'>
-                    <FormLabel className='col-span-2 text-end'>姓名</FormLabel>
+                    <FormLabel className='col-span-2 text-end'>
+                      {t('users.field.fullName')}
+                    </FormLabel>
                     <FormControl>
                       <Input
-                        placeholder='选填'
+                        placeholder={t('users.field.fullNamePlaceholder')}
                         className='col-span-4'
                         autoComplete='off'
                         {...field}
                       />
                     </FormControl>
-                    <FormMessage className='col-span-4 col-start-3' />
+                    <LocalizedFormMessage className='col-span-4 col-start-3' />
                   </FormItem>
                 )}
               />
@@ -250,20 +260,22 @@ export function UsersActionDialog({
                 name='password'
                 render={({ field }) => (
                   <FormItem className='grid grid-cols-6 items-center space-y-0 gap-x-4 gap-y-1'>
-                    <FormLabel className='col-span-2 text-end'>密码</FormLabel>
+                    <FormLabel className='col-span-2 text-end'>
+                      {t('users.field.password')}
+                    </FormLabel>
                     <FormControl>
                       <PasswordInput
                         placeholder={
                           isEdit
-                            ? '留空表示不修改密码'
-                            : '至少 8 位，含小写字母和数字'
+                            ? t('users.field.passwordEditPlaceholder')
+                            : t('users.field.passwordNewPlaceholder')
                         }
                         className='col-span-4'
                         autoComplete='new-password'
                         {...field}
                       />
                     </FormControl>
-                    <FormMessage className='col-span-4 col-start-3' />
+                    <LocalizedFormMessage className='col-span-4 col-start-3' />
                   </FormItem>
                 )}
               />
@@ -273,18 +285,20 @@ export function UsersActionDialog({
                 render={({ field }) => (
                   <FormItem className='grid grid-cols-6 items-center space-y-0 gap-x-4 gap-y-1'>
                     <FormLabel className='col-span-2 text-end'>
-                      确认密码
+                      {t('users.field.confirmPassword')}
                     </FormLabel>
                     <FormControl>
                       <PasswordInput
                         disabled={!isPasswordTouched}
-                        placeholder='再次输入密码'
+                        placeholder={t(
+                          'users.field.confirmPasswordPlaceholder'
+                        )}
                         className='col-span-4'
                         autoComplete='new-password'
                         {...field}
                       />
                     </FormControl>
-                    <FormMessage className='col-span-4 col-start-3' />
+                    <LocalizedFormMessage className='col-span-4 col-start-3' />
                   </FormItem>
                 )}
               />
@@ -294,16 +308,16 @@ export function UsersActionDialog({
                 render={({ field }) => (
                   <FormItem className='grid grid-cols-6 gap-x-4 gap-y-1'>
                     <FormLabel className='col-span-2 pt-2 text-end'>
-                      角色
+                      {t('users.field.roles')}
                     </FormLabel>
                     <div className='col-span-4 space-y-1'>
                       {rolesQuery.isPending ? (
                         <p className='text-sm text-muted-foreground'>
-                          角色列表加载中…
+                          {t('users.rolesLoading')}
                         </p>
                       ) : roleChoices.length === 0 ? (
                         <p className='text-sm text-muted-foreground'>
-                          角色列表加载失败，请关闭后重试。
+                          {t('users.rolesLoadFailed')}
                         </p>
                       ) : (
                         <div className='flex flex-col gap-2'>
@@ -333,7 +347,7 @@ export function UsersActionDialog({
                           ))}
                         </div>
                       )}
-                      <FormMessage />
+                      <LocalizedFormMessage />
                     </div>
                   </FormItem>
                 )}
@@ -345,9 +359,9 @@ export function UsersActionDialog({
                   render={({ field }) => (
                     <FormItem className='col-span-6 flex flex-row items-center justify-between rounded-lg border p-3'>
                       <div className='space-y-0.5'>
-                        <FormLabel>激活状态</FormLabel>
+                        <FormLabel>{t('users.field.active')}</FormLabel>
                         <FormDescription>
-                          停用后该用户将无法登录平台
+                          {t('users.field.activeHint')}
                         </FormDescription>
                       </div>
                       <FormControl>
@@ -365,7 +379,7 @@ export function UsersActionDialog({
         </div>
         <DialogFooter>
           <Button type='submit' form='user-form' disabled={isSaving}>
-            {isSaving ? '保存中…' : '保存'}
+            {isSaving ? t('common.saving') : t('common.save')}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useNavigate } from '@tanstack/react-router'
 import { ArrowRight, Loader2 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { sleep, cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -13,13 +14,17 @@ import {
   FormField,
   FormItem,
   FormLabel,
-  FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import { LocalizedFormMessage } from '@/components/localized-form-message'
 
+// 消息存 key：schema 在模块级创建，那时取不到最新语言，渲染处由 LocalizedFormMessage 翻译
 const formSchema = z.object({
   email: z.email({
-    error: (iss) => (iss.input === '' ? 'Please enter your email.' : undefined),
+    error: (iss) =>
+      iss.input === ''
+        ? 'auth.validation.emailRequired'
+        : 'auth.validation.emailInvalid',
   }),
 })
 
@@ -29,6 +34,7 @@ export function ForgotPasswordForm({
 }: React.HTMLAttributes<HTMLFormElement>) {
   const navigate = useNavigate()
   const [isLoading, setIsLoading] = useState(false)
+  const { t } = useTranslation()
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -39,15 +45,15 @@ export function ForgotPasswordForm({
     setIsLoading(true)
 
     toast.promise(sleep(2000), {
-      loading: 'Sending email...',
+      loading: t('auth.forgotPassword.sending'),
       success: () => {
         setIsLoading(false)
         form.reset()
         // 模板的 OTP 页已移除，重置入口不在界面内，这里回登录页
         navigate({ to: '/sign-in' })
-        return `Email sent to ${data.email}`
+        return t('auth.forgotPassword.sent', { email: data.email })
       },
-      error: 'Error',
+      error: t('auth.forgotPassword.failed'),
     })
   }
 
@@ -63,16 +69,16 @@ export function ForgotPasswordForm({
           name='email'
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Email</FormLabel>
+              <FormLabel>{t('auth.emailLabel')}</FormLabel>
               <FormControl>
                 <Input placeholder='name@example.com' {...field} />
               </FormControl>
-              <FormMessage />
+              <LocalizedFormMessage />
             </FormItem>
           )}
         />
         <Button className='mt-2' disabled={isLoading}>
-          Continue
+          {t('auth.forgotPassword.submit')}
           {isLoading ? <Loader2 className='animate-spin' /> : <ArrowRight />}
         </Button>
       </form>

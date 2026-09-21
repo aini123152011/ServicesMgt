@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import {
   getService,
@@ -49,15 +50,17 @@ export function useServiceLogsQuery(name: string, enabled: boolean) {
 /** 保存配置；applied=false 表示容器未运行、配置已落盘但需启动后生效 */
 export function useUpdateConfigMutation(name: string) {
   const queryClient = useQueryClient()
+  const { t } = useTranslation()
   return useMutation({
     mutationFn: (values: Record<string, unknown>) =>
       updateServiceConfig(name, values),
     onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ['services', name] })
       if (res.applied) {
+        // 成功文案来自后端（本轮保持中文，见 design.md §3.3）
         toast.success(res.message)
       } else {
-        toast.warning('已保存，容器未运行，启动后生效')
+        toast.warning(t('services.config.savedNotApplied'))
       }
     },
     // 失败走 main.tsx 的全局 mutation onError，不在此重复处理
@@ -70,6 +73,7 @@ export function useServiceActionMutation(name: string) {
   return useMutation({
     mutationFn: (action: ServiceAction) => serviceAction(name, action),
     onSuccess: (res) => {
+      // 后端返回的操作结果文案（本轮保持中文）
       toast.success(res.message)
       queryClient.invalidateQueries({
         queryKey: ['services', name, 'status'],

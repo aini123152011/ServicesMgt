@@ -3,3 +3,7 @@ onlyBuiltDependencies:
   - esbuild
 ignoredBuiltDependencies:
   - '@clerk/shared'
+# pnpm 12 的构建审批开关：不显式置位时 install 直接失败（ERR_PNPM_IGNORED_BUILDS）
+allowBuilds:
+  '@clerk/shared': false
+  esbuild: true

@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/stores/auth-store'
 import useDialogState from '@/hooks/use-dialog-state'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -15,10 +16,13 @@ import { SignOutDialog } from '@/components/sign-out-dialog'
 
 export function ProfileDropdown() {
   const [open, setOpen] = useDialogState()
+  const { t } = useTranslation()
   // 顶栏身份取当前登录用户，模板里的占位数据不再使用
   const currentUser = useAuthStore((state) => state.auth.user)
   const displayName =
-    currentUser?.full_name || currentUser?.email?.split('@')[0] || '未登录'
+    currentUser?.full_name ||
+    currentUser?.email?.split('@')[0] ||
+    t('common.notLoggedIn')
   const displayEmail = currentUser?.email || ''
   const initials = displayName.slice(0, 2).toUpperCase()
 
@@ -44,7 +48,7 @@ export function ProfileDropdown() {
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
           <DropdownMenuItem variant='destructive' onClick={() => setOpen(true)}>
-            Sign out
+            {t('common.signOut')}
             <DropdownMenuShortcut className='text-current'>
               ⇧⌘Q
             </DropdownMenuShortcut>

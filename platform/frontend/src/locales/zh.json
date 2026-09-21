@@ -1,0 +1,248 @@
+{
+  "common": {
+    "app": {
+      "name": "BMC 服务管理平台",
+      "subtitle": "服务配置与生命周期管理"
+    },
+    "cancel": "取消",
+    "confirm": "确定",
+    "save": "保存",
+    "saving": "保存中…",
+    "revert": "还原",
+    "retry": "重试",
+    "refresh": "刷新",
+    "loading": "加载中…",
+    "notLoggedIn": "未登录",
+    "unknown": "未知",
+    "signOut": "退出登录",
+    "signOutTitle": "退出登录",
+    "signOutDesc": "确定要退出登录吗？退出后需要重新登录才能访问平台。",
+    "language": "语言",
+    "languageZh": "中文",
+    "languageEn": "English",
+    "toggleTheme": "切换主题",
+    "themeLight": "浅色",
+    "themeDark": "深色",
+    "themeSystem": "跟随系统",
+    "toggleSidebar": "折叠或展开侧边栏",
+    "skipToMain": "跳到主要内容",
+    "search": "搜索",
+    "showPassword": "显示密码",
+    "hidePassword": "隐藏密码"
+  },
+  "nav": {
+    "groupServices": "服务管理",
+    "groupUsers": "用户管理",
+    "services": "服务列表",
+    "users": "用户列表",
+    "serviceDetail": "服务详情"
+  },
+  "auth": {
+    "emailLabel": "邮箱",
+    "passwordLabel": "密码",
+    "signIn": {
+      "title": "登录",
+      "description": "输入邮箱与密码登录平台。",
+      "submit": "登录",
+      "forgotPassword": "忘记密码？",
+      "loading": "登录中…",
+      "success": "欢迎回来，{{email}}！",
+      "failed": "登录失败，请重试。"
+    },
+    "forgotPassword": {
+      "title": "忘记密码",
+      "description": "输入注册邮箱，我们会发送重置密码的链接。",
+      "submit": "继续",
+      "sending": "发送中…",
+      "sent": "重置链接已发送至 {{email}}",
+      "failed": "发送失败，请重试。",
+      "remembered": "想起密码了？"
+    },
+    "validation": {
+      "emailRequired": "请输入邮箱。",
+      "emailInvalid": "请输入有效的邮箱地址。",
+      "passwordRequired": "请输入密码。",
+      "passwordMin": "密码长度至少 7 个字符。"
+    }
+  },
+  "services": {
+    "list": {
+      "title": "服务列表",
+      "description": "查看平台纳管的服务，进入详情可管理配置与生命周期。",
+      "loadFailed": "服务列表加载失败。",
+      "empty": "暂无纳管服务，请检查后端 Service Registry。"
+    },
+    "detail": {
+      "loadFailed": "服务详情加载失败。",
+      "backToList": "返回列表",
+      "container": "容器 {{name}}",
+      "containerStatus": "容器状态：",
+      "health": "健康检查：",
+      "viewLogs": "查看日志",
+      "readonlyAction": "只读角色无权操作",
+      "configTitle": "服务配置",
+      "configDir": "配置目录 {{dir}}",
+      "configFiles": "配置文件 {{files}}"
+    },
+    "action": {
+      "start": "启动",
+      "stop": "停止",
+      "restart": "重启"
+    },
+    "status": {
+      "running": "运行中",
+      "stopped": "已停止",
+      "unknown": "状态未知"
+    },
+    "category": {
+      "time": "时间同步",
+      "fileShare": "文件共享",
+      "logMonitor": "日志监控"
+    },
+    "reloadMode": {
+      "hot": "热重载生效",
+      "restart": "重启容器生效"
+    },
+    "config": {
+      "readonly": "只读角色无权修改配置。",
+      "appliedPending": "当前保存的配置尚未生效（容器未运行），启动服务后加载。",
+      "renderedAt": "最近渲染时间：{{time}}",
+      "tabBase": "基础服务配置",
+      "tabFault": "BMC 故障注入",
+      "faultNoticeTitle": "BMC 故障注入模式：",
+      "faultNoticeBody": "本分组配置项专用于 BMC 带外管理服务器的健壮性、超时重试与异常处理逻辑测试。在正常测试模式下请保持为 \"none\"。",
+      "secretField": "(敏感脱敏字段)",
+      "secretKeepText": "保持既有内容不变（输入新值覆盖）",
+      "secretKeepPassword": "保持既有密钥不变（输入新值覆盖）",
+      "secretPlaceholder": "请输入密码或密钥",
+      "listPlaceholder": "每行一项",
+      "selectPlaceholder": "请选择",
+      "showSecret": "显示内容",
+      "hideSecret": "隐藏内容",
+      "savedNotApplied": "已保存，容器未运行，启动后生效"
+    },
+    "validation": {
+      "boolean": "必须为布尔值",
+      "required": "此项为必填",
+      "integer": "必须为整数",
+      "min": "不能小于 {{min}}",
+      "max": "不能大于 {{max}}",
+      "enumOption": "请选择有效选项",
+      "listRequired": "至少填写一项",
+      "listItem": "第 {{line}} 行「{{item}}」不符合格式要求",
+      "pem": "必须为有效的 PEM 格式证书或密钥",
+      "pattern": "内容不符合格式要求"
+    },
+    "logs": {
+      "title": "容器日志",
+      "description": "{{name}} 最近 200 行日志，打开时拉取一次。",
+      "empty": "（暂无日志）"
+    },
+    "data": {
+      "title": "BMC 归档数据与日志浏览",
+      "mountPoint": "数据卷挂载点：{{dir}}",
+      "subpath": "子路径: /{{path}}",
+      "up": "返回上一级",
+      "entries": "条目清单 ({{total}})",
+      "typeAndSize": "类型 / 大小",
+      "dirLoadFailed": "目录加载失败或容器未运行",
+      "emptyDir": "当前目录为空",
+      "dir": "目录",
+      "fileMeta": "{{size}} · 共 {{lines}} 行",
+      "truncated": " (已截断头部)",
+      "filterPlaceholder": "过滤关键字 (区分大小写)...",
+      "lines": "行数:",
+      "lineCount": "{{lines}} 行",
+      "readFailed": "读取文件内容失败",
+      "noMatch": "无匹配关键字的日志行",
+      "fileEmpty": "文件内容为空",
+      "selectFile": "请在左侧选择文件以查看日志内容",
+      "structureHint": "rsyslog 将按 日期目录 / BMC_IP.log 结构组织日志",
+      "copySuccess": "已复制到剪贴板",
+      "copyTitle": "复制全文",
+      "downloadTitle": "下载日志"
+    }
+  },
+  "users": {
+    "title": "用户管理",
+    "description": "管理平台用户账号与角色分配。",
+    "listLoadFailed": "用户列表加载失败。",
+    "empty": "暂无用户。",
+    "new": "新建用户",
+    "edit": "编辑用户",
+    "createDesc": "创建平台用户并分配角色，创建后可用邮箱加密码登录。",
+    "editDesc": "修改用户信息、角色或激活状态，保存后立即生效。",
+    "field": {
+      "email": "邮箱",
+      "fullName": "姓名",
+      "password": "密码",
+      "confirmPassword": "确认密码",
+      "roles": "角色",
+      "status": "状态",
+      "active": "激活状态",
+      "fullNamePlaceholder": "选填",
+      "passwordEditPlaceholder": "留空表示不修改密码",
+      "passwordNewPlaceholder": "至少 8 位，含小写字母和数字",
+      "confirmPasswordPlaceholder": "再次输入密码",
+      "activeHint": "停用后该用户将无法登录平台"
+    },
+    "rolesLoading": "角色列表加载中…",
+    "rolesLoadFailed": "角色列表加载失败，请关闭后重试。",
+    "role": {
+      "admin": "管理员",
+      "operator": "操作员",
+      "readonly": "只读"
+    },
+    "status": {
+      "active": "激活",
+      "inactive": "停用"
+    },
+    "filterEmailPlaceholder": "按邮箱过滤…",
+    "actionEdit": "编辑",
+    "actionDelete": "删除",
+    "deleteTitle": "删除用户",
+    "deleteDesc": "确定要删除 <b>{{email}}</b>？<br/>该用户（角色：<b>{{roles}}</b>）将被永久移除，此操作不可撤销。",
+    "deleteEmailLabel": "邮箱：",
+    "deleteEmailPlaceholder": "输入邮箱确认删除",
+    "deleteAlertTitle": "注意！",
+    "deleteAlertDesc": "删除后无法恢复，请谨慎操作。",
+    "created": "用户已创建",
+    "updated": "用户已更新",
+    "deleted": "用户已删除",
+    "validation": {
+      "emailRequired": "请输入邮箱。",
+      "emailInvalid": "请输入有效的邮箱地址。",
+      "passwordRequired": "请输入密码。",
+      "passwordMin": "密码长度至少 8 个字符。",
+      "passwordLowercase": "密码需至少包含一个小写字母。",
+      "passwordDigit": "密码需至少包含一个数字。",
+      "passwordMismatch": "两次输入的密码不一致。",
+      "rolesRequired": "至少选择一个角色。"
+    }
+  },
+  "system": {},
+  "errors": {
+    "back": "返回上一页",
+    "home": "回到首页",
+    "goToSignIn": "去登录",
+    "unauthorizedTitle": "未授权访问",
+    "unauthorizedDesc": "请先登录后再访问该页面。",
+    "forbiddenTitle": "无访问权限",
+    "forbiddenDesc": "当前账号没有访问该资源的权限，请联系管理员。",
+    "notFoundTitle": "页面不存在",
+    "notFoundDesc": "该地址没有对应的页面，可能已被移除或链接有误。",
+    "internalTitle": "服务器内部错误",
+    "internalDesc": "服务器处理请求时出错，请稍后重试；若持续出现请联系管理员。",
+    "maintenanceTitle": "系统维护中",
+    "maintenanceDesc": "平台暂时不可用，请稍后重试。",
+    "generic": "操作失败，请重试。",
+    "noContent": "无内容。",
+    "sessionExpired": "登录状态已失效，请重新登录。",
+    "notModified": "内容未修改。",
+    "status401": "登录状态已失效，请重新登录。",
+    "status403": "当前账号没有执行该操作的权限。",
+    "status404": "请求的资源不存在。",
+    "status409": "操作与当前状态冲突，请刷新后重试。",
+    "status502": "后端服务不可用，请稍后重试。"
+  }
+}

@@ -14,6 +14,8 @@
     "moduleDetection": "force",
     "noEmit": true,
     "jsx": "react-jsx",
+    /* i18n 资源是 JSON（src/locales/*.json），需要它才能 import 并推导 key 联合类型 */
+    "resolveJsonModule": true,
 
     /* Alias */
     "paths": {

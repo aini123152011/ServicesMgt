@@ -1,7 +1,9 @@
 import { getRouteApi } from '@tanstack/react-router'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ConfigDrawer } from '@/components/config-drawer'
+import { LanguageSwitch } from '@/components/language-switch'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 import { ProfileDropdown } from '@/components/profile-dropdown'
@@ -19,11 +21,13 @@ export function Users() {
   const search = route.useSearch()
   const navigate = route.useNavigate()
   const usersQuery = useUsersQuery()
+  const { t } = useTranslation()
 
   return (
     <UsersProvider>
       <Header fixed>
         <Search className='me-auto' />
+        <LanguageSwitch />
         <ThemeSwitch />
         <ConfigDrawer />
         <ProfileDropdown />
@@ -32,10 +36,10 @@ export function Users() {
       <Main className='flex flex-1 flex-col gap-4 sm:gap-6'>
         <div className='flex flex-wrap items-end justify-between gap-2'>
           <div>
-            <h2 className='text-2xl font-bold tracking-tight'>用户管理</h2>
-            <p className='text-muted-foreground'>
-              管理平台用户账号与角色分配。
-            </p>
+            <h2 className='text-2xl font-bold tracking-tight'>
+              {t('users.title')}
+            </h2>
+            <p className='text-muted-foreground'>{t('users.description')}</p>
           </div>
           <UsersPrimaryButtons />
         </div>
@@ -47,9 +51,9 @@ export function Users() {
           </div>
         ) : usersQuery.isError ? (
           <div className='flex flex-col items-center gap-3 py-16'>
-            <p className='text-muted-foreground'>用户列表加载失败。</p>
+            <p className='text-muted-foreground'>{t('users.listLoadFailed')}</p>
             <Button variant='outline' onClick={() => usersQuery.refetch()}>
-              重试
+              {t('common.retry')}
             </Button>
           </div>
         ) : (

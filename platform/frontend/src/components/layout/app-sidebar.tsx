@@ -37,7 +37,8 @@ export function AppSidebar() {
       </SidebarHeader>
       <SidebarContent>
         {navGroups.map((props) => (
-          <NavGroup key={props.title} {...props} />
+          // 分组标题可能是 key 或服务名原文，取其一作为稳定 key
+          <NavGroup key={props.titleKey ?? props.title} {...props} />
         ))}
       </SidebarContent>
       <SidebarFooter>

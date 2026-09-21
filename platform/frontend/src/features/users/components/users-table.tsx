@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   type Table as TanstackTable,
   type SortingState,
@@ -12,6 +12,7 @@ import {
   getSortedRowModel,
   useReactTable,
 } from '@tanstack/react-table'
+import { useTranslation } from 'react-i18next'
 import { type UserPublic } from '@/api/auth'
 import { cn } from '@/lib/utils'
 import { type NavigateFn, useTableUrlState } from '@/hooks/use-table-url-state'
@@ -25,7 +26,7 @@ import {
 } from '@/components/ui/table'
 import { DataTablePagination, DataTableToolbar } from '@/components/data-table'
 import { roleOptions, userStatusOptions } from '../data/data'
-import { usersColumns as columns } from './users-columns'
+import { buildUsersColumns } from './users-columns'
 
 type DataTableProps = {
   data: UserPublic[]
@@ -53,9 +54,12 @@ function facetedUniqueValues(
 }
 
 export function UsersTable({ data, search, navigate }: DataTableProps) {
+  const { t } = useTranslation()
   // Local UI-only states
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({})
   const [sorting, setSorting] = useState<SortingState>([])
+  // 列定义含文案：t 变化（切换语言）时重建，列标题与徽章才会跟着变
+  const columns = useMemo(() => buildUsersColumns(t), [t])
 
   // Synced with URL states (keys/defaults mirror users route search schema)
   const {
@@ -112,18 +116,26 @@ export function UsersTable({ data, search, navigate }: DataTableProps) {
     >
       <DataTableToolbar
         table={table}
-        searchPlaceholder='按邮箱过滤…'
+        searchPlaceholder={t('users.filterEmailPlaceholder')}
         searchKey='email'
         filters={[
           {
             columnId: 'status',
-            title: '状态',
-            options: userStatusOptions,
+            title: t('users.field.status'),
+            // 通用表格组件只认 label，选项里存的是 key，在这里翻译
+            options: userStatusOptions.map((option) => ({
+              value: option.value,
+              label: t(option.labelKey),
+            })),
           },
           {
             columnId: 'roles',
-            title: '角色',
-            options: roleOptions.map((role) => ({ ...role })),
+            title: t('users.field.roles'),
+            options: roleOptions.map((role) => ({
+              value: role.value,
+              label: t(role.labelKey),
+              icon: role.icon,
+            })),
           },
         ]}
       />
@@ -186,7 +198,7 @@ export function UsersTable({ data, search, navigate }: DataTableProps) {
                   colSpan={columns.length}
                   className='h-24 text-center'
                 >
-                  暂无用户。
+                  {t('users.empty')}
                 </TableCell>
               </TableRow>
             )}

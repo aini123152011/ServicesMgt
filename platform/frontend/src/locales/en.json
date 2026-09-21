@@ -1,0 +1,248 @@
+{
+  "common": {
+    "app": {
+      "name": "BMC Services Platform",
+      "subtitle": "Service configuration and lifecycle management"
+    },
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "save": "Save",
+    "saving": "Saving…",
+    "revert": "Revert",
+    "retry": "Retry",
+    "refresh": "Refresh",
+    "loading": "Loading…",
+    "notLoggedIn": "Not signed in",
+    "unknown": "Unknown",
+    "signOut": "Sign out",
+    "signOutTitle": "Sign out",
+    "signOutDesc": "Are you sure you want to sign out? You will need to sign in again to access the platform.",
+    "language": "Language",
+    "languageZh": "Chinese",
+    "languageEn": "English",
+    "toggleTheme": "Toggle theme",
+    "themeLight": "Light",
+    "themeDark": "Dark",
+    "themeSystem": "System",
+    "toggleSidebar": "Toggle sidebar",
+    "skipToMain": "Skip to Main",
+    "search": "Search",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password"
+  },
+  "nav": {
+    "groupServices": "Services",
+    "groupUsers": "Users",
+    "services": "Service list",
+    "users": "User list",
+    "serviceDetail": "Service detail"
+  },
+  "auth": {
+    "emailLabel": "Email",
+    "passwordLabel": "Password",
+    "signIn": {
+      "title": "Sign in",
+      "description": "Enter your email and password below to log into the platform.",
+      "submit": "Sign in",
+      "forgotPassword": "Forgot password?",
+      "loading": "Signing in…",
+      "success": "Welcome back, {{email}}!",
+      "failed": "Sign in failed. Please try again."
+    },
+    "forgotPassword": {
+      "title": "Forgot password",
+      "description": "Enter your registered email and we will send you a link to reset your password.",
+      "submit": "Continue",
+      "sending": "Sending email…",
+      "sent": "Reset link sent to {{email}}",
+      "failed": "Failed to send. Please try again.",
+      "remembered": "Remembered your password?"
+    },
+    "validation": {
+      "emailRequired": "Please enter your email.",
+      "emailInvalid": "Please enter a valid email address.",
+      "passwordRequired": "Please enter your password.",
+      "passwordMin": "Password must be at least 7 characters long."
+    }
+  },
+  "services": {
+    "list": {
+      "title": "Service list",
+      "description": "Browse the services managed by the platform; open one to manage its configuration and lifecycle.",
+      "loadFailed": "Failed to load the service list.",
+      "empty": "No services registered. Check the backend Service Registry."
+    },
+    "detail": {
+      "loadFailed": "Failed to load the service details.",
+      "backToList": "Back to list",
+      "container": "Container {{name}}",
+      "containerStatus": "Container status:",
+      "health": "Health check:",
+      "viewLogs": "View logs",
+      "readonlyAction": "Read-only role cannot perform this action",
+      "configTitle": "Service configuration",
+      "configDir": "Config directory {{dir}}",
+      "configFiles": "Config files {{files}}"
+    },
+    "action": {
+      "start": "Start",
+      "stop": "Stop",
+      "restart": "Restart"
+    },
+    "status": {
+      "running": "Running",
+      "stopped": "Stopped",
+      "unknown": "Status unknown"
+    },
+    "category": {
+      "time": "Time sync",
+      "fileShare": "File sharing",
+      "logMonitor": "Log monitoring"
+    },
+    "reloadMode": {
+      "hot": "Applied by hot reload",
+      "restart": "Applied by container restart"
+    },
+    "config": {
+      "readonly": "Read-only role cannot modify the configuration.",
+      "appliedPending": "The saved configuration is not active yet (container not running); it is loaded after the service starts.",
+      "renderedAt": "Last rendered at {{time}}",
+      "tabBase": "Base configuration",
+      "tabFault": "BMC fault injection",
+      "faultNoticeTitle": "BMC fault injection mode:",
+      "faultNoticeBody": "The fields in this group exist to test robustness, timeout retry and error handling of BMC out-of-band management servers. Keep it at \"none\" for normal test runs.",
+      "secretField": "(masked secret)",
+      "secretKeepText": "Keep the existing content (type a new value to replace it)",
+      "secretKeepPassword": "Keep the existing secret (type a new value to replace it)",
+      "secretPlaceholder": "Enter the password or secret",
+      "listPlaceholder": "One item per line",
+      "selectPlaceholder": "Select",
+      "showSecret": "Show content",
+      "hideSecret": "Hide content",
+      "savedNotApplied": "Saved. The container is not running, so it takes effect after the next start."
+    },
+    "validation": {
+      "boolean": "Must be a boolean",
+      "required": "This field is required",
+      "integer": "Must be an integer",
+      "min": "Must not be less than {{min}}",
+      "max": "Must not be greater than {{max}}",
+      "enumOption": "Select a valid option",
+      "listRequired": "Enter at least one item",
+      "listItem": "Line {{line}} \"{{item}}\" does not match the required format",
+      "pem": "Must be a valid PEM certificate or key",
+      "pattern": "Content does not match the required format"
+    },
+    "logs": {
+      "title": "Container logs",
+      "description": "Last 200 log lines of {{name}}, fetched once when opened.",
+      "empty": "(no logs)"
+    },
+    "data": {
+      "title": "BMC archived data and log browser",
+      "mountPoint": "Data volume mount: {{dir}}",
+      "subpath": "Subpath: /{{path}}",
+      "up": "Up one level",
+      "entries": "Entries ({{total}})",
+      "typeAndSize": "Type / size",
+      "dirLoadFailed": "Failed to load the directory, or the container is not running",
+      "emptyDir": "This directory is empty",
+      "dir": "Directory",
+      "fileMeta": "{{size}} · {{lines}} lines",
+      "truncated": " (head truncated)",
+      "filterPlaceholder": "Filter keyword (case sensitive)...",
+      "lines": "Lines:",
+      "lineCount": "{{lines}} lines",
+      "readFailed": "Failed to read the file content",
+      "noMatch": "No log line matches the keyword",
+      "fileEmpty": "The file is empty",
+      "selectFile": "Select a file on the left to view its content",
+      "structureHint": "rsyslog organizes logs as date-directory / BMC_IP.log",
+      "copySuccess": "Copied to clipboard",
+      "copyTitle": "Copy all",
+      "downloadTitle": "Download log"
+    }
+  },
+  "users": {
+    "title": "User management",
+    "description": "Manage platform accounts and role assignments.",
+    "listLoadFailed": "Failed to load the user list.",
+    "empty": "No users.",
+    "new": "New user",
+    "edit": "Edit user",
+    "createDesc": "Create a platform user and assign roles; the user can then sign in with email and password.",
+    "editDesc": "Update the user info, roles or activation state; changes take effect immediately.",
+    "field": {
+      "email": "Email",
+      "fullName": "Name",
+      "password": "Password",
+      "confirmPassword": "Confirm password",
+      "roles": "Roles",
+      "status": "Status",
+      "active": "Activation",
+      "fullNamePlaceholder": "Optional",
+      "passwordEditPlaceholder": "Leave empty to keep the current password",
+      "passwordNewPlaceholder": "At least 8 characters, with a lowercase letter and a digit",
+      "confirmPasswordPlaceholder": "Repeat the password",
+      "activeHint": "A deactivated user cannot sign in to the platform"
+    },
+    "rolesLoading": "Loading roles…",
+    "rolesLoadFailed": "Failed to load the roles; close and try again.",
+    "role": {
+      "admin": "Administrator",
+      "operator": "Operator",
+      "readonly": "Read-only"
+    },
+    "status": {
+      "active": "Active",
+      "inactive": "Inactive"
+    },
+    "filterEmailPlaceholder": "Filter by email…",
+    "actionEdit": "Edit",
+    "actionDelete": "Delete",
+    "deleteTitle": "Delete user",
+    "deleteDesc": "Delete <b>{{email}}</b>?<br/>This user (roles: <b>{{roles}}</b>) will be removed permanently and this action cannot be undone.",
+    "deleteEmailLabel": "Email:",
+    "deleteEmailPlaceholder": "Type the email to confirm",
+    "deleteAlertTitle": "Warning!",
+    "deleteAlertDesc": "Deletion cannot be undone, proceed with care.",
+    "created": "User created",
+    "updated": "User updated",
+    "deleted": "User deleted",
+    "validation": {
+      "emailRequired": "Please enter the email.",
+      "emailInvalid": "Please enter a valid email address.",
+      "passwordRequired": "Please enter the password.",
+      "passwordMin": "Password must be at least 8 characters long.",
+      "passwordLowercase": "Password must contain at least one lowercase letter.",
+      "passwordDigit": "Password must contain at least one digit.",
+      "passwordMismatch": "The two passwords do not match.",
+      "rolesRequired": "Select at least one role."
+    }
+  },
+  "system": {},
+  "errors": {
+    "back": "Go back",
+    "home": "Back to home",
+    "goToSignIn": "Go to sign in",
+    "unauthorizedTitle": "Unauthorized",
+    "unauthorizedDesc": "Please sign in before accessing this page.",
+    "forbiddenTitle": "Forbidden",
+    "forbiddenDesc": "Your account has no permission to access this resource. Contact an administrator.",
+    "notFoundTitle": "Page not found",
+    "notFoundDesc": "No page matches this address; it may have been removed or the link is wrong.",
+    "internalTitle": "Internal server error",
+    "internalDesc": "The server failed to process the request. Try again later, and contact an administrator if it keeps happening.",
+    "maintenanceTitle": "Under maintenance",
+    "maintenanceDesc": "The platform is temporarily unavailable. Try again later.",
+    "generic": "Something went wrong. Please try again.",
+    "noContent": "No content.",
+    "sessionExpired": "Your session has expired. Please sign in again.",
+    "notModified": "Content not modified.",
+    "status401": "Your session has expired. Please sign in again.",
+    "status403": "Your account is not allowed to perform this action.",
+    "status404": "The requested resource does not exist.",
+    "status409": "The operation conflicts with the current state. Refresh and try again.",
+    "status502": "The backend service is unavailable. Please try again later."
+  }
+}

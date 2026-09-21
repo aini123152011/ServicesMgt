@@ -5,6 +5,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { type ReloadMode, type ServiceCategory } from '@/api/services'
+import { type TranslationKey } from '@/lib/i18n'
 
 /** 分类 Badge 的样式映射，以类型为 key 保证新增分类必有样式 */
 export const categoryTypes: Record<ServiceCategory, string> = {
@@ -22,10 +23,14 @@ export const categoryOrder: ServiceCategory[] = [
   'log-monitor',
 ]
 
-export const categoryLabels: Record<ServiceCategory, string> = {
-  time: '时间同步',
-  'file-share': '文件共享',
-  'log-monitor': '日志监控',
+/**
+ * 分类名与生效方式的文案 key。
+ * 这些映射是模块级常量，存 key、由渲染处 t() 翻译——否则语言切换后拿到的是旧语言。
+ */
+export const categoryLabelKeys: Record<ServiceCategory, TranslationKey> = {
+  time: 'services.category.time',
+  'file-share': 'services.category.fileShare',
+  'log-monitor': 'services.category.logMonitor',
 }
 
 /** 分类图标，总览卡片空态/详情页头部复用 */
@@ -35,7 +40,7 @@ export const categoryIcons: Record<ServiceCategory, LucideIcon> = {
   'log-monitor': ScrollText,
 }
 
-export const reloadModeLabels: Record<ReloadMode, string> = {
-  hot: '热重载生效',
-  restart: '重启容器生效',
+export const reloadModeLabelKeys: Record<ReloadMode, TranslationKey> = {
+  hot: 'services.reloadMode.hot',
+  restart: 'services.reloadMode.restart',
 }

@@ -4,10 +4,11 @@ import { type Locator, userEvent } from 'vitest/browser'
 import { getCurrentUser, loginAccessToken } from '@/api/auth'
 import { UserAuthForm } from './user-auth-form'
 
+// 默认语言是中文（见 src/lib/i18n.ts），组件测试断言中文文案
 const FORM_MESSAGES = {
-  emailEmpty: 'Please enter your email.',
-  passwordEmpty: 'Please enter your password.',
-  passwordShort: 'Password must be at least 7 characters long.',
+  emailEmpty: '请输入邮箱。',
+  passwordEmpty: '请输入密码。',
+  passwordShort: '密码长度至少 7 个字符。',
 } as const
 
 const mockToken = { access_token: 'jwt-access-token', token_type: 'bearer' }
@@ -79,10 +80,10 @@ describe('UserAuthForm', () => {
 
     beforeEach(async () => {
       screen = await render(<UserAuthForm />)
-      emailInput = screen.getByRole('textbox', { name: /^Email$/i })
-      passwordInput = screen.getByLabelText(/^Password$/i)
-      signInButton = screen.getByRole('button', { name: /^Sign in$/i })
-      forgotPasswordLink = screen.getByText(/^Forgot password\?$/i)
+      emailInput = screen.getByRole('textbox', { name: /^邮箱$/ })
+      passwordInput = screen.getByLabelText(/^密码$/i)
+      signInButton = screen.getByRole('button', { name: /^登录$/ })
+      forgotPasswordLink = screen.getByText(/^忘记密码？$/)
     })
 
     it('renders fields, submit button, and forgot password link', async () => {
@@ -128,10 +129,10 @@ describe('UserAuthForm', () => {
       <UserAuthForm redirectTo='/services' />
     )
 
-    await userEvent.fill(getByRole('textbox', { name: /Email/i }), 'a@b.com')
-    await userEvent.fill(getByLabelText('Password'), '1234567')
+    await userEvent.fill(getByRole('textbox', { name: /邮箱/ }), 'a@b.com')
+    await userEvent.fill(getByLabelText('密码'), '1234567')
 
-    await userEvent.click(getByRole('button', { name: /Sign in/i }))
+    await userEvent.click(getByRole('button', { name: /登录/ }))
 
     await vi.waitFor(() => expect(setUserMock).toHaveBeenCalledOnce())
     expect(setAccessTokenMock).toHaveBeenCalledWith('jwt-access-token')

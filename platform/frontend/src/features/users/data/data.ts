@@ -1,11 +1,17 @@
 import { Eye, ShieldCheck, Wrench, type LucideIcon } from 'lucide-react'
 import { ROLE_NAMES, type RoleName } from '@/api/users'
+import { type TranslationKey } from '@/lib/i18n'
 
-/** 角色 → 中文标签（契约锁定三角色，未知角色名由 isRoleName 拦截） */
-const roleLabels: Record<RoleName, string> = {
-  admin: '管理员',
-  operator: '操作员',
-  readonly: '只读',
+/**
+ * 角色/状态展示元数据。
+ *
+ * 文案一律存 i18n key：这些映射是模块级常量，直接存中文会让语言切换后徽章停留在旧语言，
+ * 由渲染处 t() 取值。契约锁定三角色，未知角色名由 isRoleName 拦截并退回原文。
+ */
+const roleLabelKeys: Record<RoleName, TranslationKey> = {
+  admin: 'users.role.admin',
+  operator: 'users.role.operator',
+  readonly: 'users.role.readonly',
 }
 
 const roleIcons: Record<RoleName, LucideIcon> = {
@@ -31,13 +37,14 @@ export const isKnownRole = isRoleName
 
 /** 单个角色的展示元数据；契约外的角色名退回原文与 Badge 默认样式 */
 export function roleMeta(role: string): {
-  label: string
+  labelKey?: TranslationKey
+  label?: string
   icon: LucideIcon
   className?: string
 } {
   if (isRoleName(role)) {
     return {
-      label: roleLabels[role],
+      labelKey: roleLabelKeys[role],
       icon: roleIcons[role],
       className: roleBadgeClass[role],
     }
@@ -48,19 +55,19 @@ export function roleMeta(role: string): {
 /** 角色多选/筛选选项（对话框 Checkbox 组与 FacetedFilter 复用） */
 export const roleOptions = ROLE_NAMES.map((value) => ({
   value,
-  label: roleLabels[value],
+  labelKey: roleLabelKeys[value],
   icon: roleIcons[value],
 }))
 
-/** is_active → 状态 Badge 文案与样式 */
+/** is_active → 状态 Badge 文案 key 与样式 */
 export const userStatusMeta = new Map<
   boolean,
-  { label: string; className: string }
+  { labelKey: TranslationKey; className: string }
 >([
   [
     true,
     {
-      label: '激活',
+      labelKey: 'users.status.active',
       className:
         'bg-teal-100/30 text-teal-900 dark:text-teal-200 border-teal-200',
     },
@@ -68,7 +75,7 @@ export const userStatusMeta = new Map<
   [
     false,
     {
-      label: '停用',
+      labelKey: 'users.status.inactive',
       className:
         'bg-destructive/10 dark:bg-destructive/50 text-destructive dark:text-primary border-destructive/10',
     },
@@ -76,7 +83,8 @@ export const userStatusMeta = new Map<
 ])
 
 /** 状态筛选选项，value 与路由 search 的枚举对应 */
-export const userStatusOptions = [
-  { label: '激活', value: 'active' },
-  { label: '停用', value: 'inactive' },
-]
+export const userStatusOptions: { labelKey: TranslationKey; value: string }[] =
+  [
+    { labelKey: 'users.status.active', value: 'active' },
+    { labelKey: 'users.status.inactive', value: 'inactive' },
+  ]

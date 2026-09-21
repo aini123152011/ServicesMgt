@@ -3,6 +3,7 @@ import { useNavigate } from '@tanstack/react-router'
 import { ArrowRight, ChevronRight, Laptop, Moon, Sun } from 'lucide-react'
 import { useSearch } from '@/context/search-provider'
 import { useTheme } from '@/context/theme-provider'
+import { useNavLabel } from '@/hooks/use-nav-label'
 import {
   CommandDialog,
   CommandEmpty,
@@ -19,6 +20,8 @@ export function CommandMenu() {
   const navigate = useNavigate()
   const { setTheme } = useTheme()
   const { open, setOpen } = useSearch()
+  // 导航项文案随语言切换（key 或服务名原文），命令面板自身文案是模板英文，本轮不改
+  const navLabel = useNavLabel()
 
   const runCommand = React.useCallback(
     (command: () => unknown) => {
@@ -35,13 +38,16 @@ export function CommandMenu() {
         <ScrollArea type='hover' className='h-72 pe-1'>
           <CommandEmpty>No results found.</CommandEmpty>
           {sidebarData.navGroups.map((group) => (
-            <CommandGroup key={group.title} heading={group.title}>
+            <CommandGroup
+              key={group.titleKey ?? group.title}
+              heading={navLabel(group)}
+            >
               {group.items.map((navItem, i) => {
                 if (navItem.url)
                   return (
                     <CommandItem
                       key={`${navItem.url}-${i}`}
-                      value={navItem.title}
+                      value={navLabel(navItem)}
                       onSelect={() => {
                         runCommand(() => navigate({ to: navItem.url }))
                       }}
@@ -49,14 +55,14 @@ export function CommandMenu() {
                       <div className='flex size-4 items-center justify-center'>
                         <ArrowRight className='size-2 text-muted-foreground/80' />
                       </div>
-                      {navItem.title}
+                      {navLabel(navItem)}
                     </CommandItem>
                   )
 
                 return navItem.items?.map((subItem, i) => (
                   <CommandItem
-                    key={`${navItem.title}-${subItem.url}-${i}`}
-                    value={`${navItem.title}-${subItem.url}`}
+                    key={`${navLabel(navItem)}-${subItem.url}-${i}`}
+                    value={`${navLabel(navItem)}-${subItem.url}`}
                     onSelect={() => {
                       runCommand(() => navigate({ to: subItem.url }))
                     }}
@@ -64,7 +70,7 @@ export function CommandMenu() {
                     <div className='flex size-4 items-center justify-center'>
                       <ArrowRight className='size-2 text-muted-foreground/80' />
                     </div>
-                    {navItem.title} <ChevronRight /> {subItem.title}
+                    {navLabel(navItem)} <ChevronRight /> {navLabel(subItem)}
                   </CommandItem>
                 ))
               })}

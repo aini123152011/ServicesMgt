@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 import { useServiceStatusQuery } from '../hooks/use-services'
 
@@ -18,8 +19,13 @@ export function ServiceStatusDot({
 }: ServiceStatusDotProps) {
   const statusQuery = useServiceStatusQuery(name)
   const running = statusQuery.data?.running
+  const { t } = useTranslation()
 
-  const label = running ? '运行中' : running === false ? '已停止' : '状态未知'
+  const label = running
+    ? t('services.status.running')
+    : running === false
+      ? t('services.status.stopped')
+      : t('services.status.unknown')
 
   return (
     <span className={cn('inline-flex items-center gap-2 text-sm', className)}>

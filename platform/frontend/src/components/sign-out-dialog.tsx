@@ -1,4 +1,5 @@
 import { useNavigate, useLocation } from '@tanstack/react-router'
+import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/stores/auth-store'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 
@@ -11,6 +12,7 @@ export function SignOutDialog({ open, onOpenChange }: SignOutDialogProps) {
   const navigate = useNavigate()
   const location = useLocation()
   const { auth } = useAuthStore()
+  const { t } = useTranslation()
 
   const handleSignOut = () => {
     auth.reset()
@@ -27,9 +29,9 @@ export function SignOutDialog({ open, onOpenChange }: SignOutDialogProps) {
     <ConfirmDialog
       open={open}
       onOpenChange={onOpenChange}
-      title='退出登录'
-      desc='确定要退出登录吗？退出后需要重新登录才能访问平台。'
-      confirmText='退出登录'
+      title={t('common.signOutTitle')}
+      desc={t('common.signOutDesc')}
+      confirmText={t('common.signOut')}
       destructive
       handleConfirm={handleSignOut}
       className='sm:max-w-sm'

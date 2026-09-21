@@ -1,5 +1,6 @@
 import { AxiosError } from 'axios'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import i18n from '@/lib/i18n'
 import { handleServerError } from './handle-server-error'
 
 const toastError = vi.hoisted(() => vi.fn())
@@ -18,13 +19,13 @@ describe('handleServerError', () => {
   it('shows a generic message when the error is not recognised', () => {
     handleServerError(new Error('network'))
 
-    expect(toastError).toHaveBeenCalledWith('Something went wrong!')
+    expect(toastError).toHaveBeenCalledWith(i18n.t('errors.generic'))
   })
 
   it('maps a plain object with status 204 to the no-content message', () => {
     handleServerError({ status: 204 })
 
-    expect(toastError).toHaveBeenCalledWith('No content.')
+    expect(toastError).toHaveBeenCalledWith(i18n.t('errors.noContent'))
   })
 
   it('prefers the API title when the error is an Axios error with response data', () => {
@@ -48,7 +49,19 @@ describe('handleServerError', () => {
 
     handleServerError(error)
 
-    expect(toastError).toHaveBeenCalledWith('Something went wrong!')
+    expect(toastError).toHaveBeenCalledWith(i18n.t('errors.generic'))
+  })
+
+  it('prefers the localized status message over the backend detail for mapped status codes', () => {
+    const error = new AxiosError('Conflict')
+    error.response = {
+      status: 409,
+      data: { detail: '资源已被他人修改' },
+    } as AxiosError['response']
+
+    handleServerError(error)
+
+    expect(toastError).toHaveBeenCalledWith(i18n.t('errors.status409'))
   })
 
   it('falls back to the generic message when Axios data.title is an empty string', () => {
@@ -60,7 +73,7 @@ describe('handleServerError', () => {
 
     handleServerError(error)
 
-    expect(toastError).toHaveBeenCalledWith('Something went wrong!')
+    expect(toastError).toHaveBeenCalledWith(i18n.t('errors.generic'))
   })
 
   it('logs the error to the console in development', () => {

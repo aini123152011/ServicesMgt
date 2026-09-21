@@ -9,6 +9,7 @@ import {
   RefreshCw,
   Search,
 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -37,6 +38,9 @@ type ServiceDataExplorerProps = {
   dataDir: string
 }
 
+/** 可选行数档位；文案是「N 行」，按语言拼单位 */
+const TAIL_OPTIONS = [100, 200, 500, 1000, 2000]
+
 function formatBytes(bytes: number): string {
   if (bytes === 0) return '0 B'
   const k = 1024
@@ -57,6 +61,7 @@ export function ServiceDataExplorer({
   const [keyword, setKeyword] = useState('')
   // 末尾行数
   const [tailLines, setTailLines] = useState(500)
+  const { t } = useTranslation()
 
   const treeQuery = useServiceDataTreeQuery(name, currentSubpath)
   const contentQuery = useServiceDataContentQuery(
@@ -89,7 +94,7 @@ export function ServiceDataExplorer({
   const handleCopyLogs = () => {
     if (!contentQuery.data?.lines) return
     navigator.clipboard.writeText(contentQuery.data.lines.join('\n'))
-    toast.success('已复制到剪贴板')
+    toast.success(t('services.data.copySuccess'))
   }
 
   const handleDownload = () => {
@@ -112,10 +117,11 @@ export function ServiceDataExplorer({
       <CardHeader>
         <div className='flex flex-wrap items-center justify-between gap-4'>
           <div>
-            <CardTitle>BMC 归档数据与日志浏览</CardTitle>
+            <CardTitle>{t('services.data.title')}</CardTitle>
             <CardDescription>
-              数据卷挂载点：{dataDir}
-              {currentSubpath && ` · 子路径: /${currentSubpath}`}
+              {t('services.data.mountPoint', { dir: dataDir })}
+              {currentSubpath &&
+                ` · ${t('services.data.subpath', { path: currentSubpath })}`}
             </CardDescription>
           </div>
           <div className='flex items-center gap-2'>
@@ -127,7 +133,7 @@ export function ServiceDataExplorer({
                 className='h-8'
               >
                 <ArrowLeft className='mr-1 size-3.5' />
-                返回上一级
+                {t('services.data.up')}
               </Button>
             )}
             <Button
@@ -142,7 +148,7 @@ export function ServiceDataExplorer({
               <RefreshCw
                 className={`mr-1 size-3.5 ${treeQuery.isFetching ? 'animate-spin' : ''}`}
               />
-              刷新
+              {t('common.refresh')}
             </Button>
           </div>
         </div>
@@ -152,8 +158,12 @@ export function ServiceDataExplorer({
           {/* 左侧：文件树列表 */}
           <div className='rounded-md border p-3 lg:col-span-4'>
             <div className='mb-2 flex items-center justify-between text-xs font-semibold text-muted-foreground'>
-              <span>条目清单 ({treeQuery.data?.entries.length ?? 0})</span>
-              <span>类型 / 大小</span>
+              <span>
+                {t('services.data.entries', {
+                  total: treeQuery.data?.entries.length ?? 0,
+                })}
+              </span>
+              <span>{t('services.data.typeAndSize')}</span>
             </div>
 
             {treeQuery.isPending ? (
@@ -162,11 +172,11 @@ export function ServiceDataExplorer({
               </div>
             ) : treeQuery.isError ? (
               <div className='py-6 text-center text-sm text-destructive'>
-                目录加载失败或容器未运行
+                {t('services.data.dirLoadFailed')}
               </div>
             ) : treeQuery.data?.entries.length === 0 ? (
               <div className='py-8 text-center text-xs text-muted-foreground'>
-                当前目录为空
+                {t('services.data.emptyDir')}
               </div>
             ) : (
               <div className='max-h-96 space-y-1 overflow-y-auto'>
@@ -199,7 +209,9 @@ export function ServiceDataExplorer({
                         <span className='truncate'>{entry.name}</span>
                       </div>
                       <span className='shrink-0 text-[11px] text-muted-foreground'>
-                        {isDir ? '目录' : formatBytes(entry.size)}
+                        {isDir
+                          ? t('services.data.dir')
+                          : formatBytes(entry.size)}
                       </span>
                     </button>
                   )
@@ -219,9 +231,12 @@ export function ServiceDataExplorer({
                     </Badge>
                     {contentQuery.data && (
                       <span className='text-xs text-muted-foreground'>
-                        {formatBytes(contentQuery.data.size)} · 共{' '}
-                        {contentQuery.data.lines.length} 行
-                        {contentQuery.data.truncated && ' (已截断头部)'}
+                        {t('services.data.fileMeta', {
+                          size: formatBytes(contentQuery.data.size),
+                          lines: contentQuery.data.lines.length,
+                        })}
+                        {contentQuery.data.truncated &&
+                          t('services.data.truncated')}
                       </span>
                     )}
                   </div>
@@ -231,7 +246,7 @@ export function ServiceDataExplorer({
                       size='sm'
                       className='h-8 px-2'
                       onClick={handleCopyLogs}
-                      title='复制全文'
+                      title={t('services.data.copyTitle')}
                     >
                       <Copy className='size-3.5' />
                     </Button>
@@ -240,7 +255,7 @@ export function ServiceDataExplorer({
                       size='sm'
                       className='h-8 px-2'
                       onClick={handleDownload}
-                      title='下载日志'
+                      title={t('services.data.downloadTitle')}
                     >
                       <Download className='size-3.5' />
                     </Button>
@@ -252,14 +267,16 @@ export function ServiceDataExplorer({
                   <div className='relative min-w-48 flex-1'>
                     <Search className='absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground' />
                     <Input
-                      placeholder='过滤关键字 (区分大小写)...'
+                      placeholder={t('services.data.filterPlaceholder')}
                       value={keyword}
                       onChange={(e) => setKeyword(e.target.value)}
                       className='h-8 pl-8 text-xs'
                     />
                   </div>
                   <div className='flex items-center gap-1.5'>
-                    <span className='text-xs text-muted-foreground'>行数:</span>
+                    <span className='text-xs text-muted-foreground'>
+                      {t('services.data.lines')}
+                    </span>
                     <Select
                       value={String(tailLines)}
                       onValueChange={(v) => setTailLines(Number(v))}
@@ -268,11 +285,11 @@ export function ServiceDataExplorer({
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value='100'>100 行</SelectItem>
-                        <SelectItem value='200'>200 行</SelectItem>
-                        <SelectItem value='500'>500 行</SelectItem>
-                        <SelectItem value='1000'>1000 行</SelectItem>
-                        <SelectItem value='2000'>2000 行</SelectItem>
+                        {TAIL_OPTIONS.map((option) => (
+                          <SelectItem key={option} value={String(option)}>
+                            {t('services.data.lineCount', { lines: option })}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
@@ -285,11 +302,13 @@ export function ServiceDataExplorer({
                   </div>
                 ) : contentQuery.isError ? (
                   <div className='flex h-72 items-center justify-center text-sm text-destructive'>
-                    读取文件内容失败
+                    {t('services.data.readFailed')}
                   </div>
                 ) : contentQuery.data?.lines.length === 0 ? (
                   <div className='flex h-72 items-center justify-center text-xs text-muted-foreground'>
-                    {keyword ? '无匹配关键字的日志行' : '文件内容为空'}
+                    {keyword
+                      ? t('services.data.noMatch')
+                      : t('services.data.fileEmpty')}
                   </div>
                 ) : (
                   <div className='h-80 overflow-auto rounded-md bg-slate-950 p-3 font-mono text-xs text-slate-100 dark:bg-zinc-950'>
@@ -307,9 +326,9 @@ export function ServiceDataExplorer({
             ) : (
               <div className='flex h-80 flex-col items-center justify-center text-muted-foreground'>
                 <FileText className='mb-2 size-10 opacity-30' />
-                <p className='text-sm'>请在左侧选择文件以查看日志内容</p>
+                <p className='text-sm'>{t('services.data.selectFile')}</p>
                 <p className='mt-1 text-xs text-muted-foreground/70'>
-                  rsyslog 将按 日期目录 / BMC_IP.log 结构组织日志
+                  {t('services.data.structureHint')}
                 </p>
               </div>
             )}

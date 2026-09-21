@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { AlertTriangle } from 'lucide-react'
+import { Trans, useTranslation } from 'react-i18next'
 import { type UserPublic } from '@/api/auth'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Input } from '@/components/ui/input'
@@ -21,6 +22,7 @@ export function UsersDeleteDialog({
 }: UserDeleteDialogProps) {
   const [value, setValue] = useState('')
   const deleteMutation = useDeleteUserMutation()
+  const { t } = useTranslation()
 
   const handleDelete = () => {
     if (value.trim() !== currentRow.email) return
@@ -29,7 +31,12 @@ export function UsersDeleteDialog({
     })
   }
 
-  const roleNames = currentRow.roles.map((role) => roleMeta(role).label)
+  const roleNames = currentRow.roles
+    .map((role) => {
+      const meta = roleMeta(role)
+      return meta.labelKey ? t(meta.labelKey) : (meta.label ?? role)
+    })
+    .join('、')
 
   return (
     <ConfirmDialog
@@ -43,7 +50,7 @@ export function UsersDeleteDialog({
             className='me-1 inline-block stroke-destructive'
             size={18}
           />{' '}
-          删除用户
+          {t('users.deleteTitle')}
         </span>
       }
       desc={
@@ -55,31 +62,32 @@ export function UsersDeleteDialog({
           }}
           className='space-y-4'
         >
+          {/* 整句放资源文件里，只有邮箱与角色名是插值，翻译时不会拆散语序 */}
           <p className='mb-2'>
-            确定要删除 <span className='font-bold'>{currentRow.email}</span>？
-            <br />
-            该用户（角色：
-            <span className='font-bold'>{roleNames.join('、')}</span>
-            ）将被永久移除，此操作不可撤销。
+            <Trans
+              i18nKey='users.deleteDesc'
+              values={{ email: currentRow.email, roles: roleNames }}
+              components={{ b: <span className='font-bold' />, br: <br /> }}
+            />
           </p>
 
           <Label className='my-2'>
-            邮箱：
+            {t('users.deleteEmailLabel')}
             <Input
               value={value}
               onChange={(e) => setValue(e.target.value)}
-              placeholder='输入邮箱确认删除'
+              placeholder={t('users.deleteEmailPlaceholder')}
               autoFocus
             />
           </Label>
 
           <Alert variant='destructive'>
-            <AlertTitle>注意！</AlertTitle>
-            <AlertDescription>删除后无法恢复，请谨慎操作。</AlertDescription>
+            <AlertTitle>{t('users.deleteAlertTitle')}</AlertTitle>
+            <AlertDescription>{t('users.deleteAlertDesc')}</AlertDescription>
           </Alert>
         </form>
       }
-      confirmText='删除'
+      confirmText={t('users.actionDelete')}
       destructive
     />
   )

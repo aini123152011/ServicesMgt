@@ -1,5 +1,6 @@
 import { Link } from '@tanstack/react-router'
 import { Network } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { type ServiceSummary } from '@/api/services'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -11,6 +12,7 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
+import { LanguageSwitch } from '@/components/language-switch'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 import { ProfileDropdown } from '@/components/profile-dropdown'
@@ -19,29 +21,33 @@ import { ThemeSwitch } from '@/components/theme-switch'
 import { ServiceStatusDot } from './components/service-status-dot'
 import {
   categoryIcons,
-  categoryLabels,
+  categoryLabelKeys,
   categoryTypes,
-  reloadModeLabels,
+  reloadModeLabelKeys,
 } from './data/data'
 import { useServicesQuery } from './hooks/use-services'
 
 export function Services() {
   const servicesQuery = useServicesQuery()
   const services = servicesQuery.data ?? []
+  const { t } = useTranslation()
 
   return (
     <>
       <Header fixed>
         <Search className='me-auto' />
+        <LanguageSwitch />
         <ThemeSwitch />
         <ProfileDropdown />
       </Header>
 
       <Main className='flex flex-1 flex-col gap-4'>
         <div>
-          <h2 className='text-2xl font-bold tracking-tight'>服务列表</h2>
+          <h2 className='text-2xl font-bold tracking-tight'>
+            {t('services.list.title')}
+          </h2>
           <p className='text-muted-foreground'>
-            查看平台纳管的服务，进入详情可管理配置与生命周期。
+            {t('services.list.description')}
           </p>
         </div>
 
@@ -54,16 +60,16 @@ export function Services() {
           </div>
         ) : servicesQuery.isError ? (
           <div className='flex flex-col items-center gap-3 py-16'>
-            <p className='text-muted-foreground'>服务列表加载失败。</p>
+            <p className='text-muted-foreground'>
+              {t('services.list.loadFailed')}
+            </p>
             <Button variant='outline' onClick={() => servicesQuery.refetch()}>
-              重试
+              {t('common.retry')}
             </Button>
           </div>
         ) : services.length === 0 ? (
           <div className='flex flex-col items-center gap-2 py-16'>
-            <p className='text-muted-foreground'>
-              暂无纳管服务，请检查后端 Service Registry。
-            </p>
+            <p className='text-muted-foreground'>{t('services.list.empty')}</p>
           </div>
         ) : (
           <div className='grid gap-4 sm:grid-cols-2 xl:grid-cols-3'>
@@ -79,6 +85,7 @@ export function Services() {
 
 function ServiceCard({ service }: { service: ServiceSummary }) {
   const CategoryIcon = categoryIcons[service.category]
+  const { t } = useTranslation()
 
   return (
     <Link
@@ -97,7 +104,7 @@ function ServiceCard({ service }: { service: ServiceSummary }) {
               variant='outline'
               className={categoryTypes[service.category]}
             >
-              {categoryLabels[service.category]}
+              {t(categoryLabelKeys[service.category])}
             </Badge>
           </div>
           <CardDescription>{service.description}</CardDescription>
@@ -116,7 +123,7 @@ function ServiceCard({ service }: { service: ServiceSummary }) {
             ))}
           </div>
           <p className='text-muted-foreground'>
-            {reloadModeLabels[service.reload_mode]}
+            {t(reloadModeLabelKeys[service.reload_mode])}
           </p>
         </CardContent>
       </Card>

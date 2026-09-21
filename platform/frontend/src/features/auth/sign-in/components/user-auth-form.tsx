@@ -5,6 +5,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { Loader2, LogIn } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { getCurrentUser, loginAccessToken } from '@/api/auth'
 import { useAuthStore } from '@/stores/auth-store'
@@ -16,34 +17,27 @@ import {
   FormField,
   FormItem,
   FormLabel,
-  FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import { LocalizedFormMessage } from '@/components/localized-form-message'
 import { PasswordInput } from '@/components/password-input'
 
+// 消息存 key：schema 在模块级创建，那时取不到最新语言，渲染处由 LocalizedFormMessage 翻译
 const formSchema = z.object({
   email: z.email({
-    error: (iss) => (iss.input === '' ? 'Please enter your email.' : undefined),
+    error: (iss) =>
+      iss.input === ''
+        ? 'auth.validation.emailRequired'
+        : 'auth.validation.emailInvalid',
   }),
   password: z
     .string()
-    .min(1, 'Please enter your password.')
-    .min(7, 'Password must be at least 7 characters long.'),
+    .min(1, 'auth.validation.passwordRequired')
+    .min(7, 'auth.validation.passwordMin'),
 })
 
 interface UserAuthFormProps extends React.HTMLAttributes<HTMLFormElement> {
   redirectTo?: string
-}
-
-/** 后端失败响应统一带 { detail }，优先展示给用户 */
-function resolveErrorMessage(error: unknown): string {
-  if (error instanceof AxiosError) {
-    const detail = error.response?.data?.detail
-    if (typeof detail === 'string' && detail.length > 0) {
-      return detail
-    }
-  }
-  return 'Sign in failed. Please try again.'
 }
 
 export function UserAuthForm({
@@ -54,6 +48,18 @@ export function UserAuthForm({
   const [isLoading, setIsLoading] = useState(false)
   const navigate = useNavigate()
   const { auth } = useAuthStore()
+  const { t } = useTranslation()
+
+  /** 后端失败响应统一带 { detail }，优先展示给用户 */
+  function resolveErrorMessage(error: unknown): string {
+    if (error instanceof AxiosError) {
+      const detail = error.response?.data?.detail
+      if (typeof detail === 'string' && detail.length > 0) {
+        return detail
+      }
+    }
+    return t('auth.signIn.failed')
+  }
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -87,16 +93,16 @@ export function UserAuthForm({
           replace: true,
         })
 
-        return `Welcome back, ${user.email}!`
+        return t('auth.signIn.success', { email: user.email })
       } catch (error) {
-        // 任一步失败都清掉半套凭证，避免"有 token 无 user"的中间态
+        // 任一步失败都清掉半套凭证，避免出现"有 token 无 user"的中间态
         auth.reset()
         throw error
       }
     }
 
     toast.promise(signIn(), {
-      loading: 'Signing in...',
+      loading: t('auth.signIn.loading'),
       success: (message) => {
         setIsLoading(false)
         return message
@@ -120,11 +126,11 @@ export function UserAuthForm({
           name='email'
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Email</FormLabel>
+              <FormLabel>{t('auth.emailLabel')}</FormLabel>
               <FormControl>
                 <Input placeholder='name@example.com' {...field} />
               </FormControl>
-              <FormMessage />
+              <LocalizedFormMessage />
             </FormItem>
           )}
         />
@@ -133,23 +139,23 @@ export function UserAuthForm({
           name='password'
           render={({ field }) => (
             <FormItem className='relative'>
-              <FormLabel>Password</FormLabel>
+              <FormLabel>{t('auth.passwordLabel')}</FormLabel>
               <FormControl>
                 <PasswordInput placeholder='********' {...field} />
               </FormControl>
-              <FormMessage />
+              <LocalizedFormMessage />
               <Link
                 to='/forgot-password'
                 className='absolute inset-e-0 -top-0.5 text-sm font-medium text-muted-foreground hover:opacity-75'
               >
-                Forgot password?
+                {t('auth.signIn.forgotPassword')}
               </Link>
             </FormItem>
           )}
         />
         <Button className='mt-2' disabled={isLoading}>
           {isLoading ? <Loader2 className='animate-spin' /> : <LogIn />}
-          Sign in
+          {t('auth.signIn.submit')}
         </Button>
       </form>
     </Form>

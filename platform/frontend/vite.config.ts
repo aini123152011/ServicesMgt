@@ -24,6 +24,9 @@ export default defineConfig({
   test: {
     silent: 'passed-only',
     unstubEnvs: true,
+    // 组件测试直接渲染，不走 main.tsx 那条初始化链；先加载 i18n 才拿得到译文而不是 key。
+    // 默认语言是中文，与线上未选择语言时的首屏一致。
+    setupFiles: ['./src/lib/i18n.ts'],
     browser: {
       enabled: true,
       // 组件测试跑在真实浏览器里：Radix 的 portal/焦点管理与真实 CSS 在 jsdom 下不可靠。

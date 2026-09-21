@@ -8,6 +8,7 @@ import {
   ScrollText,
   Square,
 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { type ServiceAction } from '@/api/services'
 import { usePermissions } from '@/hooks/use-permissions'
 import { Badge } from '@/components/ui/badge'
@@ -21,12 +22,17 @@ import {
 } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
+import { LanguageSwitch } from '@/components/language-switch'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 import { ProfileDropdown } from '@/components/profile-dropdown'
 import { Search } from '@/components/search'
 import { ThemeSwitch } from '@/components/theme-switch'
-import { categoryLabels, categoryTypes, reloadModeLabels } from '../data/data'
+import {
+  categoryLabelKeys,
+  categoryTypes,
+  reloadModeLabelKeys,
+} from '../data/data'
 import {
   useServiceActionMutation,
   useServiceQuery,
@@ -42,9 +48,16 @@ type ServiceDetailProps = {
   name: string
 }
 
+/** 配置页签：受控在详情页，保存触发重挂载时才能留在当前页签 */
+type ConfigTab = 'base' | 'fault'
+
 export function ServiceDetail({ name }: ServiceDetailProps) {
   const [logsOpen, setLogsOpen] = useState(false)
+  // 页签状态必须放在这里：保存配置会失效 query、改变 config.rendered_at，
+  // 进而让 ServiceConfigForm 的 key 变化而重挂载；状态若在表单内部会被重置回「基础配置」
+  const [configTab, setConfigTab] = useState<ConfigTab>('base')
   const { isOperator } = usePermissions()
+  const { t } = useTranslation()
   const serviceQuery = useServiceQuery(name)
   const statusQuery = useServiceStatusQuery(name)
   const actionMutation = useServiceActionMutation(name)
@@ -68,9 +81,11 @@ export function ServiceDetail({ name }: ServiceDetailProps) {
         <ServiceDetailHeader name={name} />
         <Main>
           <div className='flex flex-col items-center gap-3 py-16'>
-            <p className='text-muted-foreground'>服务详情加载失败。</p>
+            <p className='text-muted-foreground'>
+              {t('services.detail.loadFailed')}
+            </p>
             <Button variant='outline' onClick={() => serviceQuery.refetch()}>
-              重试
+              {t('common.retry')}
             </Button>
           </div>
         </Main>
@@ -90,9 +105,9 @@ export function ServiceDetail({ name }: ServiceDetailProps) {
     label: string
     icon: React.ElementType
   }[] = [
-    { action: 'start', label: '启动', icon: Play },
-    { action: 'stop', label: '停止', icon: Square },
-    { action: 'restart', label: '重启', icon: RotateCw },
+    { action: 'start', label: t('services.action.start'), icon: Play },
+    { action: 'stop', label: t('services.action.stop'), icon: Square },
+    { action: 'restart', label: t('services.action.restart'), icon: RotateCw },
   ]
 
   return (
@@ -108,7 +123,7 @@ export function ServiceDetail({ name }: ServiceDetailProps) {
           >
             <Link to='/services'>
               <ArrowLeft />
-              返回列表
+              {t('services.detail.backToList')}
             </Link>
           </Button>
           <Separator orientation='vertical' className='h-5!' />
@@ -116,11 +131,12 @@ export function ServiceDetail({ name }: ServiceDetailProps) {
             {manifest.display_name}
           </h2>
           <Badge variant='outline' className={categoryTypes[manifest.category]}>
-            {categoryLabels[manifest.category]}
+            {t(categoryLabelKeys[manifest.category])}
           </Badge>
           <span className='text-sm text-muted-foreground'>
-            {manifest.name} · 容器 {manifest.container_name} ·{' '}
-            {reloadModeLabels[manifest.reload_mode]}
+            {manifest.name} ·{' '}
+            {t('services.detail.container', { name: manifest.container_name })}{' '}
+            · {t(reloadModeLabelKeys[manifest.reload_mode])}
           </span>
         </div>
 
@@ -128,11 +144,11 @@ export function ServiceDetail({ name }: ServiceDetailProps) {
         <div className='flex flex-wrap items-center gap-x-6 gap-y-2 rounded-lg border p-4'>
           <ServiceStatusDot name={name} withLabel />
           <span className='text-sm text-muted-foreground'>
-            容器状态：
-            {statusQuery.data?.status ?? '未知'}
+            {t('services.detail.containerStatus')}
+            {statusQuery.data?.status ?? t('common.unknown')}
           </span>
           <span className='text-sm text-muted-foreground'>
-            健康检查：
+            {t('services.detail.health')}
             {statusQuery.data?.health ?? '—'}
           </span>
           <Button
@@ -142,14 +158,14 @@ export function ServiceDetail({ name }: ServiceDetailProps) {
             onClick={() => setLogsOpen(true)}
           >
             <ScrollText />
-            查看日志
+            {t('services.detail.viewLogs')}
           </Button>
         </div>
 
         {/* 生命周期：readonly 角色整体禁用；运行中禁启动，反之禁停止/重启 */}
         <div
           className='flex gap-2'
-          title={isOperator ? undefined : '只读角色无权操作'}
+          title={isOperator ? undefined : t('services.detail.readonlyAction')}
         >
           {lifecycleActions.map(({ action, label, icon: Icon }) => {
             const disabled =
@@ -176,10 +192,12 @@ export function ServiceDetail({ name }: ServiceDetailProps) {
 
         <Card>
           <CardHeader>
-            <CardTitle>服务配置</CardTitle>
+            <CardTitle>{t('services.detail.configTitle')}</CardTitle>
             <CardDescription>
-              配置目录 {manifest.config_dir} · 配置文件{' '}
-              {manifest.config_files.join('、') || '—'}
+              {t('services.detail.configDir', { dir: manifest.config_dir })} ·{' '}
+              {t('services.detail.configFiles', {
+                files: manifest.config_files.join('、') || '—',
+              })}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -188,6 +206,8 @@ export function ServiceDetail({ name }: ServiceDetailProps) {
               name={name}
               fields={schema.fields}
               config={config}
+              activeTab={configTab}
+              onTabChange={setConfigTab}
             />
           </CardContent>
         </Card>
@@ -208,10 +228,14 @@ export function ServiceDetail({ name }: ServiceDetailProps) {
 
 // 路由头部：详情加载各分支共用，避免重复排版
 function ServiceDetailHeader({ name }: { name: string }) {
+  const { t } = useTranslation()
   return (
     <Header fixed>
-      <span className='text-sm text-muted-foreground'>服务详情 / {name}</span>
+      <span className='text-sm text-muted-foreground'>
+        {t('nav.serviceDetail')} / {name}
+      </span>
       <Search className='me-auto' />
+      <LanguageSwitch />
       <ThemeSwitch />
       <ProfileDropdown />
     </Header>
