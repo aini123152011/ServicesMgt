@@ -36,6 +36,7 @@ import {
   useServiceStatusQuery,
 } from '../hooks/use-services'
 import { ServiceConfigForm } from './service-config-form'
+import { ServiceConfigHistory } from './service-config-history'
 import { ServiceDataExplorer } from './service-data-explorer'
 import { ServiceLogsDialog } from './service-logs-dialog'
 import { ServiceStatusDot } from './service-status-dot'
@@ -215,6 +216,9 @@ export function ServiceDetail({ name }: ServiceDetailProps) {
             />
           </CardContent>
         </Card>
+
+        {/* 配置历史：与配置卡片相邻，改完配置可直接看到版本与回滚入口 */}
+        <ServiceConfigHistory name={name} fields={schema.fields} />
 
         {manifest.data_dir && (
           <ServiceDataExplorer name={name} dataDir={manifest.data_dir} />

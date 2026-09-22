@@ -340,6 +340,33 @@
       "copySuccess": "已复制到剪贴板",
       "copyTitle": "复制全文",
       "downloadTitle": "下载日志"
+    },
+    "history": {
+      "title": "配置历史",
+      "description": "每次下发配置（含回滚）都会留存一个版本，可查看内容并一键回滚",
+      "loadFailed": "配置历史加载失败。",
+      "empty": "还没有配置版本；保存一次配置后即可在这里看到历史。",
+      "applied": "已生效",
+      "notApplied": "未生效",
+      "rollbackFrom": "回滚自 v{{version}}",
+      "view": "查看",
+      "rollback": "回滚",
+      "detailTitle": "版本 v{{version}} 的配置",
+      "detailMeta": "{{time}} · 操作者 {{user}} · 渲染摘要 {{digest}}",
+      "detailFailed": "版本内容加载失败。",
+      "rollbackTitle": "回滚到版本 v{{version}}？",
+      "rollbackDesc": "当前生效的配置会被该版本覆盖并立即重新渲染下发。回滚本身也会写入一个新版本，历史记录不会被删除。",
+      "rollbackConfirm": "确认回滚",
+      "column": {
+        "version": "版本",
+        "time": "时间",
+        "user": "操作者",
+        "state": "状态",
+        "digest": "渲染摘要",
+        "actions": "操作"
+      },
+      "viewVersion": "查看 v{{version}} 的配置",
+      "rollbackVersion": "回滚到 v{{version}}"
     }
   },
   "users": {

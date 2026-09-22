@@ -84,6 +84,30 @@ interface UpdateConfigResponse {
   applied: boolean
 }
 
+/** 配置历史条目：不含配置内容，看内容用版本详情 */
+export interface ServiceConfigVersion {
+  id: string
+  version: number
+  applied: boolean
+  /** 渲染产物摘要（sha256 前 16 位），用于判断两次下发产物是否一致 */
+  rendered_digest: string
+  user_email: string | null
+  /** 回滚产生的版本会记下来源版本号 */
+  rolled_back_from: number | null
+  created_at: string | null
+}
+
+/** 版本详情：values 已由后端按 schema 脱敏 */
+interface ServiceConfigVersionDetail {
+  version: number
+  values: Record<string, unknown>
+  applied: boolean
+  rendered_digest: string
+  user_email: string | null
+  rolled_back_from: number | null
+  created_at: string | null
+}
+
 export interface ServiceStatusResponse {
   name: string
   running: boolean
@@ -120,6 +144,40 @@ export async function updateServiceConfig(
   const { data } = await apiClient.put<UpdateConfigResponse>(
     `/api/v1/services/${name}/config`,
     { values }
+  )
+  return data
+}
+
+/** 列出该服务的配置版本，版本号倒序（新版本在前） */
+export async function listServiceConfigVersions(
+  name: string,
+  limit = 50
+): Promise<ServiceConfigVersion[]> {
+  const { data } = await apiClient.get<{
+    data: ServiceConfigVersion[]
+    count: number
+  }>(`/api/v1/services/${name}/config/versions`, { params: { limit } })
+  return data.data
+}
+
+/** 查看某个版本的配置内容（secret 字段为掩码，后端脱敏） */
+export async function getServiceConfigVersion(
+  name: string,
+  version: number
+): Promise<ServiceConfigVersionDetail> {
+  const { data } = await apiClient.get<ServiceConfigVersionDetail>(
+    `/api/v1/services/${name}/config/versions/${version}`
+  )
+  return data
+}
+
+/** 回滚到指定版本；回滚本身也是一次新下发，会再产生一个版本 */
+export async function rollbackServiceConfigVersion(
+  name: string,
+  version: number
+): Promise<UpdateConfigResponse> {
+  const { data } = await apiClient.post<UpdateConfigResponse>(
+    `/api/v1/services/${name}/config/versions/${version}/rollback`
   )
   return data
 }

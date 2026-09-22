@@ -3,11 +3,14 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import {
   getService,
+  getServiceConfigVersion,
   getServiceDataContent,
   getServiceDataTree,
   getServiceLogs,
   getServiceStatus,
+  listServiceConfigVersions,
   listServices,
+  rollbackServiceConfigVersion,
   serviceAction,
   updateServiceConfig,
   type ServiceAction,
@@ -101,6 +104,54 @@ export function useServiceActionMutation(name: string) {
         queryKey: ['services', name, 'status'],
       })
       queryClient.invalidateQueries({ queryKey: ['services'] })
+    },
+  })
+}
+
+/**
+ * 配置版本历史列表。
+ *
+ * 不做轮询：版本只在下发配置时增加，而下发成功后 mutation 会主动失效本查询。
+ */
+export function useConfigVersionsQuery(name: string) {
+  return useQuery({
+    queryKey: ['services', name, 'configVersions'],
+    queryFn: () => listServiceConfigVersions(name),
+  })
+}
+
+/** 单个版本的配置内容（脱敏），仅在展开/打开详情时请求 */
+export function useConfigVersionDetailQuery(
+  name: string,
+  version: number | null
+) {
+  return useQuery({
+    queryKey: ['services', name, 'configVersions', version],
+    queryFn: () => getServiceConfigVersion(name, version ?? 0),
+    enabled: version !== null,
+  })
+}
+
+/**
+ * 回滚到指定版本。
+ *
+ * 回滚会写新版本并重新渲染下发，因此要同时失效详情（当前配置变了）、
+ * 状态轮询（reload 可能影响容器）与版本列表。
+ */
+export function useRollbackConfigMutation(name: string) {
+  const queryClient = useQueryClient()
+  const { t } = useTranslation()
+  return useMutation({
+    mutationFn: (version: number) =>
+      rollbackServiceConfigVersion(name, version),
+    onSuccess: (res) => {
+      queryClient.invalidateQueries({ queryKey: ['services', name] })
+      queryClient.invalidateQueries({ queryKey: ['services'] })
+      if (res.applied) {
+        toast.success(res.message)
+      } else {
+        toast.warning(t('services.config.savedNotApplied'))
+      }
     },
   })
 }

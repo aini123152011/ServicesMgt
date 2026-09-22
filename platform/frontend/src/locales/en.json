@@ -340,6 +340,33 @@
       "copySuccess": "Copied to clipboard",
       "copyTitle": "Copy all",
       "downloadTitle": "Download log"
+    },
+    "history": {
+      "title": "Config history",
+      "description": "Every apply (including rollbacks) keeps a version; inspect contents and roll back in one click",
+      "loadFailed": "Failed to load config history.",
+      "empty": "No config versions yet. Save the config once and it will show up here.",
+      "applied": "Applied",
+      "notApplied": "Not applied",
+      "rollbackFrom": "from v{{version}}",
+      "view": "View",
+      "rollback": "Roll back",
+      "detailTitle": "Config of version v{{version}}",
+      "detailMeta": "{{time}} · by {{user}} · digest {{digest}}",
+      "detailFailed": "Failed to load this version.",
+      "rollbackTitle": "Roll back to version v{{version}}?",
+      "rollbackDesc": "The currently applied config will be overwritten by this version and re-rendered immediately. The rollback itself is recorded as a new version; history is never deleted.",
+      "rollbackConfirm": "Roll back",
+      "column": {
+        "version": "Version",
+        "time": "Time",
+        "user": "Operator",
+        "state": "State",
+        "digest": "Digest",
+        "actions": "Actions"
+      },
+      "viewVersion": "View config of v{{version}}",
+      "rollbackVersion": "Roll back to v{{version}}"
     }
   },
   "users": {
