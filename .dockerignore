@@ -1,0 +1,36 @@
+# 构建上下文排除项：不排除的话上下文有 600MB+（node_modules 397MB + .venv 208MB），
+# 每次构建都要把它们传给 buildkit，CI 上还要上传一遍。
+# 注意：Dockerfile.platform 需要 platform/frontend/dist（前端产物），**不能排除**。
+
+# 版本控制与工具元数据
+.git
+.gitignore
+.gitattributes
+.github
+.gitlab-ci.yml
+
+# 依赖与缓存（构建时在镜像内重新安装）
+**/node_modules
+**/.venv
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+**/.ruff_cache
+**/.mypy_cache
+
+# 工程知识库与 agent 工具配置（镜像里不需要）
+.trellis
+.agents
+.claude
+.zcode
+.trae
+.codex
+docs
+AGENTS.md
+
+# 本地环境变量与部署产物
+.env
+.env.*
+!.env.example
+deploy-*.tar.gz
+*.log

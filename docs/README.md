@@ -15,7 +15,7 @@
 | [容器运行时踩坑清单](../.trellis/spec/services/container-runtime-guidelines.md) | 11 类「配置写对了但服务没按配置工作」的坑与修法 |
 | [服务插件契约](../.trellis/spec/services/index.md) | manifest / schema / 模板 / 种子的硬性要求 |
 | [验证矩阵](../.trellis/spec/services/verification-matrix.md) | 11 服务 × 4 类验证项 × 29 个故障模式的实测结论 |
-| [部署层规范](../.trellis/spec/deploy/platform-deployment.md) | 平台镜像推送与重建的契约、GitHub 镜像推送方式 |
+| [部署层规范](../.trellis/spec/deploy/platform-deployment.md) | 镜像发布与拉取式部署、平台重建与迁移的契约 |
 | [后端规范](../.trellis/spec/backend/index.md) / [前端规范](../.trellis/spec/frontend/index.md) | 分层结构、错误语义、质量门禁 |
 
 ## 快速指引

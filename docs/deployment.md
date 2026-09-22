@@ -33,9 +33,12 @@ REGISTRIES="docker.io/aini123152008/" TAG=latest   DOCKERHUB_USER=<账号> DOCKE
 REGISTRIES="ghcr.io/<账号>/,docker.io/<账号>/" TAG=0.6.2   GHCR_USER=<账号> GHCR_TOKEN=<带 write:packages 的 PAT>   DOCKERHUB_USER=<账号> DOCKERHUB_TOKEN=<令牌> bash scripts/publish.sh
 ```
 
-CI 侧：GitHub Actions 在 **main 或手动触发**时发布（GHCR 用内置 token；配了
-`DOCKERHUB_USERNAME`/`DOCKERHUB_TOKEN` 两个仓库密钥就一并推 Docker Hub）；
-GitLab CI 在默认分支用内置 `CI_REGISTRY_*` 推自己的容器仓库。
+CI 侧：**GitLab CI**（内网路径）在默认分支用内置 `CI_REGISTRY_*` 推自己的容器仓库，
+需要一台能跑 docker 的 runner；`.github/workflows/build.yml` 保留备用——以后若再推公开镜像，
+它会在 main/手动触发时构建多架构并推 GHCR（配了 `DOCKERHUB_USERNAME`/`DOCKERHUB_TOKEN`
+两个仓库密钥则一并推 Docker Hub）。
+
+没有 runner 时也可以在任何能直连仓库的机器上手动发布（上面的 `publish.sh` 一条命令）。
 
 **本地构建**（开发态，改代码后想立刻验证时用）：
 

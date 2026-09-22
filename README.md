@@ -108,14 +108,15 @@ REGISTRIES="docker.io/<账号>/" TAG=latest   DOCKERHUB_USER=... DOCKERHUB_TOKEN
 
 CI 只做「准备环境 + 调用同一个 `scripts/build.sh`」，构建逻辑不在流水线里重复：
 
-- GitHub Actions：`.github/workflows/build.yml`
-- GitLab CI：`.gitlab-ci.yml`
+- GitLab CI：`.gitlab-ci.yml`（内网路径，需要能跑 docker 的 runner）
+- GitHub Actions：`.github/workflows/build.yml`（保留备用：以后若再推公开镜像，多架构构建与
+  推 GHCR/Docker Hub 的流水线可直接用）
 
 ---
 
 ## 安全说明
 
 - 仓库里的服务默认口令（如 nginx Basic 认证、samba 共享账号）都是**夹具值**，只应在隔离的测试网段使用。
-- **不要把真实 BMC / 宿主机的账号口令写进仓库**（文档、任务记录、提交信息都不要）——仓库有公开镜像，
-  提交即公开，且 `git log -S` 能翻出历史版本。
+- **不要把真实 BMC / 宿主机的账号口令写进仓库**（文档、任务记录、提交信息都不要）——仓库只要可能被
+  共享或发布，提交即等于公开，且 `git log -S` 能翻出历史版本，事后改文件撤不回。
 - 平台自身的密钥（`SECRET_KEY`、数据库口令、超管口令）只放在部署机的 `.env`（`chmod 600`），不进仓库。

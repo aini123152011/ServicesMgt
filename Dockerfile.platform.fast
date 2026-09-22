@@ -1,0 +1,17 @@
+
+FROM bmc-platform:latest
+# 构建参数用 APP_VERSION/APP_BUILD，不能叫 PLATFORM_VERSION：Docker 里同名 ARG 与 ENV
+# 会互相遮蔽，上一层已 ENV PLATFORM_VERSION，同名 ARG 会被 ENV 覆盖导致 --build-arg 失效
+ARG APP_VERSION=dev
+ARG APP_BUILD=
+ENV PLATFORM_VERSION=${APP_VERSION} \
+    PLATFORM_BUILD=${APP_BUILD}
+RUN rm -rf /app/backend/app/frontend
+COPY platform/backend/app /app/backend/app
+COPY platform/backend/scripts /app/backend/scripts
+COPY platform/frontend/dist /app/backend/app/frontend
+WORKDIR /app/backend/
+# 与仓库 Dockerfile.platform 保持一致：自更新的「健康检查失败回滚」依赖它
+HEALTHCHECK --interval=15s --timeout=5s --start-period=30s --retries=5 \
+    CMD python -c "import urllib.request;urllib.request.urlopen('http://127.0.0.1:8000/api/v1/utils/health-check/', timeout=4)" || exit 1
+CMD ["fastapi", "run", "--workers", "2"]
