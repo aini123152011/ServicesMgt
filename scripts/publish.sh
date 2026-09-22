@@ -35,6 +35,12 @@ PLATFORM_ONLY="${PLATFORM_ONLY:-0}"
 SKIP_FRONTEND="${SKIP_FRONTEND:-0}"
 DRY_RUN="${DRY_RUN:-0}"
 PLATFORM_IMAGE="${NAME_PREFIX}platform"
+# 平台镜像的版本号与构建号：注入镜像后由 /api/v1/system/info 暴露，供界面显示与自更新核对。
+# 优先级：PLATFORM_VERSION 环境变量 > 仓库根 VERSION 文件 > TAG
+PLATFORM_VERSION="${PLATFORM_VERSION:-$(cat VERSION 2>/dev/null | tr -d '
+' || true)}"
+PLATFORM_VERSION="${PLATFORM_VERSION:-$TAG}"
+PLATFORM_BUILD="${PLATFORM_BUILD:-$(date +%Y%m%d%H%M)}"
 
 die() { echo "ERROR: $*" >&2; exit 1; }
 info() { echo "==> $*"; }
@@ -95,7 +101,8 @@ build_frontend() {
 # --------------------------------------------------------------------------- #
 publish_platform() {
   local registry="$1" image="${1}${PLATFORM_IMAGE}:${TAG}"
-  local cmd=(docker buildx build . --file Dockerfile.platform --tag "$image" --platform "$PLATFORMS" --push)
+  local cmd=(docker buildx build . --file Dockerfile.platform --tag "$image" --platform "$PLATFORMS"
+    --build-arg "APP_VERSION=${PLATFORM_VERSION}" --build-arg "APP_BUILD=${PLATFORM_BUILD}" --push)
   info "${cmd[*]}"
   [ "$DRY_RUN" = "1" ] && return 0
   "${cmd[@]}"
@@ -130,4 +137,4 @@ for registry in "${REG_LIST[@]}"; do
   fi
 done
 
-info "发布完成：TAG=${TAG} PLATFORMS=${PLATFORMS} 仓库=${REGISTRIES}"
+info "发布完成：TAG=${TAG} 平台版本=${PLATFORM_VERSION}(${PLATFORM_BUILD}) PLATFORMS=${PLATFORMS} 仓库=${REGISTRIES}"
