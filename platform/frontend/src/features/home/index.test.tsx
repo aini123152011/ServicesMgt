@@ -33,7 +33,9 @@ vi.mock('@/components/layout/header', () => ({
     <header>{children}</header>
   ),
 }))
-vi.mock('@/components/search', () => ({ Search: () => null }))
+vi.mock('@/components/layout/header-actions', () => ({
+  HeaderActions: () => null,
+}))
 vi.mock('@/components/language-switch', () => ({ LanguageSwitch: () => null }))
 vi.mock('@/components/theme-switch', () => ({ ThemeSwitch: () => null }))
 vi.mock('@/components/profile-dropdown', () => ({

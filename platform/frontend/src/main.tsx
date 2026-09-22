@@ -13,7 +13,6 @@ import { handleServerError } from '@/lib/handle-server-error'
 // import 即初始化 i18n（src/lib/i18n.ts 在模块加载时同步 init），
 // 必须在首屏渲染前完成：默认中文，避免先闪一遍英文或 key
 import i18n from '@/lib/i18n'
-import { DirectionProvider } from './context/direction-provider'
 import { FontProvider } from './context/font-provider'
 import { ThemeProvider } from './context/theme-provider'
 // Generated Routes
@@ -99,9 +98,7 @@ if (!rootElement.innerHTML) {
       <QueryClientProvider client={queryClient}>
         <ThemeProvider>
           <FontProvider>
-            <DirectionProvider>
-              <RouterProvider router={router} />
-            </DirectionProvider>
+            <RouterProvider router={router} />
           </FontProvider>
         </ThemeProvider>
       </QueryClientProvider>

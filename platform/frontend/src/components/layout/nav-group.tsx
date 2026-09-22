@@ -1,4 +1,4 @@
-import { type ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { Link, useLocation } from '@tanstack/react-router'
 import { ChevronRight } from 'lucide-react'
 import { useNavLabel } from '@/hooks/use-nav-label'
@@ -98,10 +98,25 @@ function SidebarMenuCollapsible({
   const { setOpenMobile } = useSidebar()
   const navLabel = useNavLabel()
   const label = navLabel(item)
+  const isActive = checkIsActive(href, item, true)
+
+  // 路由进入本分组时自动展开（从服务列表点进某个服务详情，侧栏要跟着定位到它）。
+  // 用「渲染期同步 state」而不是 effect：Collapsible 是非受控的 defaultOpen，
+  // 只在挂载时生效，路由变化后不会重新展开；渲染期 setState 由 React 立即重渲染，
+  // 不会多跑一帧，也避免 effect 里 setState 引起的级联渲染。
+  const [wasActive, setWasActive] = useState(isActive)
+  const [open, setOpen] = useState(isActive)
+  if (isActive !== wasActive) {
+    setWasActive(isActive)
+    // 只在「进入」时自动展开：离开后保持用户手动展开的状态，不擅自折叠
+    if (isActive) setOpen(true)
+  }
+
   return (
     <Collapsible
       asChild
-      defaultOpen={checkIsActive(href, item, true)}
+      open={open}
+      onOpenChange={setOpen}
       className='group/collapsible'
     >
       <SidebarMenuItem>

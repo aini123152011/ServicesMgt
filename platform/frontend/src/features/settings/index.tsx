@@ -1,12 +1,9 @@
 import { Outlet } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { usePermissions } from '@/hooks/use-permissions'
-import { LanguageSwitch } from '@/components/language-switch'
 import { Header } from '@/components/layout/header'
+import { HeaderActions } from '@/components/layout/header-actions'
 import { Main } from '@/components/layout/main'
-import { ProfileDropdown } from '@/components/profile-dropdown'
-import { Search } from '@/components/search'
-import { ThemeSwitch } from '@/components/theme-switch'
 import { SidebarNav } from './components/sidebar-nav'
 import { settingsNavItems } from './data/nav'
 
@@ -24,10 +21,7 @@ export function SettingsLayout() {
   return (
     <>
       <Header fixed>
-        <Search className='me-auto' />
-        <LanguageSwitch />
-        <ThemeSwitch />
-        <ProfileDropdown />
+        <HeaderActions />
       </Header>
 
       <Main className='flex flex-1 flex-col gap-4 sm:gap-6'>

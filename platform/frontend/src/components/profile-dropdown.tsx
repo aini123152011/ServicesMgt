@@ -14,6 +14,12 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { SignOutDialog } from '@/components/sign-out-dialog'
 
+/**
+ * 顶栏右上角的身份菜单：只显示登录者与退出登录。
+ *
+ * 设置类入口（账号/外观/系统更新/关于）在侧栏底部的身份菜单（NavUser）里，
+ * 两个身份菜单不重复同一批入口。
+ */
 export function ProfileDropdown() {
   const [open, setOpen] = useDialogState()
   const { t } = useTranslation()
@@ -30,14 +36,18 @@ export function ProfileDropdown() {
     <>
       <DropdownMenu modal={false}>
         <DropdownMenuTrigger asChild>
-          <Button variant='ghost' className='relative h-8 w-8 rounded-full'>
+          <Button
+            variant='ghost'
+            className='relative h-8 w-8 rounded-full'
+            aria-label={t('common.accountMenu')}
+          >
             <Avatar className='h-8 w-8'>
-              <AvatarImage src='/avatars/01.png' alt={displayName} />
+              <AvatarImage alt={displayName} />
               <AvatarFallback>{initials}</AvatarFallback>
             </Avatar>
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent className='w-56' align='end' forceMount>
+        <DropdownMenuContent className='w-56' align='end'>
           <DropdownMenuLabel className='font-normal'>
             <div className='flex flex-col gap-1.5'>
               <p className='text-sm leading-none font-medium'>{displayName}</p>

@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next'
+import { Logo } from '@/assets/logo'
 import { Badge } from '@/components/ui/badge'
 import {
   Card,
@@ -39,6 +40,12 @@ export function AboutPanel() {
 
   return (
     <div className='flex flex-col gap-4'>
+      {/* 标记比页面主标题小一号，只做身份提示，不与主标题抢视线 */}
+      <div className='flex items-center gap-2 text-muted-foreground'>
+        <Logo className='size-5' />
+        <span className='text-sm font-medium'>{t('common.app.name')}</span>
+      </div>
+
       <Card>
         <CardHeader>
           <CardTitle>{t('settings.about.version.title')}</CardTitle>

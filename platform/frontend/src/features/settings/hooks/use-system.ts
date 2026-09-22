@@ -7,9 +7,18 @@ import {
   uploadUpdatePackage,
 } from '@/api/system'
 
-/** 平台版本与服务镜像现状 */
-export function useSystemInfoQuery() {
-  return useQuery({ queryKey: ['system', 'info'], queryFn: getSystemInfo })
+/**
+ * 平台版本与服务镜像现状。
+ *
+ * 传入 refetchInterval 即为「自动检测更新」：接口只做本地镜像比对（不访问仓库），
+ * 顶栏更新入口按 5 分钟一次轮询。
+ */
+export function useSystemInfoQuery(refetchInterval?: number) {
+  return useQuery({
+    queryKey: ['system', 'info'],
+    queryFn: getSystemInfo,
+    refetchInterval,
+  })
 }
 
 /**

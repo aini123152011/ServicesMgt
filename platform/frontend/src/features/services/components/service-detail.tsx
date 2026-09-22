@@ -22,12 +22,9 @@ import {
 } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
-import { LanguageSwitch } from '@/components/language-switch'
 import { Header } from '@/components/layout/header'
+import { HeaderActions } from '@/components/layout/header-actions'
 import { Main } from '@/components/layout/main'
-import { ProfileDropdown } from '@/components/profile-dropdown'
-import { Search } from '@/components/search'
-import { ThemeSwitch } from '@/components/theme-switch'
 import {
   categoryLabelKeys,
   categoryTypes,
@@ -234,10 +231,7 @@ function ServiceDetailHeader({ name }: { name: string }) {
       <span className='text-sm text-muted-foreground'>
         {t('nav.serviceDetail')} / {name}
       </span>
-      <Search className='me-auto' />
-      <LanguageSwitch />
-      <ThemeSwitch />
-      <ProfileDropdown />
+      <HeaderActions />
     </Header>
   )
 }

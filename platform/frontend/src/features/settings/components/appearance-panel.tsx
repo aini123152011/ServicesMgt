@@ -1,3 +1,4 @@
+import { RotateCcw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import {
   DEFAULT_LANGUAGE,
@@ -5,26 +6,46 @@ import {
   isLanguage,
   setLanguage,
 } from '@/lib/i18n'
+import { useLayout } from '@/context/layout-provider'
+import { useTheme } from '@/context/theme-provider'
 import { Button } from '@/components/ui/button'
+import { useSidebar } from '@/components/ui/sidebar'
 import {
   LayoutConfig,
   SectionTitle,
   SidebarConfig,
   ThemeConfig,
-} from '@/components/config-drawer'
+} from './appearance-config'
 
 /**
- * 外观设置：主题、侧边栏与布局直接复用顶栏设置抽屉的分节组件，
- * 语言用同一份 LANGUAGE_OPTIONS 与 setLanguage——两处入口共享同一套状态与逻辑，
- * 不在这里另写一份切换实现（否则顶栏与设置页会各自维护一份偏好）。
+ * 外观设置：主题、侧边栏与布局直接复用外观配置分节，语言用同一份 LANGUAGE_OPTIONS
+ * 与 setLanguage——顶栏的快捷切换与这里共享同一套状态与逻辑，不另写一份实现。
  */
 export function AppearancePanel() {
+  const { t } = useTranslation()
+  const { setOpen } = useSidebar()
+  const { resetTheme } = useTheme()
+  const { resetLayout } = useLayout()
+
+  // 重置后把侧边栏展开：布局可能刚从 offcanvas/full 回到默认，展开才看得到结果
+  const handleReset = () => {
+    resetTheme()
+    resetLayout()
+    setOpen(true)
+  }
+
   return (
     <div className='flex flex-col gap-8'>
       <ThemeConfig />
       <SidebarConfig />
       <LayoutConfig />
       <LanguageConfig />
+      <div>
+        <Button variant='destructive' onClick={handleReset}>
+          <RotateCcw />
+          {t('settings.appearance.resetAll')}
+        </Button>
+      </div>
     </div>
   )
 }

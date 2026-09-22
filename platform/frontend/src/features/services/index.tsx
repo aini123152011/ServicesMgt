@@ -12,12 +12,9 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { LanguageSwitch } from '@/components/language-switch'
 import { Header } from '@/components/layout/header'
+import { HeaderActions } from '@/components/layout/header-actions'
 import { Main } from '@/components/layout/main'
-import { ProfileDropdown } from '@/components/profile-dropdown'
-import { Search } from '@/components/search'
-import { ThemeSwitch } from '@/components/theme-switch'
 import { ServiceStatusDot } from './components/service-status-dot'
 import {
   categoryIcons,
@@ -35,10 +32,7 @@ export function Services() {
   return (
     <>
       <Header fixed>
-        <Search className='me-auto' />
-        <LanguageSwitch />
-        <ThemeSwitch />
-        <ProfileDropdown />
+        <HeaderActions />
       </Header>
 
       <Main className='flex flex-1 flex-col gap-4'>

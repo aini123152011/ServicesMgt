@@ -21,6 +21,12 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  optimizeDeps: {
+    // 组件测试首次用到某个 Radix 包时，Vite 会现做依赖预构建并重载测试页，
+    // 正在跑的文件会因页面刷新而中断（实测 sign-out-dialog 因此变成 0 test）。
+    // 这里显式声明，避免测试期出现「依赖优化触发重载」的偶发失败。
+    include: ['@radix-ui/react-popover'],
+  },
   test: {
     silent: 'passed-only',
     unstubEnvs: true,

@@ -1,6 +1,7 @@
 import { Link } from '@tanstack/react-router'
 import { Menu, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { Logo } from '@/assets/logo'
 import { cn } from '@/lib/utils'
 import {
   SidebarMenu,
@@ -25,11 +26,19 @@ export function AppTitle() {
             <Link
               to='/'
               onClick={() => setOpenMobile(false)}
-              className='grid flex-1 text-start text-sm leading-tight'
+              className='flex flex-1 items-center gap-2 text-start text-sm leading-tight'
             >
-              <span className='truncate font-bold'>{t('common.app.name')}</span>
-              <span className='truncate text-xs'>
-                {t('common.app.subtitle')}
+              {/* 侧栏折叠时按钮收成 32px 并 overflow-hidden，这个定宽标记是唯一可见的部件 */}
+              <span className='flex size-8 shrink-0 items-center justify-center'>
+                <Logo />
+              </span>
+              <span className='grid min-w-0 flex-1'>
+                <span className='truncate font-bold'>
+                  {t('common.app.name')}
+                </span>
+                <span className='truncate text-xs'>
+                  {t('common.app.subtitle')}
+                </span>
               </span>
             </Link>
             <ToggleSidebar />

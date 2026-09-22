@@ -2,12 +2,11 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
-    <link
-      rel="icon"
-      type="image/svg+xml"
-      href="/images/favicon.svg"
-      media="(prefers-color-scheme: light)"
-    />
+    <!--
+      两套图标按浏览器主题切换：favicon*（深色描边）用于浅色标签栏，favicon_light*（浅色描边）用于深色标签栏。
+      声明顺序有意把「深色描边」那版放最后：部分浏览器不认 <link rel=icon media>，
+      此时按「最后声明者胜」取到的是深色描边版——在浅色标签栏上可见，反过来则几乎看不见。
+    -->
     <link
       rel="icon"
       type="image/svg+xml"
@@ -17,14 +16,20 @@
     <link
       rel="icon"
       type="image/png"
-      href="/images/favicon.png"
+      href="/images/favicon_light.png"
+      media="(prefers-color-scheme: dark)"
+    />
+    <link
+      rel="icon"
+      type="image/svg+xml"
+      href="/images/favicon.svg"
       media="(prefers-color-scheme: light)"
     />
     <link
       rel="icon"
       type="image/png"
-      href="/images/favicon_light.png"
-      media="(prefers-color-scheme: dark)"
+      href="/images/favicon.png"
+      media="(prefers-color-scheme: light)"
     />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
