@@ -43,18 +43,19 @@ BASE_URL = "http://127.0.0.1:18080"
 PLATFORM_CONTAINER = "bmc-platform-backend"
 NTP_EPOCH_DELTA = 2208988800
 
-# 各服务发布到宿主机的端口
-PORT_NGINX_HTTP = 18088
-PORT_NGINX_HTTPS = 18443
-PORT_WEBDAV = 8080
-PORT_SFTP = 2222
-PORT_FTP = 21
-PORT_TFTP = 69
-PORT_SMB = 445
-PORT_NFS = 2049
-PORT_SNMPTRAP = 162
-PORT_SMTP = 25
-PORT_SYSLOG = 514
+# 各服务发布到宿主机的端口：统一范围 18101–18112（compose.yaml 同时为 BMC 侧保留了标准端口
+# 123/69/162/514/25/445/2049/21；套件按统一范围探测，避免与宿主机自带服务冲突）
+PORT_NGINX_HTTP = 18102
+PORT_NGINX_HTTPS = 18103
+PORT_WEBDAV = 18105
+PORT_SFTP = 18106
+PORT_FTP = 18107
+PORT_TFTP = 18108
+PORT_SMB = 18109
+PORT_NFS = 18110
+PORT_SNMPTRAP = 18111
+PORT_SMTP = 18112
+PORT_SYSLOG = 18104
 
 
 def host_address() -> str:
@@ -212,7 +213,7 @@ def exec_in(container: str, cmd: str, timeout: int = 60) -> str:
 # --------------------------------------------------------------------------- #
 # 协议客户端
 # --------------------------------------------------------------------------- #
-def ntp_query(host: str = HOST_ADDR, port: int = 123, timeout: float = 5):
+def ntp_query(host: str = HOST_ADDR, port: int = 18101, timeout: float = 5):
     """发标准 SNTP 请求，返回 (leap, stratum, 应答时间与本地时钟差秒数)。"""
     packet = b"\x23" + b"\x00" * 47
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -472,11 +473,13 @@ CFG_POSTFIX = {
     "message_size_limit_mb": 10, "mailbox_size_limit_mb": 512,
     "fault_mode": "none", "tarpit_delay_seconds": 20,
 }
-# 宿主机经 docker 网桥访问容器，postfix 看到的源地址是网桥网关（172.17.0.1）。
+# 宿主机经 docker 网桥访问容器，postfix 看到的源地址是网桥网关。默认 bridge 是 172.17.0.1，
+# 而 compose 编排（compose.yaml）给每张网络显式分配 172.30.x/24，网关是 172.30.x.1——
+# 两个网段都放进白名单，两种部署方式都能跑。
 # 把它加入 mynetworks 才能中继——这一步同时验证白名单配置真实生效。
 CFG_POSTFIX_RELAY = {
     **CFG_POSTFIX,
-    "mynetworks": ["127.0.0.0/8", "192.168.0.0/16", "172.17.0.0/16"],
+    "mynetworks": ["127.0.0.0/8", "192.168.0.0/16", "172.17.0.0/16", "172.30.0.0/16"],
 }
 
 SERVICES_11 = {
@@ -1116,7 +1119,8 @@ def phase_nfs(token: str) -> None:
                bool(got), (got or "写入未被拒绝").replace("\n", " ")[:160])
 
         # 10.5/10.6 客户端地址不在允许网段内时必须挂载失败（经端口映射，
-        # ganesha 看到的客户端是网桥网关 172.17.0.1，故用不含它的网段）
+        # ganesha 看到的客户端是网桥网关（默认 bridge 172.17.0.1 / compose 172.30.x.1），
+        # 故用不含这两个网段的地址）
         st, applied, resp = put_config(token, "nfs-ganesha",
                                        {**CFG_NFS, "allowed_clients": "10.99.0.0/16"})
         record("10.5 收紧允许网段的配置提交并生效",

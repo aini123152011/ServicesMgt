@@ -29,6 +29,14 @@ mkdir -p /run/sshd
 # 从渲染的用户清单同步本地账号。放在监督循环内执行：reload.sh 终止 sshd 后
 # 循环会带最新 users.txt 重建账号再拉起，平台改用户无需重建容器。
 # 幂等：已存在的用户只更新密码；单行异常仅告警跳过，不阻断其余用户
+# 由用户名派生一个稳定的 uid（20000–29999）。
+# 为什么不能用 useradd 的默认分配：它按镜像内现状取下一个可用 uid，容器重建后会变
+# （实测 1001 → 1000），而数据卷在多次重建间共享——旧文件对新 uid 不可写，SFTP 上传直接
+# Permission denied。同一用户名必须永远映射到同一 uid。
+stable_uid() {
+    printf '%s' "$1" | cksum | awk '{print 20000 + $1 % 10000}'
+}
+
 provision_users() {
     # root_dir 与 schema 同名字段对应，随用户清单一起渲染，缺省回退 /data
     ROOT_DIR="/data"
@@ -48,7 +56,7 @@ provision_users() {
                 if ! id -u "${user}" >/dev/null 2>&1; then
                     # nologin：SFTP 专用账号不允许 shell 登录；
                     # 不用 -M 预建家目录，由下方按 ChrootDirectory 属主要求手工准备
-                    useradd -d "${ROOT_DIR}/${user}" -s /usr/sbin/nologin "${user}"
+                    useradd -u "$(stable_uid "${user}")" -d "${ROOT_DIR}/${user}"                         -s /usr/sbin/nologin "${user}"
                 fi
                 # chpasswd 经 pam_unix 写 /etc/shadow，容器内无 systemd 也可用
                 printf '%s:%s\n' "${user}" "${pass}" | chpasswd
@@ -57,7 +65,8 @@ provision_users() {
                 mkdir -p "${ROOT_DIR}/${user}/data"
                 chown root:root "${ROOT_DIR}" "${ROOT_DIR}/${user}"
                 chmod 755 "${ROOT_DIR}" "${ROOT_DIR}/${user}"
-                chown "${user}:${user}" "${ROOT_DIR}/${user}/data"
+                # -R：历史文件可能是旧 uid 建的（重建前 uid 会漂移），一并纠正过来
+                chown -R "${user}:${user}" "${ROOT_DIR}/${user}/data"
                 ;;
         esac
     done < "${USERS_FILE}"

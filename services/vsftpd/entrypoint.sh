@@ -33,6 +33,14 @@ chmod 755 /var/run/vsftpd/empty
 # 从渲染的用户清单同步本地账号。放在监督循环内执行：reload.sh 终止 vsftpd 后
 # 循环会带最新 local_users.txt 重建账号再拉起，平台改用户无需重建容器。
 # 幂等：已存在的用户只更新密码；单行异常仅告警跳过，不阻断其余用户
+# 由用户名派生一个稳定的 uid（20000–29999）。
+# 为什么不能用 useradd 的默认分配：它按镜像内现状取下一个可用 uid，容器重建后会变，
+# 而数据卷在多次重建间共享——旧文件对新 uid 不可写（实测 sftp 上传直接 Permission denied）。
+# 同一用户名必须永远映射到同一 uid。
+stable_uid() {
+    printf '%s' "$1" | cksum | awk '{print 20000 + $1 % 10000}'
+}
+
 provision_users() {
     while IFS= read -r line || [ -n "${line}" ]; do
         case "${line}" in
@@ -46,14 +54,16 @@ provision_users() {
                 fi
                 if ! id -u "${user}" >/dev/null 2>&1; then
                     # nologin：FTP 专用账号；PAM 已改为纯 pam_unix，不会因 shell 白名单拒登
-                    useradd -d "${ROOT_DIR}/${user}" -s /usr/sbin/nologin "${user}"
+                    useradd -u "$(stable_uid "${user}")" -d "${ROOT_DIR}/${user}" -s /usr/sbin/nologin "${user}"
                 fi
                 # chpasswd 经 pam_unix 写 /etc/shadow，容器内无 systemd 也可用
                 printf '%s:%s\n' "${user}" "${pass}" | chpasswd
                 # 家目录即 FTP 登录根：属主设为用户本身，登录后可直接读写
                 # （vsftpd 侧已配 allow_writeable_chroot 放行可写 chroot 目录）
                 mkdir -p "${ROOT_DIR}/${user}"
-                chown "${user}:${user}" "${ROOT_DIR}/${user}"
+                # -R：历史文件可能是旧 uid 建的（重建前 uid 会漂移），一并纠正
+
+                chown -R "${user}:${user}" "${ROOT_DIR}/${user}"
                 chmod 755 "${ROOT_DIR}/${user}"
                 ;;
         esac
