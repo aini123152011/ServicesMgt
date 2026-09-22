@@ -1,0 +1,207 @@
+# 一键编排：一次性拉起平台（含 PostgreSQL）与 11 个 BMC 测试服务。
+#
+#   docker compose up -d                       # 全部
+#   docker compose up -d chrony nginx          # 只起某几个
+#   docker compose ps                          # 看健康状态
+#
+# 与「单服务独立部署」的区别（services/<name>/docker-compose.yml）：
+#   - 独立部署用**服务自身的规范端口**（nginx 80/443、sftp 22），适合在别的机器上单独跑；
+#   - 本编排用**平台部署态的宿主端口**（nginx 18088/18443、sftp 2222），与平台实机部署一致，
+#     避免与宿主机自带服务抢端口（这也是实机验收套件 `scripts/verify_bmc_platform_e2e.py`
+#     使用的端口，见文件头的 PORT_* 常量）。
+#   - 卷一律用 `./volumes/<服务>-{config,data}` 绑定挂载，与平台部署目录的布局一致，
+#     这样平台渲染的配置、服务产生的日志/数据在两种部署方式间可以直接复用。
+#
+# 密钥不写进本文件：从同目录 .env 读取（`VOLUMES_MOUNT_ROOT` 等见 .env.example）。
+# nfs-ganesha 必须 privileged（VFS FSAL 在 ext4 绑定挂载上需要完整能力与未受限的 seccomp/SELinux，
+# 见 .trellis/spec/services/container-runtime-guidelines.md 第 5 条）。
+
+name: bmc-servicesmgt
+
+services:
+  # ---------------------------------------------------------------- 平台
+  platform-pg:
+    image: postgres:18.4-alpine
+    container_name: bmc-platform-pg
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-bmc}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD 必须在 .env 中提供}
+      POSTGRES_DB: ${POSTGRES_DB:-bmc_platform}
+    volumes:
+      - bmc-platform-isolated-pg-data:/var/lib/postgresql
+    networks: [bmc-platform-isolated-net]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-bmc} -d ${POSTGRES_DB:-bmc_platform}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  platform:
+    image: bmc-platform:${PLATFORM_TAG:-latest}
+    container_name: bmc-platform-backend
+    restart: unless-stopped
+    depends_on:
+      platform-pg:
+        condition: service_healthy
+    environment:
+      PROJECT_NAME: ${PROJECT_NAME:-BMC Services Platform}
+      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY 必须在 .env 中提供}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-bmc}:${POSTGRES_PASSWORD}@bmc-platform-pg:5432/${POSTGRES_DB:-bmc_platform}
+      FIRST_SUPERUSER: ${FIRST_SUPERUSER:?FIRST_SUPERUSER 必须在 .env 中提供}
+      FIRST_SUPERUSER_PASSWORD: ${FIRST_SUPERUSER_PASSWORD:?FIRST_SUPERUSER_PASSWORD 必须在 .env 中提供}
+      FRONTEND_HOST: ${FRONTEND_HOST:-http://localhost:18080}
+      # 平台容器内看到的服务目录与数据卷根；与下面的挂载点对应
+      SERVICES_DIR: /app/services
+      VOLUMES_MOUNT_ROOT: /var/lib/platform
+      UPDATE_REGISTRY: ${UPDATE_REGISTRY:-}
+      PLATFORM_CONTAINER_NAME: bmc-platform-backend
+    ports:
+      - "18080:8000"
+    volumes:
+      # 服务目录只读挂进平台：registry 读 manifest/schema，渲染模板时也读这里
+      - ./services:/app/services:ro
+      # 数据卷根：各服务的 config/data 目录都在其下（与「单服务独立部署」共用同一布局）
+      - ./volumes:/var/lib/platform
+      # 平台要用 Docker API 管理 11 个服务容器（起停、日志、镜像更新、重建）
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks: [bmc-platform-isolated-net]
+
+  # ---------------------------------------------------------------- 11 个服务
+  chrony:
+    image: bmc/chrony:latest
+    container_name: bmc-chrony
+    restart: unless-stopped
+    ports: ["123:123/udp"]
+    volumes:
+      - ./volumes/chrony-config:/etc/chrony
+      - ./volumes/chrony-data:/var/lib/chrony
+    networks: [chrony-net]
+
+  nginx:
+    image: bmc/nginx:latest
+    container_name: bmc-nginx
+    restart: unless-stopped
+    ports: ["18088:80", "18443:443"]
+    volumes:
+      - ./volumes/nginx-config:/etc/nginx-bmc
+      - ./volumes/nginx-data:/data/nginx
+    networks: [nginx-net]
+
+  rsyslog:
+    image: bmc/rsyslog:latest
+    container_name: bmc-rsyslog
+    restart: unless-stopped
+    ports: ["514:514/tcp", "514:514/udp"]
+    volumes:
+      - ./volumes/rsyslog-config:/etc/rsyslog
+      - ./volumes/rsyslog-data:/var/log/bmc
+    networks: [rsyslog-net]
+
+  webdav:
+    image: bmc/webdav:latest
+    container_name: bmc-webdav
+    restart: unless-stopped
+    ports: ["8080:8080"]
+    volumes:
+      - ./volumes/webdav-config:/etc/apache2-bmc
+      - ./volumes/webdav-data:/var/lib/dav
+    networks: [webdav-net]
+
+  sftp:
+    image: bmc/sftp:latest
+    container_name: bmc-sftp
+    restart: unless-stopped
+    ports: ["2222:22"]
+    volumes:
+      - ./volumes/sftp-config:/etc/ssh
+      - ./volumes/sftp-data:/data
+    networks: [sftp-net]
+
+  vsftpd:
+    image: bmc/vsftpd:latest
+    container_name: bmc-vsftpd
+    restart: unless-stopped
+    # 被动模式数据端口段必须整段发布，否则登录成功但列目录/传输会挂住
+    ports:
+      - "21:21"
+      - "40000-40100:40000-40100"
+    volumes:
+      - ./volumes/vsftpd-config:/etc/vsftpd
+      - ./volumes/vsftpd-data:/data
+    networks: [vsftpd-net]
+
+  tftpd-hpa:
+    image: bmc/tftpd-hpa:latest
+    container_name: bmc-tftpd-hpa
+    restart: unless-stopped
+    ports: ["69:69/udp"]
+    volumes:
+      - ./volumes/tftpd-hpa-config:/etc/tftpd-hpa
+      - ./volumes/tftpd-hpa-data:/srv/tftp
+    networks: [tftpd-net]
+
+  samba:
+    image: bmc/samba:latest
+    container_name: bmc-samba
+    restart: unless-stopped
+    ports: ["445:445"]
+    volumes:
+      - ./volumes/samba-config:/etc/samba-bmc
+      - ./volumes/samba-data:/data/samba
+    networks: [samba-net]
+
+  nfs-ganesha:
+    image: bmc/nfs-ganesha:latest
+    container_name: bmc-nfs
+    restart: unless-stopped
+    # VFS FSAL 在 ext4 绑定挂载上需要完整能力（见文件头说明）
+    privileged: true
+    ports: ["2049:2049"]
+    volumes:
+      - ./volumes/nfs-ganesha-config:/etc/ganesha-bmc
+      - ./volumes/nfs-ganesha-data:/data/nfs
+    networks: [nfs-net]
+
+  snmptrapd:
+    image: bmc/snmptrapd:latest
+    container_name: bmc-snmptrapd
+    restart: unless-stopped
+    ports: ["162:162/udp"]
+    volumes:
+      - ./volumes/snmptrapd-config:/etc/snmp
+      - ./volumes/snmptrapd-data:/var/log/snmp
+    networks: [snmptrapd-net]
+
+  postfix:
+    image: bmc/postfix:latest
+    container_name: bmc-postfix
+    restart: unless-stopped
+    ports: ["25:25"]
+    volumes:
+      - ./volumes/postfix-config:/etc/postfix
+      - ./volumes/postfix-data:/var/spool/postfix
+    networks: [postfix-net]
+
+# 说明：11 个服务的健康检查由各服务镜像自带的 HEALTHCHECK 提供（看守护进程是否在跑），
+# 这里不重复定义，避免两处维护；平台镜像也自带 HEALTHCHECK（探 /api/v1/utils/health-check/）。
+
+# 每个服务一张独立网络（隔离性可验证：跨服务网络互不可见）；
+# 平台与数据库共用一张网络，平台通过 docker.sock 管理服务容器，不需要加入各服务网络。
+networks:
+  bmc-platform-isolated-net: { driver: bridge }
+  chrony-net: { driver: bridge }
+  nginx-net: { driver: bridge }
+  rsyslog-net: { driver: bridge }
+  webdav-net: { driver: bridge }
+  sftp-net: { driver: bridge }
+  vsftpd-net: { driver: bridge }
+  tftpd-net: { driver: bridge }
+  samba-net: { driver: bridge }
+  nfs-net: { driver: bridge }
+  snmptrapd-net: { driver: bridge }
+  postfix-net: { driver: bridge }
+
+volumes:
+  # 数据库用命名卷（平台自带）；服务用绑定挂载，与「单服务独立部署」的卷布局一致
+  bmc-platform-isolated-pg-data:
