@@ -7,6 +7,7 @@
 #   scripts/build.sh --check                  # 多架构(arm64+amd64)构建校验，不产出镜像
 #   scripts/build.sh --list                   # 列出全部可构建服务
 #   PLATFORMS=... REGISTRY=... PUSH=1 scripts/build.sh   # 多架构构建并推送
+#   BUILD_ARGS="APT_MIRROR=mirrors.aliyun.com" scripts/build.sh   # 国内网络换源加速
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -17,6 +18,9 @@ PLATFORMS="${PLATFORMS:-}"   # buildx 目标架构；留空 = 当前平台
 REGISTRY="${REGISTRY:-}"     # 镜像仓库前缀（如 ghcr.io/org）；留空 = 仅本地 tag
 TAG="${TAG:-latest}"         # 镜像 tag
 PUSH="${PUSH:-0}"            # 1 = 构建后推送（需同时设置 REGISTRY）
+# 额外 build-arg，空格分隔（如 "APT_MIRROR=mirrors.aliyun.com"）。
+# 留空 = 用 Dockerfile 里的默认值，与 CI 行为完全一致；国内网络本地构建时可用它换源加速。
+BUILD_ARGS="${BUILD_ARGS:-}"
 
 die() { echo "ERROR: $*" >&2; exit 1; }
 info() { echo "==> $*"; }
@@ -66,6 +70,9 @@ for svc in "${SERVICES[@]}"; do
 
   cmd=(docker buildx build "$context" --tag "$image")
   [ -n "$PLATFORMS" ] && cmd+=(--platform "$PLATFORMS")
+  for arg in ${BUILD_ARGS}; do
+    cmd+=(--build-arg "$arg")
+  done
 
   if [ "$PUSH" = "1" ]; then
     cmd+=(--push)
