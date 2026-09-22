@@ -1,43 +1,61 @@
 #!/usr/bin/env bash
-# 经跳板机把本仓库推送到 GitHub 镜像。
+# 经跳板机把本仓库推送到 GitHub 镜像（默认推送「脱敏后的镜像历史」）。
 #
-# 为什么需要跳板机：本机到 github.com 不通（实测握手要 13 秒以上且不稳定），
+# 为什么需要跳板机：本机到 github.com 不通（实测握手 13 秒以上且不稳定），
 # 而目标机 <目标机地址> 可以直连 GitHub。做法是用 SSH 动态转发（SOCKS5）把 git 的
 # HTTPS 流量借道跳板机——代理只配在 github 这个 remote 上（remote.github.proxy），
 # 内网 origin（<内网 GitLab 主机>）照常直连，不受影响。
 #
+# 为什么默认脱敏：GitHub 是公开仓库，而内网仓库的历史里有真实姓名与（历史提交里的）口令。
+# 镜像历史按「同样的树、中性作者身份」重建，因此**镜像里的代码与内网逐字节一致，但历史
+# 不带真实身份**。内网仓库保持原样（main 是受保护分支，也无法重写）。
+# 需要原样推送历史时用 --raw（会带上真实姓名，慎用）。
+#
 # 用法（凭据只走环境变量，不写进 git config、不落盘）：
 #   GITHUB_USER='<账号或 PAT>' GITHUB_PASS='<口令或 PAT>' bash scripts/push_github.sh
-#   GITHUB_USER='...' GITHUB_PASS='...' bash scripts/push_github.sh main feat/xxx
+#   GITHUB_USER='...' GITHUB_PASS='...' bash scripts/push_github.sh feat/bmc-services-platform
+#   GITHUB_USER='...' GITHUB_PASS='...' bash scripts/push_github.sh --raw main
 #
-# 不带分支参数时：推 main 与当前分支。分支在本地不存在但 origin/<分支> 存在时，
-# 推远端跟踪引用（仓库只在工作区 checkout 了特性分支的情形）。
+# 不带分支参数时：推 main 与当前分支。main 只在镜像里不存在时推送（内网 main 受保护，
+# 不会变；真要更新镜像的 main 用 --push-main）。
 #
-# 可覆盖的环境变量：JUMP_HOST（默认 root@<目标机地址>）、SOCKS_PORT（默认 1080）、
-# GITHUB_REMOTE（默认 github）、GITHUB_URL（默认远端已配置的地址）。
+# 可覆盖的环境变量：JUMP_HOST、SOCKS_PORT、GITHUB_REMOTE、MIRROR_NAME、MIRROR_EMAIL。
 set -euo pipefail
 
 JUMP_HOST="${JUMP_HOST:-root@<目标机地址>}"
 SOCKS_PORT="${SOCKS_PORT:-1080}"
 REMOTE="${GITHUB_REMOTE:-github}"
-DEFAULT_BRANCHES=(main "$(git rev-parse --abbrev-ref HEAD)")
+# 镜像历史的作者身份：与 GitHub 账号一致，不带真实姓名
+MIRROR_NAME="${MIRROR_NAME:-aini123152011}"
+MIRROR_EMAIL="${MIRROR_EMAIL:-aini123152008@qq.com}"
+# 镜像分支在本地的前缀（只存在于本仓库，不推内网）
+MIRROR_REF_PREFIX="github-mirror"
 
 die() { echo "ERROR: $*" >&2; exit 1; }
 info() { echo "==> $*"; }
 
+RAW=0
+PUSH_MAIN=0
+BRANCHES=()
+for arg in "$@"; do
+  case "$arg" in
+    --raw) RAW=1 ;;
+    --push-main) PUSH_MAIN=1 ;;
+    -*) die "未知参数：$arg" ;;
+    *) BRANCHES+=("$arg") ;;
+  esac
+done
+
 : "${GITHUB_USER:?请通过环境变量提供 GITHUB_USER（GitHub 账号或 PAT）}"
 : "${GITHUB_PASS:?请通过环境变量提供 GITHUB_PASS（口令或 PAT）}"
-
 git rev-parse --git-dir >/dev/null 2>&1 || die "当前目录不是 git 仓库"
-
-# 远端与代理：代理指向本地 SOCKS，需与下面建立的转发端口一致
-if ! git remote get-url "$REMOTE" >/dev/null 2>&1; then
-  die "远端 $REMOTE 不存在，先执行：git remote add $REMOTE <GitHub 仓库地址>"
-fi
+git remote get-url "$REMOTE" >/dev/null 2>&1 \
+  || die "远端 $REMOTE 不存在，先执行：git remote add $REMOTE <GitHub 仓库地址>"
 git config "remote.$REMOTE.proxy" "socks5h://127.0.0.1:${SOCKS_PORT}"
-info "远端 $REMOTE -> $(git remote get-url "$REMOTE")（代理 socks5h://127.0.0.1:${SOCKS_PORT}）"
 
-# 跳板机上的 SOCKS5 转发：端口已通就复用，没通就现起一个后台隧道
+# --------------------------------------------------------------------------- #
+# SOCKS 转发：端口已通就复用，没通就现起一个后台隧道
+# --------------------------------------------------------------------------- #
 if (echo >"/dev/tcp/127.0.0.1/${SOCKS_PORT}") 2>/dev/null; then
   info "复用已有 SOCKS 转发（127.0.0.1:${SOCKS_PORT}）"
 else
@@ -64,22 +82,97 @@ esac
 SH
 chmod 700 "${ASKPASS}"
 
-BRANCHES=("$@")
-[ "${#BRANCHES[@]}" -eq 0 ] && BRANCHES=("${DEFAULT_BRANCHES[@]}")
+git_remote() {
+  GIT_ASKPASS="${ASKPASS}" GIT_ASKPASS_USER="${GITHUB_USER}" GIT_ASKPASS_PASS="${GITHUB_PASS}" \
+    git "$@"
+}
+
+# --------------------------------------------------------------------------- #
+# 镜像历史：按「本地提交的树 + 中性作者身份」追加到镜像分支
+# --------------------------------------------------------------------------- #
+# 与 github-mirror 比对出「还没进镜像的本地提交」，逐个用 commit-tree 重建：
+# 树完全取自本地提交（内容逐字节一致），作者/提交者换成镜像身份。
+# 不重写整段历史，因此每次推送只处理新增提交，秒级完成。
+refresh_mirror() {
+  local src_branch="$1"
+  local mirror_ref="refs/heads/${MIRROR_REF_PREFIX}-${src_branch//\//-}"
+
+  # 从 GitHub 取回镜像当前状态（镜像历史只存在于远端，本地不长期保存）
+  git_remote fetch -q "$REMOTE" \
+    "refs/heads/${src_branch}:${mirror_ref}" 2>/dev/null || true
+
+  if ! git show-ref --verify --quiet "$mirror_ref"; then
+    die "镜像分支 ${mirror_ref} 不存在（首次建立需先做一次整段脱敏，见 deploy 规范）"
+  fi
+
+  # 上一次镜像的树必须能在本地找到对应提交，否则说明本地历史被重写过，需重新整段脱敏
+  local mirror_tip_tree local_match
+  mirror_tip_tree="$(git rev-parse "${mirror_ref}^{tree}")"
+  local_match="$(git log --format='%H %T' "refs/heads/${src_branch}" \
+    | awk -v t="$mirror_tip_tree" '$2==t {print $1; exit}')"
+  [ -n "$local_match" ] || die "镜像与本地历史对不上（本地可能 rebase/重写过），需重新整段脱敏"
+
+  local pending count=0
+  pending="$(git rev-list --reverse "${local_match}..refs/heads/${src_branch}")"
+  if [ -z "$pending" ]; then
+    info "镜像已是最新（${mirror_ref}）"
+    return 0
+  fi
+
+  local commit tree message date new_commit
+  while read -r commit; do
+    [ -n "$commit" ] || continue
+    tree="$(git rev-parse "${commit}^{tree}")"
+    message="$(git log -1 --format=%B "$commit")"
+    date="$(git log -1 --format=%aI "$commit")"
+    new_commit="$(GIT_AUTHOR_NAME="${MIRROR_NAME}" GIT_AUTHOR_EMAIL="${MIRROR_EMAIL}" \
+      GIT_AUTHOR_DATE="${date}" \
+      GIT_COMMITTER_NAME="${MIRROR_NAME}" GIT_COMMITTER_EMAIL="${MIRROR_EMAIL}" \
+      GIT_COMMITTER_DATE="${date}" \
+      git commit-tree "$tree" -p "$(git rev-parse "$mirror_ref")" -m "$message")"
+    git update-ref "$mirror_ref" "$new_commit"
+    count=$((count + 1))
+  done <<<"$pending"
+  info "镜像新增 ${count} 个提交（作者身份 ${MIRROR_NAME} <${MIRROR_EMAIL}>）"
+}
+
+# --------------------------------------------------------------------------- #
+# 推送
+# --------------------------------------------------------------------------- #
+[ "${#BRANCHES[@]}" -eq 0 ] && BRANCHES=(main "$(git rev-parse --abbrev-ref HEAD)")
 
 for branch in "${BRANCHES[@]}"; do
+  if [ "$branch" = "main" ] && [ "$PUSH_MAIN" -eq 0 ]; then
+    if git_remote ls-remote --exit-code --heads "$REMOTE" refs/heads/main >/dev/null 2>&1; then
+      info "跳过 main（镜像已有；要更新镜像的 main 用 --push-main）"
+      continue
+    fi
+  fi
+
   if git show-ref --verify --quiet "refs/heads/${branch}"; then
-    refspec="refs/heads/${branch}:refs/heads/${branch}"
+    src_ref="refs/heads/${branch}"
   elif git show-ref --verify --quiet "refs/remotes/origin/${branch}"; then
-    refspec="refs/remotes/origin/${branch}:refs/heads/${branch}"
+    src_ref="refs/remotes/origin/${branch}"
   else
     die "找不到分支 ${branch}（本地与 origin 都没有）"
   fi
-  info "推送 ${refspec}"
-  GIT_ASKPASS="${ASKPASS}" GIT_ASKPASS_USER="${GITHUB_USER}" GIT_ASKPASS_PASS="${GITHUB_PASS}" \
-    git push "$REMOTE" "$refspec"
+
+  if [ "$RAW" -eq 1 ]; then
+    info "原样推送 ${src_ref} -> ${REMOTE}/refs/heads/${branch}（历史含真实姓名）"
+    git_remote push --force "$REMOTE" "${src_ref}:refs/heads/${branch}"
+  else
+    # main 是内网受保护分支、内容不变：镜像首次建立时已脱敏，之后无需重建
+    if [ "$branch" = "main" ]; then
+      info "main 走原样推送（其历史在镜像首次建立时已脱敏）"
+      git_remote push --force "$REMOTE" "${src_ref}:refs/heads/${branch}"
+      continue
+    fi
+    refresh_mirror "$branch"
+    mirror_ref="refs/heads/${MIRROR_REF_PREFIX}-${branch//\//-}"
+    info "推送脱敏镜像 ${mirror_ref} -> ${REMOTE}/refs/heads/${branch}"
+    git_remote push --force "$REMOTE" "${mirror_ref}:refs/heads/${branch}"
+  fi
 done
 
 info "完成。远端分支："
-GIT_ASKPASS="${ASKPASS}" GIT_ASKPASS_USER="${GITHUB_USER}" GIT_ASKPASS_PASS="${GITHUB_PASS}" \
-  git ls-remote --heads "$REMOTE"
+git_remote ls-remote --heads "$REMOTE"
