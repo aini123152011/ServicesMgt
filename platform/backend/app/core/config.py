@@ -49,6 +49,8 @@ class Settings(BaseSettings):
     UPDATE_REGISTRY: str = ""
     # 平台自身容器名：自更新需要用它定位自己（部署名可不同，故进配置而非硬编码）
     PLATFORM_CONTAINER_NAME: str = "bmc-platform-backend"
+    # 每服务保留的配置版本数上限：超出后在下发时删除最旧版本，避免历史无限增长
+    CONFIG_VERSION_LIMIT: int = 20
     # 服务插件目录（含 manifest.yaml 的子目录）；相对路径按后端项目目录解析
     SERVICES_DIR: str = "../../services"
     # 配置卷在宿主机上的根路径，每个服务的卷按 {VOLUMES_MOUNT_ROOT}/{name}-config 挂载

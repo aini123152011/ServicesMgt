@@ -12,7 +12,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from app import config_renderer, lifecycle, registry
+from app import config_renderer, config_versions, lifecycle, registry
 from app.api.deps import CurrentUser, RequireOperator, SessionDep, get_current_user
 from app.crud import (
     get_fault_modes,
@@ -25,6 +25,9 @@ from app.models import (
     ServiceConfigApplyResult,
     ServiceConfigState,
     ServiceConfigUpdate,
+    ServiceConfigVersionDetail,
+    ServiceConfigVersionPublic,
+    ServiceConfigVersionsPublic,
     ServiceLogs,
     ServiceManifest,
     ServicesPublic,
@@ -119,6 +122,221 @@ def read_service(session: SessionDep, name: str) -> Any:
     }
 
 
+def _apply_config_values(
+    *,
+    session: SessionDep,
+    plugin: ServicePlugin,
+    name: str,
+    values: dict[str, Any],
+    user_email: str | None,
+    rolled_back_from: int | None = None,
+) -> bool:
+    """渲染 → 写卷 → 落库 → reload → 记一条配置版本，返回 applied。
+
+    PUT /config 与回滚共用这一段：两条路径对「生效」的定义必须完全一致，否则回滚会出现
+    「界面说成功、服务其实没生效」。版本记录放在最后、用最终 applied 值——一次下发只产生
+    一条版本，中途 applied=False 的中间态不入历史。
+
+    Args:
+        session: 数据库会话。
+        plugin: 服务插件（提供 schema/manifest）。
+        name: 服务名。
+        values: 已校验的配置值。
+        user_email: 操作者邮箱，记入版本。
+        rolled_back_from: 回滚来源版本号；普通下发为 None。
+
+    Returns:
+        applied：渲染产物是否已在容器内生效。
+
+    Raises:
+        HTTPException: 502 渲染失败或 Docker 调用失败。
+    """
+    rendered_at = get_datetime_utc()
+    try:
+        rendered_paths = config_renderer.render_config(plugin, values)
+    except config_renderer.TemplateRenderError as e:
+        logger.error(f"Config apply failed for service '{name}': {e}")
+        raise HTTPException(status_code=502, detail=str(e)) from e
+    upsert_service_config(
+        session=session,
+        service_name=name,
+        values=values,
+        rendered_at=rendered_at,
+        applied=False,
+    )
+    applied = False
+    try:
+        status = lifecycle.get_status(plugin.manifest["container_name"])
+        if status["running"]:
+            lifecycle.exec_reload(plugin.manifest)
+            applied = True
+    except lifecycle.LifecycleError as e:
+        logger.error(f"Config apply failed for service '{name}': {e}")
+        raise HTTPException(status_code=502, detail=str(e)) from e
+    if applied:
+        # reload 成功后才把 applied 置 True；失败路径保持 False 落库
+        upsert_service_config(
+            session=session,
+            service_name=name,
+            values=values,
+            rendered_at=rendered_at,
+            applied=True,
+        )
+    config_versions.record_config_version(
+        session=session,
+        service_name=name,
+        values=values,
+        applied=applied,
+        user_email=user_email,
+        digest=config_versions.rendered_digest(list(rendered_paths)),
+        rolled_back_from=rolled_back_from,
+    )
+    return applied
+
+
+@router.get(
+    "/{name}/config/versions",
+    response_model=ServiceConfigVersionsPublic,
+)
+def read_config_versions(
+    session: SessionDep,
+    name: str,
+    offset: int = 0,
+    limit: int = 50,
+) -> Any:
+    """列出该服务的配置版本（版本号倒序，新版本在前）。
+
+    列表不含配置值：列表不需要内容，也避免一页带出大量 JSON；看内容用版本详情接口（已脱敏）。
+
+    Args:
+        session: 数据库会话。
+        name: 服务名。
+        offset: 分页起始偏移。
+        limit: 单页条数。
+
+    Returns:
+        ServiceConfigVersionsPublic：版本列表与总数。
+
+    Raises:
+        HTTPException: 403 未登录；404 服务不存在。
+    """
+    _get_plugin_or_404(name)
+    rows, count = config_versions.list_config_versions(
+        session=session, service_name=name, offset=offset, limit=limit
+    )
+    return ServiceConfigVersionsPublic(
+        data=[ServiceConfigVersionPublic.model_validate(row) for row in rows],
+        count=count,
+    )
+
+
+@router.get(
+    "/{name}/config/versions/{version}",
+    response_model=ServiceConfigVersionDetail,
+)
+def read_config_version(session: SessionDep, name: str, version: int) -> Any:
+    """查看某个版本的配置内容（secret 字段脱敏）。
+
+    与「服务详情」同一套脱敏语义：库里版本存的是真实值（渲染需要），对外只给掩码。
+
+    Args:
+        session: 数据库会话。
+        name: 服务名。
+        version: 版本号。
+
+    Returns:
+        ServiceConfigVersionDetail：该版本的脱敏配置与元信息。
+
+    Raises:
+        HTTPException: 403 未登录；404 服务或版本不存在。
+    """
+    plugin = _get_plugin_or_404(name)
+    row = config_versions.get_config_version(
+        session=session, service_name=name, version=version
+    )
+    if row is None:
+        raise HTTPException(status_code=404, detail=f"Version {version} not found")
+    # 历史行的 values 理论上不会为空（写入时必填），但类型上是可空的，兜底成空字典
+    raw_values: dict[str, Any] = row.values if row.values is not None else {}
+    masked = config_renderer.mask_secret_values(plugin.schema, raw_values)
+    return ServiceConfigVersionDetail(
+        version=row.version,
+        values=masked if masked is not None else {},
+        applied=row.applied,
+        rendered_digest=row.rendered_digest,
+        user_email=row.user_email,
+        rolled_back_from=row.rolled_back_from,
+        created_at=row.created_at,
+    )
+
+
+@router.post(
+    "/{name}/config/versions/{version}/rollback",
+    dependencies=[Depends(RequireOperator)],
+    response_model=ServiceConfigApplyResult,
+)
+def rollback_config_version(
+    session: SessionDep,
+    current_user: CurrentUser,
+    name: str,
+    version: int,
+) -> Any:
+    """把服务配置回滚到指定版本（回滚本身也是一次新下发）。
+
+    为什么回滚写新版本而不是删掉后面的版本：历史只增不改才能回答「当时到底是什么配置」，
+    且回滚后「最新版本 = 当前生效配置」这条不变量仍然成立。
+
+    Args:
+        session: 数据库会话。
+        current_user: 当前登录用户（操作者）。
+        name: 服务名。
+        version: 要回滚到的版本号。
+
+    Returns:
+        ServiceConfigApplyResult：applied 状态与提示文案。
+
+    Raises:
+        HTTPException: 403 无 operator 及以上角色；404 服务或版本不存在；
+            400 历史值已不符合当前 schema；502 渲染或 Docker 调用失败。
+    """
+    plugin = _get_plugin_or_404(name)
+    row = config_versions.get_config_version(
+        session=session, service_name=name, version=version
+    )
+    if row is None:
+        raise HTTPException(status_code=404, detail=f"Version {version} not found")
+    try:
+        # 历史值当初合法，但 schema 可能已演进（字段增删/范围收紧），回滚前重新校验
+        values = config_renderer.validate_values(plugin.schema, row.values)
+    except config_renderer.ConfigValidationError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    applied = _apply_config_values(
+        session=session,
+        plugin=plugin,
+        name=name,
+        values=values,
+        user_email=current_user.email,
+        rolled_back_from=version,
+    )
+    record_audit_log(
+        session=session,
+        user_id=current_user.id,
+        user_email=current_user.email,
+        action="config.rollback",
+        service_name=name,
+        detail=f"from_version={version} applied={'true' if applied else 'false'}",
+    )
+    return ServiceConfigApplyResult(
+        message=(
+            f"Rolled back to version {version}"
+            if applied
+            else f"Rolled back to version {version}; service is not running, "
+            "it will be applied on next start"
+        ),
+        applied=applied,
+    )
+
+
 @router.put(
     "/{name}/config",
     dependencies=[Depends(RequireOperator)],
@@ -158,37 +376,13 @@ def update_service_config(
         )
     except config_renderer.ConfigValidationError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
-    rendered_at = get_datetime_utc()
-    try:
-        config_renderer.render_config(plugin, values)
-    except config_renderer.TemplateRenderError as e:
-        logger.error(f"Config apply failed for service '{name}': {e}")
-        raise HTTPException(status_code=502, detail=str(e)) from e
-    upsert_service_config(
+    applied = _apply_config_values(
         session=session,
-        service_name=name,
+        plugin=plugin,
+        name=name,
         values=values,
-        rendered_at=rendered_at,
-        applied=False,
+        user_email=current_user.email,
     )
-    applied = False
-    try:
-        status = lifecycle.get_status(plugin.manifest["container_name"])
-        if status["running"]:
-            lifecycle.exec_reload(plugin.manifest)
-            applied = True
-    except lifecycle.LifecycleError as e:
-        logger.error(f"Config apply failed for service '{name}': {e}")
-        raise HTTPException(status_code=502, detail=str(e)) from e
-    if applied:
-        # reload 成功后才把 applied 置 True；失败路径保持 False 落库
-        upsert_service_config(
-            session=session,
-            service_name=name,
-            values=values,
-            rendered_at=rendered_at,
-            applied=True,
-        )
     # 审计只记结果状态，不记配置值（值里可能含密码类字段）
     record_audit_log(
         session=session,

@@ -3,7 +3,7 @@ from datetime import UTC, datetime
 from typing import Any, Literal
 
 from pydantic import EmailStr
-from sqlalchemy import JSON, Column, DateTime
+from sqlalchemy import JSON, Column, DateTime, UniqueConstraint
 from sqlmodel import Field, SQLModel
 
 
@@ -347,3 +347,65 @@ class UpdateCheckResult(SQLModel):
 class UpdateApplyRequest(SQLModel):
     target: str
     image: str
+
+
+# --------------------------------------------------------------------------- #
+# 配置版本（每次下发留存一条，供历史查看与回滚）
+#
+# 版本里存的是**提交后的真实值**（回滚要拿它重新渲染），对外暴露必须走
+# config_renderer.mask_secret_values 脱敏——与「读取脱敏、提交掩码保留原值」同一套语义。
+# 版本号每服务独立自增 + (service_name, version) 唯一约束：并发下发时由数据库兜底。
+# --------------------------------------------------------------------------- #
+class ServiceConfigVersionBase(SQLModel):
+    service_name: str = Field(max_length=64, index=True)
+    # 每服务独立自增的版本号，从 1 开始
+    version: int
+    # 提交后的真实配置值（含 secret 明文）；对外接口必须脱敏后再返回
+    values: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
+    # 本次渲染产物是否已在容器内生效（容器未运行或 reload 失败时为 False）
+    applied: bool = False
+    # 渲染产物摘要（sha256 前 16 位）：用于回答「这两次下发的产物是否一致」
+    rendered_digest: str = Field(default="", max_length=64)
+    # 操作者邮箱（冗余存一份，用户删除后仍可追溯）
+    user_email: str | None = Field(default=None, max_length=255)
+    # 回滚产生的版本会记下来源版本号，便于在历史里区分「改配置」与「回滚」
+    rolled_back_from: int | None = Field(default=None)
+
+
+class ServiceConfigVersion(ServiceConfigVersionBase, table=True):
+    __table_args__ = (
+        UniqueConstraint("service_name", "version", name="uq_config_version"),
+    )
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    created_at: datetime | None = Field(
+        default_factory=get_datetime_utc,
+        sa_type=DateTime(timezone=True),  # type: ignore
+    )
+
+
+# 列表项：不含 values（列表不需要配置内容，也避免一页带出大量 JSON）
+class ServiceConfigVersionPublic(SQLModel):
+    id: uuid.UUID
+    version: int
+    applied: bool
+    rendered_digest: str
+    user_email: str | None = None
+    rolled_back_from: int | None = None
+    created_at: datetime | None = None
+
+
+class ServiceConfigVersionsPublic(SQLModel):
+    data: list[ServiceConfigVersionPublic]
+    count: int
+
+
+# 详情：values 已脱敏（由路由层负责脱敏，模型只声明形状）
+class ServiceConfigVersionDetail(SQLModel):
+    version: int
+    values: dict[str, Any]
+    applied: bool
+    rendered_digest: str
+    user_email: str | None = None
+    rolled_back_from: int | None = None
+    created_at: datetime | None = None
