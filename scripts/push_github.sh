@@ -1,23 +1,23 @@
 #!/usr/bin/env bash
-# 经跳板机把本仓库推送到 GitHub 镜像（默认推送「脱敏后的镜像历史」）。
+# 把本仓库推送到 GitHub 镜像（默认推送「脱敏后的镜像历史」）。
 #
-# 为什么需要跳板机：本机到 github.com 不通（实测握手 13 秒以上且不稳定），
-# 而目标机 <目标机地址> 可以直连 GitHub。做法是用 SSH 动态转发（SOCKS5）把 git 的
-# HTTPS 流量借道跳板机——代理只配在 github 这个 remote 上（remote.github.proxy），
-# 内网 origin（<内网 GitLab 主机>）照常直连，不受影响。
+# 网络路径：**先试直连**，直连推送失败（实测大包传输会被中途断开：schannel server closed
+# abruptly / Empty reply from server）就自动切到跳板机的 SSH 动态转发（SOCKS5）重试一次。
+# 代理只配在 github 这个 remote 上（remote.github.proxy），内网 origin 不受影响。
+# USE_JUMP=1 可强制走跳板机。
 #
 # 为什么默认脱敏：GitHub 是公开仓库，而内网仓库的历史里有真实姓名与（历史提交里的）口令。
 # 镜像历史按「同样的树、中性作者身份」重建，因此**镜像里的代码与内网逐字节一致，但历史
 # 不带真实身份**。内网仓库保持原样（main 是受保护分支，也无法重写）。
-# 需要原样推送历史时用 --raw（会带上真实姓名，慎用）。
 #
 # 用法（凭据只走环境变量，不写进 git config、不落盘）：
 #   GITHUB_USER='<账号或 PAT>' GITHUB_PASS='<口令或 PAT>' bash scripts/push_github.sh
 #   GITHUB_USER='...' GITHUB_PASS='...' bash scripts/push_github.sh feat/bmc-services-platform
-#   GITHUB_USER='...' GITHUB_PASS='...' bash scripts/push_github.sh --raw main
+#   GITHUB_USER='...' GITHUB_PASS='...' bash scripts/push_github.sh --push-main
+#   GITHUB_USER='...' GITHUB_PASS='...' bash scripts/push_github.sh --raw <branch>   # 推原始历史（真名，慎用）
 #
-# 不带分支参数时：推 main 与当前分支。main 只在镜像里不存在时推送（内网 main 受保护，
-# 不会变；真要更新镜像的 main 用 --push-main）。
+# 不带分支参数时：推 main 与当前分支。镜像的 main 是**脱敏历史自己的根提交**（不是内网 main），
+# 只在镜像里不存在时推送；要更新用 --push-main。
 #
 # 可覆盖的环境变量：JUMP_HOST、SOCKS_PORT、GITHUB_REMOTE、MIRROR_NAME、MIRROR_EMAIL。
 set -euo pipefail
@@ -51,26 +51,10 @@ done
 git rev-parse --git-dir >/dev/null 2>&1 || die "当前目录不是 git 仓库"
 git remote get-url "$REMOTE" >/dev/null 2>&1 \
   || die "远端 $REMOTE 不存在，先执行：git remote add $REMOTE <GitHub 仓库地址>"
-git config "remote.$REMOTE.proxy" "socks5h://127.0.0.1:${SOCKS_PORT}"
 
 # --------------------------------------------------------------------------- #
-# SOCKS 转发：端口已通就复用，没通就现起一个后台隧道
+# 一次性 askpass：口令只存在于环境变量与临时文件里，脚本退出即删除
 # --------------------------------------------------------------------------- #
-if (echo >"/dev/tcp/127.0.0.1/${SOCKS_PORT}") 2>/dev/null; then
-  info "复用已有 SOCKS 转发（127.0.0.1:${SOCKS_PORT}）"
-else
-  info "建立到 ${JUMP_HOST} 的 SOCKS 转发（127.0.0.1:${SOCKS_PORT}）"
-  nohup ssh -o BatchMode=yes -o ExitOnForwardFailure=yes -o ServerAliveInterval=30 \
-    -N -D "${SOCKS_PORT}" "${JUMP_HOST}" >/tmp/push-github-socks.log 2>&1 &
-  for _ in $(seq 1 20); do
-    sleep 0.5
-    (echo >"/dev/tcp/127.0.0.1/${SOCKS_PORT}") 2>/dev/null && break
-  done
-  (echo >"/dev/tcp/127.0.0.1/${SOCKS_PORT}") 2>/dev/null \
-    || die "SOCKS 转发未建立，见 /tmp/push-github-socks.log"
-fi
-
-# 一次性 askpass：口令只存在于环境变量与临时文件里，推送后立刻删除
 ASKPASS="$(mktemp)"
 trap 'rm -f "${ASKPASS}"' EXIT
 cat >"${ASKPASS}" <<'SH'
@@ -88,6 +72,51 @@ git_remote() {
 }
 
 # --------------------------------------------------------------------------- #
+# 网络路径：直连优先，推送失败自动回退跳板机
+# --------------------------------------------------------------------------- #
+USING_JUMP=0
+
+setup_jump_proxy() {
+  info "走跳板机 SOCKS 转发（${JUMP_HOST}:${SOCKS_PORT}）"
+  # 清掉可能残留的僵尸隧道（端口还在听但连接已被对端关闭，实测会让 push 报
+  # "Failed to receive SOCKS response, proxy closed connection"）
+  pkill -f "ssh .*-D ${SOCKS_PORT} " 2>/dev/null || true
+  sleep 1
+  nohup ssh -o BatchMode=yes -o ExitOnForwardFailure=yes -o ServerAliveInterval=30 \
+    -N -D "${SOCKS_PORT}" "${JUMP_HOST}" >/tmp/push-github-socks.log 2>&1 &
+  for _ in $(seq 1 20); do
+    sleep 0.5
+    (echo >"/dev/tcp/127.0.0.1/${SOCKS_PORT}") 2>/dev/null && break
+  done
+  (echo >"/dev/tcp/127.0.0.1/${SOCKS_PORT}") 2>/dev/null \
+    || die "SOCKS 转发未建立，见 /tmp/push-github-socks.log"
+  git config "remote.$REMOTE.proxy" "socks5h://127.0.0.1:${SOCKS_PORT}"
+  USING_JUMP=1
+}
+
+git config --unset "remote.$REMOTE.proxy" 2>/dev/null || true
+if [ "${USE_JUMP:-0}" = "1" ]; then
+  setup_jump_proxy
+elif git ls-remote --exit-code --heads "$REMOTE" >/dev/null 2>&1; then
+  info "直连 GitHub 可用（推送失败会自动回退跳板机）"
+else
+  setup_jump_proxy
+fi
+
+# 推送一个 refspec；直连失败（大包被中途断开）就切跳板机重试一次
+push_ref() {
+  if git_remote push --force "$REMOTE" "$1"; then
+    return 0
+  fi
+  if [ "${USING_JUMP}" = "1" ]; then
+    return 1
+  fi
+  info "直连推送失败，改走跳板机重试"
+  setup_jump_proxy
+  git_remote push --force "$REMOTE" "$1"
+}
+
+# --------------------------------------------------------------------------- #
 # 镜像历史：按「本地提交的树 + 中性作者身份」追加到镜像分支
 # --------------------------------------------------------------------------- #
 # 与 github-mirror 比对出「还没进镜像的本地提交」，逐个用 commit-tree 重建：
@@ -97,7 +126,7 @@ refresh_mirror() {
   local src_branch="$1"
   local mirror_ref="refs/heads/${MIRROR_REF_PREFIX}-${src_branch//\//-}"
 
-  # 从 GitHub 取回镜像当前状态（镜像历史只存在于远端，本地不长期保存）
+  # 从远端取回镜像当前状态（镜像历史只存在于远端，本地不长期保存）
   git_remote fetch -q "$REMOTE" \
     "refs/heads/${src_branch}:${mirror_ref}" 2>/dev/null || true
 
@@ -142,11 +171,23 @@ refresh_mirror() {
 [ "${#BRANCHES[@]}" -eq 0 ] && BRANCHES=(main "$(git rev-parse --abbrev-ref HEAD)")
 
 for branch in "${BRANCHES[@]}"; do
-  if [ "$branch" = "main" ] && [ "$PUSH_MAIN" -eq 0 ]; then
-    if git_remote ls-remote --exit-code --heads "$REMOTE" refs/heads/main >/dev/null 2>&1; then
+  # main 特殊处理：镜像的 main 是**脱敏历史自己的根提交**，与内网 main 不是同一个对象。
+  # 绝不要把 refs/remotes/origin/main 推到 GitHub——那是内网原始历史（真名作者）。
+  if [ "$branch" = "main" ] && [ "$RAW" -eq 0 ]; then
+    if [ "$PUSH_MAIN" -eq 0 ] \
+       && git_remote ls-remote --exit-code --heads "$REMOTE" refs/heads/main >/dev/null 2>&1; then
       info "跳过 main（镜像已有；要更新镜像的 main 用 --push-main）"
       continue
     fi
+    base_branch="$(git rev-parse --abbrev-ref HEAD)"
+    base_mirror="refs/heads/${MIRROR_REF_PREFIX}-${base_branch//\//-}"
+    if ! git show-ref --verify --quiet "$base_mirror"; then
+      refresh_mirror "$base_branch"
+    fi
+    root_commit="$(git rev-list --max-parents=0 "$base_mirror" | tail -1)"
+    info "推送镜像 main（脱敏根提交 ${root_commit:0:7}）"
+    push_ref "${root_commit}:refs/heads/main"
+    continue
   fi
 
   if git show-ref --verify --quiet "refs/heads/${branch}"; then
@@ -159,18 +200,12 @@ for branch in "${BRANCHES[@]}"; do
 
   if [ "$RAW" -eq 1 ]; then
     info "原样推送 ${src_ref} -> ${REMOTE}/refs/heads/${branch}（历史含真实姓名）"
-    git_remote push --force "$REMOTE" "${src_ref}:refs/heads/${branch}"
+    push_ref "${src_ref}:refs/heads/${branch}"
   else
-    # main 是内网受保护分支、内容不变：镜像首次建立时已脱敏，之后无需重建
-    if [ "$branch" = "main" ]; then
-      info "main 走原样推送（其历史在镜像首次建立时已脱敏）"
-      git_remote push --force "$REMOTE" "${src_ref}:refs/heads/${branch}"
-      continue
-    fi
     refresh_mirror "$branch"
     mirror_ref="refs/heads/${MIRROR_REF_PREFIX}-${branch//\//-}"
     info "推送脱敏镜像 ${mirror_ref} -> ${REMOTE}/refs/heads/${branch}"
-    git_remote push --force "$REMOTE" "${mirror_ref}:refs/heads/${branch}"
+    push_ref "${mirror_ref}:refs/heads/${branch}"
   fi
 done
 
