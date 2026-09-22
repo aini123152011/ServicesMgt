@@ -17,6 +17,7 @@
   - AC13 secret 字段脱敏与掩码回填、审计不含明文
   - AC14 nginx HTTPS（自签证书）可访问
   - 前端 SPA 静态分发
+  - AC1–AC4 配置版本历史与一键回滚（列表/详情脱敏/回滚真实生效/超限裁剪）
 
 凭据不写在脚本里：优先取环境变量 BMC_ADMIN_EMAIL/BMC_ADMIN_PASSWORD，
 其次从平台容器环境变量 FIRST_SUPERUSER/FIRST_SUPERUSER_PASSWORD 读取。
@@ -1490,11 +1491,14 @@ def phase_versions(token: str) -> None:
     for _ in range(VERSION_LIMIT + 2):
         put_config(token, service, CFG_CHRONY)
     versions = _config_versions(token, service)
-    record(f"16.10 版本数超过上限后裁剪到 {VERSION_LIMIT} 条",
+    # 裁剪口径：保留最新的 N 条，版本号不重排（最旧一条 = 最新 - (N-1)）
+    newest = versions[0]["version"] if versions else None
+    oldest = versions[-1]["version"] if versions else None
+    record(f"16.10 版本数超过上限后只保留最新 {VERSION_LIMIT} 条（版本号不重排）",
            len(versions) == VERSION_LIMIT
-           and versions[0]["version"] > versions[-1]["version"],
-           f"总数={len(versions)} 最新={versions[0]['version'] if versions else None} "
-           f"最旧={versions[-1]['version'] if versions else None}")
+           and newest is not None
+           and oldest == newest - (VERSION_LIMIT - 1),
+           f"总数={len(versions)} 最新={newest} 最旧={oldest}")
 
 
 def phase_frontend(token: str) -> None:
