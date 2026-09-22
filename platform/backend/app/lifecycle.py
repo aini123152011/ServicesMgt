@@ -16,9 +16,10 @@ from docker.models.containers import Container
 
 logger = logging.getLogger(__name__)
 
-# 容器重启窗口的容忍参数，见 exec_reload 的说明：5 次 × 3s 覆盖 Docker 重启策略的退避
-# （RestartCount 很大时单次退避可达 1 分钟，实测反复切换故障模式后窗口约 30s）。
-RELOAD_RETRY_ATTEMPTS = 5
+# 容器重启窗口的容忍参数，见 exec_reload 的说明：10 次 × 3s ≈ 30s 的等待预算，
+# 覆盖实测到的重启窗口（Docker 重启退避随 RestartCount 增长，上限 1 分钟；
+# 实测反复切换故障模式后单次窗口约 30s）。真正的等待只有前 9 次，最后一次直接报错。
+RELOAD_RETRY_ATTEMPTS = 10
 RELOAD_RETRY_INTERVAL_SECONDS = 3.0
 
 
@@ -178,18 +179,21 @@ def exec_reload(manifest: dict[str, Any]) -> str:
         try:
             result = container.exec_run("/reload.sh")
         except (APIError, OSError) as e:
-            if (
-                isinstance(e, APIError)
-                and _is_restarting_conflict(e)
-                and attempt < RELOAD_RETRY_ATTEMPTS
-            ):
-                logger.info(
-                    f"Container '{container_name}' is restarting (reload attempt "
-                    f"{attempt}/{RELOAD_RETRY_ATTEMPTS}); waiting "
-                    f"{RELOAD_RETRY_INTERVAL_SECONDS}s and retrying"
+            if isinstance(e, APIError) and _is_restarting_conflict(e):
+                if attempt < RELOAD_RETRY_ATTEMPTS:
+                    logger.info(
+                        f"Container '{container_name}' is restarting (reload attempt "
+                        f"{attempt}/{RELOAD_RETRY_ATTEMPTS}); waiting "
+                        f"{RELOAD_RETRY_INTERVAL_SECONDS}s and retrying"
+                    )
+                    time.sleep(RELOAD_RETRY_INTERVAL_SECONDS)
+                    continue
+                # 预算用尽：落到循环外的统一报错，不再区分「还在重启」与「其他失败」
+                logger.error(
+                    f"Reload failed for container '{container_name}': still restarting "
+                    f"after {RELOAD_RETRY_ATTEMPTS} attempts: {e}"
                 )
-                time.sleep(RELOAD_RETRY_INTERVAL_SECONDS)
-                continue
+                break
             logger.error(f"Reload failed for container '{container_name}': {e}")
             raise LifecycleError(
                 f"Failed to exec '/reload.sh' in container '{container_name}': {e}"
@@ -211,7 +215,7 @@ def exec_reload(manifest: dict[str, Any]) -> str:
             )
         logger.info(f"Reloaded container '{container_name}' via /reload.sh")
         return text
-    # 循环内每次失败都已 raise，走到这里说明重试次数用尽仍未成功
+    # 只有「预算用尽仍在重启」会走到这里（其他失败都在循环内 raise）
     raise LifecycleError(
         f"Container '{container_name}' kept restarting; gave up after "
         f"{RELOAD_RETRY_ATTEMPTS} reload attempts"
