@@ -1,4 +1,4 @@
-import { LayoutDashboard, Server, Settings, Users } from 'lucide-react'
+import { LayoutDashboard, ScrollText, Server, Users } from 'lucide-react'
 import { type SidebarData } from '../types'
 
 /**
@@ -8,20 +8,14 @@ import { type SidebarData } from '../types'
 export const sidebarData: SidebarData = {
   navGroups: [
     {
-      // 不设分组标题：首页是单入口，加了标题会出现「首页」重复两行
+      // 「总览」= 看状态与看目录：首页给状态一眼可见，服务列表给全量目录（端口/生效方式）
+      titleKey: 'nav.groupOverview',
       items: [
         {
           titleKey: 'nav.home',
           url: '/',
           icon: LayoutDashboard,
         },
-      ],
-    },
-    {
-      titleKey: 'nav.groupServices',
-      // 其下除「服务列表」外，还会按分类动态追加各服务入口
-      dynamicServices: true,
-      items: [
         {
           titleKey: 'nav.services',
           url: '/services',
@@ -30,7 +24,15 @@ export const sidebarData: SidebarData = {
       ],
     },
     {
-      titleKey: 'nav.groupUsers',
+      // 本组只放按分类的服务入口（时间同步/文件共享/日志监控），由服务列表动态生成；
+      // 服务列表本身已上移到「总览」，此处不再重复
+      titleKey: 'nav.groupServices',
+      dynamicServices: true,
+      items: [],
+    },
+    {
+      // 管理类入口（用户与审计）都限 admin，故合并为一组；非管理员整组不渲染
+      titleKey: 'nav.groupSystem',
       items: [
         {
           titleKey: 'nav.users',
@@ -39,15 +41,11 @@ export const sidebarData: SidebarData = {
           // 仅 admin（含 is_superuser）可见，渲染处按 usePermissions 过滤
           adminOnly: true,
         },
-      ],
-    },
-    {
-      // 同上：单入口不设分组标题，避免「设置」出现两行
-      items: [
         {
-          titleKey: 'nav.settings',
-          url: '/settings',
-          icon: Settings,
+          titleKey: 'nav.audit',
+          url: '/audit',
+          icon: ScrollText,
+          adminOnly: true,
         },
       ],
     },

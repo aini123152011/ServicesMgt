@@ -11,7 +11,8 @@ import { getService, updateServiceConfig } from '@/api/services'
 export function useAuditLogsQuery(enabled: boolean, limit = 8) {
   return useQuery({
     queryKey: ['audit-logs', limit],
-    queryFn: () => listAuditLogs(limit),
+    // 首页只要最近几条，count 用不上：取出 data 交给卡片直接渲染
+    queryFn: () => listAuditLogs({ limit }).then((page) => page.data),
     enabled,
   })
 }

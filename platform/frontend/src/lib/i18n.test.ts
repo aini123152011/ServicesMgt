@@ -35,6 +35,7 @@ describe('i18n 资源', () => {
     // 用顶层分组判定：分组本身始终存在，即使其中暂时没有 key（拍平后取不到）
     expect(Object.keys(zh).sort()).toEqual(
       [
+        'audit',
         'auth',
         'common',
         'errors',

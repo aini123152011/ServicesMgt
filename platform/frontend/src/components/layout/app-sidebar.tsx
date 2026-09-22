@@ -21,14 +21,17 @@ export function AppSidebar() {
   const { data: services } = useServicesQuery()
   const serviceItems = buildServiceNavItems(services ?? [])
 
-  const navGroups = sidebarData.navGroups.map((group) => ({
-    ...group,
-    // adminOnly 项按角色过滤，其余导航所有人可见
-    items: [
-      ...group.items,
-      ...(group.dynamicServices ? serviceItems : []),
-    ].filter((item) => !item.adminOnly || isAdmin),
-  }))
+  const navGroups = sidebarData.navGroups
+    .map((group) => ({
+      ...group,
+      // adminOnly 项按角色过滤，其余导航所有人可见
+      items: [
+        ...group.items,
+        ...(group.dynamicServices ? serviceItems : []),
+      ].filter((item) => !item.adminOnly || isAdmin),
+    }))
+    // 组内条目全被权限过滤掉时整组不渲染：只剩一个光秃秃的组标题会让人以为加载失败
+    .filter((group) => group.items.length > 0)
 
   return (
     <Sidebar collapsible={collapsible} variant={variant}>

@@ -895,6 +895,49 @@ def phase_secrets(token: str) -> None:
     time.sleep(3)
 
 
+def phase_audit(token: str) -> None:
+    """审计日志页依赖的查询能力：动作过滤、服务过滤、关键字、动作字典与分页上限。"""
+    print("\n>>> 阶段 15: 审计日志查询（动作/服务过滤、关键字、分页上限）")
+    # 先造两条可区分的记录：一条服务配置变更、一条平台更新（不实际执行，仅走配置变更）
+    put_config(token, "nginx", CFG_NGINX)
+
+    st, resp = api("GET", "/api/v1/audit-logs/actions", token=token)
+    actions = json.loads(resp).get("data", []) if st == 200 else []
+    record("15.1 动作字典去重且升序",
+           st == 200 and actions == sorted(set(actions)) and "config.update" in actions,
+           f"status={st} actions={actions}")
+
+    st, resp = api("GET", "/api/v1/audit-logs?action=config.update&limit=100", token=token)
+    doc = json.loads(resp) if st == 200 else {}
+    entries = doc.get("data", [])
+    record("15.2 按动作过滤只返回该动作，且 count 为过滤后总数",
+           st == 200 and bool(entries)
+           and all(e["action"] == "config.update" for e in entries)
+           and doc.get("count", 0) >= len(entries),
+           f"status={st} count={doc.get('count')} 命中={len(entries)}")
+
+    st, resp = api("GET", "/api/v1/audit-logs?service_name=nginx&limit=100", token=token)
+    entries = json.loads(resp).get("data", []) if st == 200 else []
+    record("15.3 按服务过滤只返回该服务的记录",
+           st == 200 and bool(entries) and all(e["service_name"] == "nginx" for e in entries),
+           f"status={st} 命中={len(entries)}")
+
+    st, resp = api("GET", "/api/v1/audit-logs?q=CONFIG.UPDATE&limit=100", token=token)
+    entries = json.loads(resp).get("data", []) if st == 200 else []
+    record("15.4 关键字大小写不敏感且能命中 detail",
+           st == 200 and bool(entries), f"status={st} 命中={len(entries)}")
+
+    st, resp = api("GET", "/api/v1/audit-logs?offset=1&limit=1", token=token)
+    doc = json.loads(resp) if st == 200 else {}
+    record("15.5 分页返回单页且 count 仍为全量总数",
+           st == 200 and len(doc.get("data", [])) <= 1 and doc.get("count", 0) >= 1,
+           f"status={st} count={doc.get('count')} 本页={len(doc.get('data', []))}")
+
+    st, resp = api("GET", "/api/v1/audit-logs?limit=10000", token=token)
+    record("15.6 单页条数超上限被拒（审计表只增，不能一次拖走整表）",
+           st == 422, f"status={st}")
+
+
 def phase_frontend(token: str) -> None:
     """前端 SPA 静态分发。"""
     print("\n>>> 阶段 14: 前端 SPA 分发")
@@ -919,6 +962,7 @@ PHASES = {
     "postfix": phase_postfix,
     "secrets": phase_secrets,
     "frontend": phase_frontend,
+    "audit": phase_audit,
 }
 
 

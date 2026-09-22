@@ -260,6 +260,11 @@ class AuditLogsPublic(SQLModel):
     count: int
 
 
+# 出现过的动作名（GET /audit-logs/actions），供前端筛选下拉使用
+class AuditActionsPublic(SQLModel):
+    data: list[str]
+
+
 # 角色名列表（GET /roles），供前端角色选择器使用
 class RolesPublic(SQLModel):
     data: list[str]

@@ -13,6 +13,7 @@
     "refresh": "Refresh",
     "loading": "Loading…",
     "notLoggedIn": "Not signed in",
+    "accountMenu": "Account menu",
     "unknown": "Unknown",
     "signOut": "Sign out",
     "signOutTitle": "Sign out",
@@ -26,14 +27,13 @@
     "skipToMain": "Skip to Main",
     "search": "Search",
     "showPassword": "Show password",
-    "hidePassword": "Hide password",
-    "account": "Account",
-    "settings": "Settings"
+    "hidePassword": "Hide password"
   },
   "nav": {
     "groupServices": "Services",
-    "groupUsers": "Users",
-    "settings": "Settings",
+    "groupOverview": "Overview",
+    "groupSystem": "System",
+    "audit": "Audit log",
     "home": "Home",
     "services": "Service list",
     "users": "User list",
@@ -89,6 +89,38 @@
       "resetFailed": "Failed to reset"
     }
   },
+  "audit": {
+    "title": "Audit log",
+    "description": "Who changed which service or account, and when. Records the operation and its outcome only, never configuration values.",
+    "field": {
+      "time": "Time",
+      "actor": "Actor",
+      "action": "Action",
+      "service": "Service",
+      "detail": "Detail"
+    },
+    "filter": {
+      "action": "Filter by action",
+      "service": "Filter by service",
+      "keyword": "Filter by keyword",
+      "keywordPlaceholder": "Action, service, actor or detail",
+      "allActions": "All actions",
+      "allServices": "All services"
+    },
+    "action": {
+      "configUpdate": "Config updated",
+      "serviceStart": "Service started",
+      "serviceStop": "Service stopped",
+      "serviceRestart": "Service restarted",
+      "userCreate": "User created",
+      "userUpdate": "User updated",
+      "userDelete": "User deleted",
+      "systemUpdate": "Platform update"
+    },
+    "total": "{{count}} records",
+    "empty": "No records match the current filters",
+    "loadFailed": "Failed to load the audit log"
+  },
   "settings": {
     "title": "Settings",
     "description": "Account profile, appearance and platform information.",
@@ -132,7 +164,8 @@
       "title": "Appearance",
       "description": "Theme, language and sidebar layout; shared with the header shortcuts.",
       "language": "Language",
-      "languageHint": "Takes effect immediately and is kept after a refresh."
+      "languageHint": "Takes effect immediately and is kept after a refresh.",
+      "resetAll": "Reset all to defaults"
     },
     "updates": {
       "title": "System updates",
@@ -361,6 +394,15 @@
     }
   },
   "system": {
+    "quick": {
+      "title": "Updates",
+      "tooltip": "Check for updates",
+      "upToDate": "Everything is up to date",
+      "availableCount": "{{count}} updates available",
+      "autoCheckHint": "Checked automatically every 5 minutes",
+      "more": "Full settings",
+      "applied": "Update task started"
+    },
     "check": "Check for updates",
     "dockerUnavailable": "Docker is unreachable: image details are unavailable. Make sure docker.sock is mounted.",
     "runningHint": "An update task is running; the status refreshes automatically.",
@@ -450,26 +492,17 @@
       "bulkAnnouncement": "{{count}} {{entity}} selected. Bulk actions toolbar is available."
     },
     "theme": {
-      "open": "Open theme settings",
-      "title": "Theme Settings",
-      "description": "Adjust the appearance and layout to suit your preferences.",
       "layout": "Layout",
       "layoutDesc": "Select layout style",
       "layoutHint": "Choose between default expanded, compact icon-only, or full layout mode",
       "sidebar": "Sidebar",
       "sidebarDesc": "Select sidebar style",
       "sidebarHint": "Choose between inset, floating, or standard sidebar layout",
-      "direction": "Direction",
-      "directionDesc": "Select site direction",
-      "directionHint": "Choose between left-to-right or right-to-left site direction",
       "theme": "Theme",
       "themeDesc": "Select theme preference",
       "themeHint": "Choose between system preference, light mode, or dark mode",
-      "reset": "Reset",
-      "resetAll": "Reset all settings to default values",
       "resetLayout": "Reset layout options to default",
       "resetSidebar": "Reset sidebar style to default",
-      "resetDirection": "Reset text direction to default",
       "resetTheme": "Reset theme preference to default",
       "selectOption": "Select {{option}}",
       "optionPreview": "{{option}} option preview",
@@ -480,9 +513,7 @@
       "inset": "Inset",
       "light": "Light",
       "dark": "Dark",
-      "system": "System",
-      "ltr": "Left to Right",
-      "rtl": "Right to Left"
+      "system": "System"
     },
     "command": {
       "title": "Command Palette",

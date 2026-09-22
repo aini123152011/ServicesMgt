@@ -13,6 +13,7 @@
     "refresh": "刷新",
     "loading": "加载中…",
     "notLoggedIn": "未登录",
+    "accountMenu": "账号菜单",
     "unknown": "未知",
     "signOut": "退出登录",
     "signOutTitle": "退出登录",
@@ -26,14 +27,13 @@
     "skipToMain": "跳到主要内容",
     "search": "搜索",
     "showPassword": "显示密码",
-    "hidePassword": "隐藏密码",
-    "account": "账号",
-    "settings": "设置"
+    "hidePassword": "隐藏密码"
   },
   "nav": {
     "groupServices": "服务管理",
-    "groupUsers": "用户管理",
-    "settings": "设置",
+    "groupOverview": "总览",
+    "groupSystem": "系统管理",
+    "audit": "审计日志",
     "home": "首页",
     "services": "服务列表",
     "users": "用户列表",
@@ -89,6 +89,38 @@
       "resetFailed": "复位失败"
     }
   },
+  "audit": {
+    "title": "审计日志",
+    "description": "谁在什么时候改了哪个服务或账号。仅记录操作与结果，不含配置值等敏感内容。",
+    "field": {
+      "time": "时间",
+      "actor": "操作者",
+      "action": "动作",
+      "service": "服务",
+      "detail": "详情"
+    },
+    "filter": {
+      "action": "按动作筛选",
+      "service": "按服务筛选",
+      "keyword": "按关键字筛选",
+      "keywordPlaceholder": "动作、服务、操作者或详情",
+      "allActions": "全部动作",
+      "allServices": "全部服务"
+    },
+    "action": {
+      "configUpdate": "修改配置",
+      "serviceStart": "启动服务",
+      "serviceStop": "停止服务",
+      "serviceRestart": "重启服务",
+      "userCreate": "创建用户",
+      "userUpdate": "修改用户",
+      "userDelete": "删除用户",
+      "systemUpdate": "平台更新"
+    },
+    "total": "共 {{count}} 条记录",
+    "empty": "当前筛选条件下没有记录",
+    "loadFailed": "审计日志加载失败"
+  },
   "settings": {
     "title": "设置",
     "description": "账号资料、界面外观与平台信息。",
@@ -132,7 +164,8 @@
       "title": "外观",
       "description": "主题、语言与侧边栏布局；与顶栏快捷切换共用同一份设置。",
       "language": "语言",
-      "languageHint": "切换后立即生效，刷新后保持所选语言。"
+      "languageHint": "切换后立即生效，刷新后保持所选语言。",
+      "resetAll": "全部恢复默认"
     },
     "updates": {
       "title": "系统更新",
@@ -361,6 +394,15 @@
     }
   },
   "system": {
+    "quick": {
+      "title": "更新",
+      "tooltip": "检查更新",
+      "upToDate": "所有目标都是最新版本",
+      "availableCount": "有 {{count}} 个可用更新",
+      "autoCheckHint": "每 5 分钟自动检查一次",
+      "more": "完整设置",
+      "applied": "更新任务已启动"
+    },
     "check": "检查更新",
     "dockerUnavailable": "Docker 不可达：无法读取镜像信息，请确认平台已挂载 docker.sock。",
     "runningHint": "更新任务执行中，页面会自动刷新状态。",
@@ -450,26 +492,17 @@
       "bulkAnnouncement": "已选中 {{count}} 个{{entity}}，批量操作工具栏可用。"
     },
     "theme": {
-      "open": "打开主题设置",
-      "title": "主题设置",
-      "description": "调整外观与布局，让它符合你的使用习惯。",
       "layout": "布局",
       "layoutDesc": "选择布局样式",
       "layoutHint": "在默认展开、紧凑图标与通栏模式之间选择",
       "sidebar": "侧边栏",
       "sidebarDesc": "选择侧边栏样式",
       "sidebarHint": "在内嵌、悬浮与标准侧边栏之间选择",
-      "direction": "文字方向",
-      "directionDesc": "选择页面文字方向",
-      "directionHint": "在从左到右与从右到左之间选择",
       "theme": "配色",
       "themeDesc": "选择主题偏好",
       "themeHint": "在跟随系统、浅色与深色之间选择",
-      "reset": "重置",
-      "resetAll": "全部恢复默认",
       "resetLayout": "恢复默认布局",
       "resetSidebar": "恢复默认侧边栏",
-      "resetDirection": "恢复默认方向",
       "resetTheme": "恢复默认配色",
       "selectOption": "选择{{option}}",
       "optionPreview": "{{option}} 选项预览",
@@ -480,9 +513,7 @@
       "inset": "内嵌",
       "light": "浅色",
       "dark": "深色",
-      "system": "跟随系统",
-      "ltr": "从左到右",
-      "rtl": "从右到左"
+      "system": "跟随系统"
     },
     "command": {
       "title": "命令面板",
