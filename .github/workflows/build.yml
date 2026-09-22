@@ -52,9 +52,11 @@ jobs:
       - uses: docker/setup-buildx-action@v3
 
       # 前端产物：平台镜像的 Dockerfile 会 COPY platform/frontend/dist
+      # pnpm 版本由 platform/frontend/package.json 的 packageManager 决定（与本地一致，
+      # 避免 CI 用 pnpm 9 而本地是 12 —— 工作区文件写法不同，曾因此报 packages field missing）
       - uses: pnpm/action-setup@v4
         with:
-          version: 9
+          package_json_file: platform/frontend/package.json
       - uses: actions/setup-node@v4
         with:
           node-version: 22

@@ -2,6 +2,48 @@
 
 > 三种部署形态，按需要选：**一键编排**（推荐，平台 + 11 服务一起）、**单服务独立部署**（在别的机器上
 > 只跑某一个服务）、**平台单独更新**（已有部署，只换平台镜像）。
+>
+> 镜像**默认从仓库拉取**（一次构建、处处拉取）；本地构建是开发态的可选路径。
+
+---
+
+## 零、镜像从哪来（先读这一节）
+
+镜像名统一为 `bmc-<服务>` / `bmc-platform`，从哪个仓库拉由 `.env` 决定：
+
+```dotenv
+IMAGE_PREFIX=docker.io/aini123152008/     # 完整仓库前缀，**含结尾斜杠**
+IMAGE_TAG=latest                          # 也可钉版本，如 0.6.2
+```
+
+| 仓库 | IMAGE_PREFIX | 目标机需要 |
+| --- | --- | --- |
+| Docker Hub | `docker.io/aini123152008/` | 公开仓库无需登录 |
+| GitHub GHCR | `ghcr.io/aini123152011/` | 包为私有，需 `docker login ghcr.io`（PAT 带 read:packages） |
+| 内网 GitLab | `<内网 GitLab 容器仓库>/` | 需 `docker login`（账号或部署令牌） |
+| 本地镜像（开发态） | 留空 | 配 `compose.build.yaml` 本地构建 |
+
+**发布镜像**（本地与 CI 同一个入口）：
+
+```bash
+# 推一家：凭据只走环境变量
+REGISTRIES="docker.io/aini123152008/" TAG=latest   DOCKERHUB_USER=<账号> DOCKERHUB_TOKEN=<访问令牌> bash scripts/publish.sh
+
+# 推多家（逗号分隔）
+REGISTRIES="ghcr.io/<账号>/,docker.io/<账号>/" TAG=0.6.2   GHCR_USER=<账号> GHCR_TOKEN=<带 write:packages 的 PAT>   DOCKERHUB_USER=<账号> DOCKERHUB_TOKEN=<令牌> bash scripts/publish.sh
+```
+
+CI 侧：GitHub Actions 在 **main 或手动触发**时发布（GHCR 用内置 token；配了
+`DOCKERHUB_USERNAME`/`DOCKERHUB_TOKEN` 两个仓库密钥就一并推 Docker Hub）；
+GitLab CI 在默认分支用内置 `CI_REGISTRY_*` 推自己的容器仓库。
+
+**本地构建**（开发态，改代码后想立刻验证时用）：
+
+```bash
+cd platform/frontend && pnpm build        # 平台镜像需要前端产物
+docker compose -f compose.yaml -f compose.build.yaml up -d --build
+# 或只构建服务镜像（支持换源加速）：BUILD_ARGS="APT_MIRROR=mirrors.aliyun.com" scripts/build.sh
+```
 
 ---
 
@@ -11,9 +53,11 @@
 等基础镜像（国内可给 Docker 配 registry 镜像加速）。
 
 ```bash
-cp .env.example .env      # 见下方「环境变量」
-docker compose up -d      # 全部拉起
-docker compose ps         # 确认都是 healthy
+cp .env.example .env          # 见下方「环境变量」；把 IMAGE_PREFIX 指向你要用的仓库
+docker login <仓库主机>        # 仅私有仓库需要（如 ghcr.io）
+docker compose pull           # 先把 12 个镜像拉下来（这一步不构建任何东西）
+docker compose up -d          # 全部拉起
+docker compose ps             # 确认都是 healthy
 ```
 
 平台入口 `http://<宿主>:18080`，首次登录用 `.env` 里的 `FIRST_SUPERUSER` / `FIRST_SUPERUSER_PASSWORD`。

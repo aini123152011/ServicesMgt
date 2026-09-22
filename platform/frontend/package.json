@@ -1,5 +1,6 @@
 {
   "name": "shadcn-admin",
+  "packageManager": "pnpm@12.4.1",
   "private": false,
   "version": "2.2.1",
   "type": "module",
