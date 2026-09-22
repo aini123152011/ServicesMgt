@@ -1,4 +1,19 @@
 {#- ganesha.conf.j2: NFS-Ganesha 配置文件模板 -#}
+{#
+  access_type 与 allowed_clients 的组合语义（实测结论，别按直觉改）：
+  ganesha 的 CLIENT 块是「对匹配客户端的覆盖」，**不是允许名单**——不匹配的客户端会落到
+  导出级的 Access_Type。所以只写 `CLIENT { Clients = <cidr> }` 而不动导出级 Access_Type，
+  等于对所有人开放（原实现就是这样，实测网段外照样挂得上）。
+  要真正限制网段：导出级写 `Access_Type = None;`，把权限放进 CLIENT 块。
+  为保持默认配置（allowed_clients=*）的渲染结果与既有种子文件一致，默认路径仍写导出级权限。
+-#}
+{% set effective_access = 'RO' if fault_mode == 'force_readonly' else access_type %}
+{% if fault_mode == 'access_denied' %}
+{#- 故障注入：故意限制为不存在的内部地址，使 BMC 挂载时被拒（EPERM/ENOENT）-#}
+{% set clients = '10.254.254.254/32' %}
+{% else %}
+{% set clients = allowed_clients %}
+{% endif %}
 NFS_CORE_PARAM {
     NFS_Port = 2049;
     {% if enable_v3 %}
@@ -17,11 +32,10 @@ EXPORT {
     Path = "{{ export_path }}";
     Pseudo = "{{ export_path }}";
 
-    {% if fault_mode == 'force_readonly' %}
-    # 故障注入：强制只读，拒绝一切写入操作
-    Access_Type = RO;
+    {% if clients == '*' %}
+    Access_Type = {{ effective_access }};
     {% else %}
-    Access_Type = {{ access_type }};
+    Access_Type = None;
     {% endif %}
 
     Squash = {{ squash }};
@@ -30,11 +44,9 @@ EXPORT {
         # NOTE: Clients 的值不能加引号——ganesha 4.3 的解析器会对 CLIENT 块做客户端
         # 列表校验，遇到双引号字符串报 "Expected a client, got a double quoted
         # string"，进而让整个 EXPORT 校验失败（导出不加载，客户端挂载报 ENOENT）。
-        {% if fault_mode == 'access_denied' %}
-        # 故障注入：故意限制为不存在的内部地址，使 BMC 挂载时触发 EPERM 拒绝访问
-        Clients = 10.254.254.254/32;
-        {% else %}
-        Clients = {{ allowed_clients }};
+        Clients = {{ clients }};
+        {% if clients != '*' %}
+        Access_Type = {{ effective_access }};
         {% endif %}
     }
 

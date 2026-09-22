@@ -245,6 +245,28 @@ def tftp_get(host: str, port: int, filename: str, timeout: float = 8) -> bytes:
         sock.close()
 
 
+def tftp_wrq_probe(host: str, port: int, filename: str, timeout: float = 8):
+    """发 TFTP 写请求（WRQ），返回 (opcode, errcode)。
+
+    opcode=5 表示被拒（errcode 见 TFTP 规范：2=access violation）；opcode=4 表示服务端
+    接受了写会话——此时主动发 ERROR 中止，避免在服务端留下半截文件。
+    """
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.settimeout(timeout)
+    try:
+        sock.sendto(b"\x00\x02" + filename.encode() + b"\x00" + b"octet" + b"\x00", (host, port))
+        data, addr = sock.recvfrom(1024)
+        opcode = struct.unpack("!H", data[:2])[0]
+        if opcode == 4:
+            # 已建立写会话：主动中止（code 0 = 未定义错误，仅用于收尾）
+            sock.sendto(b"\x00\x05\x00\x00" + b"abort" + b"\x00", addr)
+            return opcode, 0
+        errcode = struct.unpack("!H", data[2:4])[0] if opcode == 5 else 0
+        return opcode, errcode
+    finally:
+        sock.close()
+
+
 def _ber_len(n: int) -> bytes:
     if n < 0x80:
         return bytes([n])
@@ -762,6 +784,31 @@ def phase_tftpd(token: str) -> None:
     ok = wait_for(fetch, timeout=45, interval=4, label="TFTP 下载")
     record("8.2 可经 TFTP 下载文件且内容一致", bool(ok))
 
+    # 8.3/8.4 关闭「允许创建新文件」后，写请求必须被拒（用真实 WRQ 观察 ERROR 应答）
+    try:
+        st, applied, resp = put_config(token, "tftpd-hpa", {**CFG_TFTPD, "create_enabled": False})
+        record("8.3 关闭创建开关的配置提交并生效",
+               st == 200 and applied is True, f"status={st} {resp[:120]}")
+
+        def denied():
+            opcode, errcode = tftp_wrq_probe(HOST_ADDR, PORT_TFTP, "e2e_deny_probe.bin")
+            return (opcode, errcode) if opcode == 5 else None
+
+        got = wait_for(denied, timeout=45, interval=4, label="写请求被拒")
+        # 判定「被拒」即可：tftpd-hpa 关闭创建后对 WRQ 回 ERROR 码 1（file not found），
+        # 其它实现可能回 2（access violation）——码值属实现细节，故只断言 opcode=ERROR
+        record("8.4 写请求被拒（ERROR 应答）",
+               bool(got),
+               f"opcode={got[0]} errcode={got[1]}（1=file not found / 2=access violation）"
+               if got else "未收到 ERROR 应答")
+    finally:
+        # 复位：写请求必须重新被接受，否则后续阶段会踩到故障配置
+        put_config(token, "tftpd-hpa", CFG_TFTPD)
+        back = wait_for(lambda: (lambda r: r if r[0] == 4 else None)(
+            tftp_wrq_probe(HOST_ADDR, PORT_TFTP, "e2e_reset_probe.bin")),
+            timeout=45, interval=4, label="复位后写请求被接受")
+        record("8.5 复位正向配置后写请求重新被接受", bool(back))
+
 
 def phase_samba(token: str) -> None:
     """SMB 共享读写（AC11）。"""
@@ -780,6 +827,43 @@ def phase_samba(token: str) -> None:
 
     ok = wait_for(smb_roundtrip, timeout=90, interval=5, label="SMB 读写")
     record("9.2 平台下发的用户可读写共享目录", bool(ok), (ok or "").replace("\n", " ")[:160])
+
+    # 9.3 错误口令必须被拒（不改配置，用当前用户）
+    bad = sh("smbclient //127.0.0.1/bmc_share -U smbe2e%WrongPassword -c 'ls' 2>&1", timeout=45)
+    record("9.3 错误口令被拒（NT_STATUS_LOGON_FAILURE）",
+           "LOGON_FAILURE" in bad, bad.replace("\n", " ")[:160])
+
+    # 9.4/9.5 协议版本不匹配：服务端下限抬到 SMB3_11，客户端最高 SMB2 → 必须连不上
+    try:
+        st, applied, resp = put_config(token, "samba", {**CFG_SAMBA, "min_protocol": "SMB3_11"})
+        record("9.4 抬高协议下限的配置提交并生效",
+               st == 200 and applied is True, f"status={st} {resp[:120]}")
+
+        # 先确认服务已按新下限就绪（用满足下限的客户端），否则会把「重启期间的连接被拒」
+        # 误判成「协议被拒」——那样测试会假通过
+        def high_protocol_ok():
+            out = sh("smbclient //127.0.0.1/bmc_share -U smbe2e%ChangeMe123 -m SMB3_11 -c 'ls' 2>&1",
+                     timeout=45)
+            return out if "e2e_smb.txt" in out and "NT_STATUS" not in out else None
+
+        ready = wait_for(high_protocol_ok, timeout=90, interval=5, label="高协议客户端可用")
+        record("9.5 满足下限的客户端仍可正常访问", bool(ready))
+
+        def low_protocol_rejected():
+            out = sh("smbclient //127.0.0.1/bmc_share -U smbe2e%ChangeMe123 -m SMB2 -c 'ls' 2>&1",
+                     timeout=45)
+            if "CONNECTION_REFUSED" in out:
+                return None  # 服务还没起来，继续等（不算通过）
+            return out if ("NT_STATUS" in out or "protocol" in out.lower()) else None
+
+        got = wait_for(low_protocol_rejected, timeout=60, interval=5, label="低协议被拒")
+        record("9.6 客户端协议低于服务端下限时被拒",
+               bool(got), (got or "仍可连接（未按预期拒绝）").replace("\n", " ")[:160])
+    finally:
+        # 复位：恢复正向配置后必须重新可读写
+        put_config(token, "samba", CFG_SAMBA)
+        back = wait_for(smb_roundtrip, timeout=90, interval=5, label="复位后 SMB 读写")
+        record("9.7 复位正向配置后共享恢复可读写", bool(back))
 
 
 def phase_nfs(token: str) -> None:
@@ -802,6 +886,60 @@ def phase_nfs(token: str) -> None:
 
     ok = wait_for(mount_and_write, timeout=90, interval=6, label="NFS 挂载读写")
     record("10.2 可经 NFSv4 挂载并读写导出目录", bool(ok))
+
+    def mount_once(after: str = ""):
+        """挂载一次，可选在挂载成功后执行一段命令，返回 (是否挂上, 命令输出)。"""
+        sh(f"umount {mnt} 2>/dev/null; true")
+        sh(f"mount -t nfs -o vers=4.1,port={PORT_NFS},nolock 127.0.0.1:/data/nfs {mnt} 2>&1")
+        mounted = sh(f"mountpoint -q {mnt} && echo yes") == "yes"
+        out = sh(after) if (mounted and after) else ""
+        sh(f"umount {mnt} 2>/dev/null; true")
+        return mounted, out
+
+    try:
+        # 10.3/10.4 只读导出：挂得上但写不进去
+        st, applied, resp = put_config(token, "nfs-ganesha", {**CFG_NFS, "access_type": "RO"})
+        record("10.3 只读导出的配置提交并生效",
+               st == 200 and applied is True, f"status={st} {resp[:120]}")
+
+        def ro_blocks_write():
+            mounted, out = mount_once(f"printf x > {mnt}/e2e_ro_probe.txt 2>&1 || true")
+            if not mounted:
+                return None
+            return out if "ead-only" in out else None
+
+        got = wait_for(ro_blocks_write, timeout=60, interval=6, label="只读导出拒绝写入")
+        record("10.4 只读导出下写入被拒（Read-only file system）",
+               bool(got), (got or "写入未被拒绝").replace("\n", " ")[:160])
+
+        # 10.5/10.6 客户端地址不在允许网段内时必须挂载失败（经端口映射，
+        # ganesha 看到的客户端是网桥网关 172.17.0.1，故用不含它的网段）
+        st, applied, resp = put_config(token, "nfs-ganesha",
+                                       {**CFG_NFS, "allowed_clients": "10.99.0.0/16"})
+        record("10.5 收紧允许网段的配置提交并生效",
+               st == 200 and applied is True, f"status={st} {resp[:120]}")
+
+        def denied_mount():
+            mounted, _ = mount_once()
+            return True if not mounted else None
+
+        got = wait_for(denied_mount, timeout=60, interval=6, label="网段外挂载被拒")
+        record("10.6 允许网段外的客户端挂载被拒", bool(got),
+               "仍能挂载（未按预期拒绝）" if not got else "")
+
+        # 10.7 故障注入 access_denied：等价于把客户端限制到不存在的网段
+        st, applied, resp = put_config(token, "nfs-ganesha",
+                                       {**CFG_NFS, "fault_mode": "access_denied"})
+        record("10.7 故障注入 access_denied 配置提交并生效",
+               st == 200 and applied is True, f"status={st} {resp[:120]}")
+        got = wait_for(denied_mount, timeout=60, interval=6, label="故障注入后挂载被拒")
+        record("10.8 故障注入 access_denied 下挂载被拒", bool(got),
+               "仍能挂载（未按预期拒绝）" if not got else "")
+    finally:
+        # 复位：恢复正向配置后必须重新可读写
+        put_config(token, "nfs-ganesha", CFG_NFS)
+        back = wait_for(mount_and_write, timeout=90, interval=6, label="复位后 NFS 挂载读写")
+        record("10.9 复位正向配置后导出恢复可读写", bool(back))
 
 
 def phase_snmptrapd(token: str) -> None:
