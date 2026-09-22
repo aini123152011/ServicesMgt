@@ -739,8 +739,24 @@ def phase_webdav(token: str) -> None:
         http_put(f"http://127.0.0.1:{PORT_WEBDAV}/e2e_test.txt", content)), timeout=30, label="507 注入")
     record("5.5 故障注入：507 Insufficient Storage", bool(got), f"HTTP {got[0]}" if got else "未返回 507")
 
+    # 5.6/5.7 故障注入 method_not_allowed_405：写入方法返回 405，读方法不受影响
+    put_config(token, "webdav", {**CFG_WEBDAV, "fault_mode": "method_not_allowed_405"})
+    got = wait_for(lambda: (lambda r: r if r[0] == 405 else None)(
+        http_put(f"http://127.0.0.1:{PORT_WEBDAV}/e2e_test.txt", content)), timeout=30, label="405 注入")
+    read_code = http_get(f"http://127.0.0.1:{PORT_WEBDAV}/e2e_test.txt")[0]
+    record("5.6 故障注入：写入方法返回 405 Method Not Allowed",
+           bool(got) and read_code != 405,
+           f"PUT={got[0] if got else '非 405'} GET={read_code}")
+
+    # 5.8/5.9 故障注入 auth_reject：即使带正确凭据也一律 401
+    put_config(token, "webdav", {**CFG_WEBDAV, "auth_enabled": True, "fault_mode": "auth_reject"})
+    got = wait_for(lambda: (lambda r: r if r[0] == 401 else None)(
+        http_get(f"http://127.0.0.1:{PORT_WEBDAV}/e2e_test.txt", auth=("bmc", "ChangeMe123"))),
+        timeout=30, label="401 注入")
+    record("5.7 故障注入：正确凭据也被拒（401）", bool(got), f"HTTP {got[0]}" if got else "未被拒")
+
     st, applied, _ = put_config(token, "webdav", CFG_WEBDAV)
-    record("5.6 复位正向配置生效", st == 200 and applied is True, f"status={st}")
+    record("5.8 复位正向配置生效", st == 200 and applied is True, f"status={st}")
     time.sleep(4)
 
 
@@ -792,8 +808,44 @@ def phase_sftp(token: str) -> None:
     ok = wait_for(expect_reject, timeout=60, interval=5, label="认证拒绝")
     record("6.3 故障注入：认证被拒", bool(ok))
 
+    # 6.4–6.6 故障注入 readonly_reject：登录正常、上传被拒、读取仍可用
+    put_config(token, "sftp", {**CFG_SFTP, "fault_mode": "readonly_reject"})
+
+    def readonly_probe():
+        client = paramiko.SSHClient()
+        client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        result = {}
+        try:
+            client.connect("127.0.0.1", port=PORT_SFTP, username="bmce2e",
+                           password="ChangeMe123", timeout=12, allow_agent=False,
+                           look_for_keys=False)
+            sftp = client.open_sftp()
+            try:
+                sftp.putfo(io.BytesIO(b"RO_PROBE"), "data/e2e_ro_probe.txt")
+                result["upload"] = "accepted"
+            except Exception:  # noqa: BLE001
+                result["upload"] = "rejected"
+            try:
+                with sftp.open("data/e2e_sftp.txt") as fh:
+                    result["read"] = f"{len(fh.read())}B"
+            except Exception:  # noqa: BLE001
+                result["read"] = "failed"
+            sftp.close()
+            client.close()
+        except Exception:  # noqa: BLE001
+            client.close()
+            return None
+        # 上传必须被拒、读取必须仍可用（只读而非不可用）
+        return result if result.get("upload") == "rejected" and result.get("read", "failed") != "failed" else None
+
+    got = wait_for(readonly_probe, timeout=60, interval=5, label="只读拒绝")
+    record("6.4 故障注入 readonly_reject：上传被拒但读取仍可用",
+           bool(got), str(got) if got else "上传未被拒或读取也失败")
+
     st, applied, _ = put_config(token, "sftp", CFG_SFTP)
-    record("6.4 复位正向配置生效", st == 200 and applied is True, f"status={st}")
+    record("6.5 复位正向配置生效", st == 200 and applied is True, f"status={st}")
+    ok = wait_for(try_login, timeout=90, interval=5, label="复位后可读写")
+    record("6.6 复位后恢复可读写", bool(ok))
 
 
 def phase_vsftpd(token: str) -> None:
