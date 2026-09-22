@@ -36,5 +36,7 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
     CMD chronyc tracking || exit 1
 
 # 前台运行（-n 不后台化），日志走 stderr 由 docker logs 捕获；
-# exec 让 chronyd 成为 1 号进程，docker stop 的 SIGTERM 直达进程
+# entrypoint 是 1 号进程并在监督循环里拉起 chronyd：故障注入的时间偏移只能随进程启动
+# 注入（LD_PRELOAD），偏移变更时 /reload.sh 结束 chronyd，循环随即带新偏移重启它，
+# 容器本身不重启（避免 Docker 重启退避，以及重启期间 docker exec 被 409 拒绝）。
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
