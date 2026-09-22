@@ -129,12 +129,21 @@ class ServiceSummary(SQLModel):
     fault_mode: str | None = None
 
 
+# manifest.usage 的单条外部用法提示；三字段形状由 registry._check_manifest 校验
+class ServiceUsageEntry(SQLModel):
+    target: str
+    summary: str
+    command: str
+
+
 # 服务详情中的 manifest：在概要之上补充配置目录与配置文件清单
 class ServiceManifest(ServiceSummary):
     config_dir: str
     config_files: list[str]
     # 容器内数据目录；None=服务未声明数据卷（前端据此隐藏数据浏览入口）
     data_dir: str | None = None
+    # 外部设备/客户端怎么接入本服务；None=未声明（前端不渲染该卡片）
+    usage: list[ServiceUsageEntry] | None = None
 
 
 # 服务当前配置状态：从未保存过配置时三个字段均为 None

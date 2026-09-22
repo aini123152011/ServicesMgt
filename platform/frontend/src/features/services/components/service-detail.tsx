@@ -39,6 +39,7 @@ import { ServiceConfigForm } from './service-config-form'
 import { ServiceDataExplorer } from './service-data-explorer'
 import { ServiceLogsDialog } from './service-logs-dialog'
 import { ServiceStatusDot } from './service-status-dot'
+import { ServiceUsageCard } from './service-usage-card'
 
 type ServiceDetailProps = {
   /** 服务名（路由参数，与 manifest.yaml 的 name 一致） */
@@ -186,6 +187,12 @@ export function ServiceDetail({ name }: ServiceDetailProps) {
             )
           })}
         </div>
+
+        {/* 外部使用方式：测试人员最先需要「怎么连」，放在配置卡片之前 */}
+        <ServiceUsageCard
+          entries={manifest.usage}
+          port={manifest.ports[0]?.port}
+        />
 
         <Card>
           <CardHeader>

@@ -15,3 +15,10 @@ ports:
     description: SFTP 服务端口
 reload_mode: restart          # sshd 收到 SIGHUP 虽会重读配置，但用户变更需 entrypoint 重建账号，统一重启进程生效
 data_dir: /data               # 数据卷在容器内的挂载点：各用户 chroot 根目录（root_dir）
+usage:                        # 详情页「外部使用方式」卡片内容；command 里的 {{host}}/{{port}} 由前端按当前页面替换
+  - target: Linux
+    summary: 用 SFTP 客户端登录（账号取本服务 users 清单，默认 bmcadmin；chroot 后只能读写自己的 data/ 子目录）
+    command: sftp -P {{port}} bmcadmin@{{host}}
+  - target: Linux
+    summary: 非交互式上传固件到自己的 data/ 子目录（scp 走同一 sshd 端口，BMC 侧无 SFTP 能力）
+    command: scp -P {{port}} ./firmware.bin bmcadmin@{{host}}:data/

@@ -15,3 +15,13 @@ ports:
     protocol: udp
     description: NTP 服务端口
 reload_mode: hot              # hot = /reload.sh 不中断生效; restart = 重启进程
+usage:                        # 详情页「外部使用方式」卡片内容；command 里的 {{host}}/{{port}} 由前端按当前页面替换
+  - target: BMC
+    summary: 把 BMC 的 NTP 主服务器指向本服务（Redfish NtpService；PATCH 必须带 If-Match，否则 428）
+    command: |
+      BMC=192.0.2.10   # 换成被测 BMC 地址，Manager id 见 /redfish/v1/Managers
+      ETAG=$(curl -sk -u "$BMC_USER:$BMC_PASSWORD" -D - -o /dev/null "https://$BMC/redfish/v1/Managers/0/NtpService" | grep -i '^etag:' | tr -d '\r' | cut -d' ' -f2-)
+      curl -sk -u "$BMC_USER:$BMC_PASSWORD" -X PATCH -H "If-Match: $ETAG" -H 'Content-Type: application/json' -d '{"NtpServer1":"{{host}}"}' "https://$BMC/redfish/v1/Managers/0/NtpService"
+  - target: Linux
+    summary: 用 NTP 客户端向本服务查询授时（无 ntpdate 时可改用 sntp；stratum 10 表示上游失联仍对外服务）
+    command: ntpdate -q {{host}}

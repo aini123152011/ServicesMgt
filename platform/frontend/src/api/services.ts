@@ -46,10 +46,19 @@ export interface ServiceField {
   pem?: boolean
 }
 
+/** manifest.yaml 的 usage 条目：外部设备/客户端怎么接入本服务 */
+export interface ServiceUsageEntry {
+  target: string
+  summary: string
+  command: string
+}
+
 interface ServiceManifest extends ServiceSummary {
   config_dir: string
   config_files: string[]
   data_dir?: string | null
+  /** 外部使用方式提示；未声明的服务不渲染该卡片 */
+  usage?: ServiceUsageEntry[] | null
 }
 
 interface ServiceSchema {

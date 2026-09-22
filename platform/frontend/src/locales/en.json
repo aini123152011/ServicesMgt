@@ -294,6 +294,12 @@
       "hideSecret": "Hide content",
       "savedNotApplied": "Saved. The container is not running, so it takes effect after the next start."
     },
+    "usage": {
+      "title": "External usage",
+      "description": "Copy-paste examples that point a device under test or a client at this service. The host name is substituted with the address you are browsing from and the port with this service's first port; use the published port instead when the host remaps ports.",
+      "copy": "Copy",
+      "copySuccess": "Copied to clipboard"
+    },
     "validation": {
       "boolean": "Must be a boolean",
       "required": "This field is required",

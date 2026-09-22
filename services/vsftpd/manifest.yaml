@@ -21,3 +21,15 @@ ports:
     description: 被动模式数据端口（schema 默认范围上界）
 reload_mode: restart          # vsftpd 不支持 SIGHUP 重读配置，重启进程生效
 data_dir: /data               # 数据卷在容器内的挂载点：各本地用户家目录的父目录
+usage:                        # 详情页「外部使用方式」卡片内容；command 里的 {{host}}/{{port}} 由前端按当前页面替换
+  - target: Linux
+    summary: 用 FTP 客户端登录并列出家目录（账号取本服务 local_users 清单，默认 bmcuser；BMC 侧无 FTP 能力）
+    command: curl -u bmcuser:ChangeMe123 ftp://{{host}}:{{port}}/ --list-only
+  - target: Linux
+    summary: 上传固件验证写权限（write_enabled 关闭或 write_deny_550 模式下返回 550）
+    command: curl -u bmcuser:ChangeMe123 -T ./firmware.bin ftp://{{host}}:{{port}}/firmware.bin
+  - target: 任意客户端
+    summary: 经网关/NAT 访问时必须放行被动模式数据端口段 40000-40100，否则登录成功但传输挂起
+    command: |
+      # 放行被动模式数据端口段（firewalld 示例）：
+      firewall-cmd --add-port=40000-40100/tcp

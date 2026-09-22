@@ -132,6 +132,23 @@ def _check_manifest(manifest: dict[str, Any], dir_name: str) -> list[str]:
     data_dir = manifest.get("data_dir")
     if data_dir is not None and (not isinstance(data_dir, str) or not data_dir):
         problems.append("data_dir must be a non-empty string or null")
+    # usage 同样是可选字段：不是每个服务都有对外用法；存在时每条必须是三个非空字符串。
+    # 形状不对只影响详情页那张卡片，但静默忽略会让作者以为写了就有——按现有机制记问题。
+    usage = manifest.get("usage")
+    if usage is not None:
+        if not isinstance(usage, list):
+            problems.append("usage must be a list")
+        else:
+            for index, entry in enumerate(usage):
+                if not isinstance(entry, dict):
+                    problems.append(f"usage[{index}] must be an object")
+                    continue
+                for key in ("target", "summary", "command"):
+                    value = entry.get(key)
+                    if not isinstance(value, str) or not value.strip():
+                        problems.append(
+                            f"usage[{index}].{key} must be a non-empty string"
+                        )
     return problems
 
 

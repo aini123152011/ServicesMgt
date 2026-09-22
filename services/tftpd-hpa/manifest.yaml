@@ -14,3 +14,14 @@ ports:
     description: TFTP 服务端口
 reload_mode: restart          # in.tftpd 无配置热加载能力，参数仅在启动时解析，重启进程生效
 data_dir: /srv/tftp           # 数据卷在容器内的挂载点：TFTP 服务根目录（root_dir）
+usage:                        # 详情页「外部使用方式」卡片内容；command 里的 {{host}}/{{port}} 由前端按当前页面替换
+  - target: BMC
+    summary: 让 BMC 从本服务 TFTP 取固件/配置文件（固件更新、配置导入处填 TFTP 地址；本示例不触发实际刷写）
+    command: |
+      # BMC Web → 固件更新 / 配置导入（TFTP）：
+      服务器 {{host}}    端口 {{port}}    文件名 firmware.bin
+  - target: Linux
+    summary: 用 tftp-hpa 客户端上传再取回，验证读写（服务根目录即数据卷挂载点 /srv/tftp）
+    command: |
+      tftp {{host}} -c put ./firmware.bin firmware.bin
+      tftp {{host}} -c get firmware.bin firmware-downloaded.bin

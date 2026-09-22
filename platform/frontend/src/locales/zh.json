@@ -294,6 +294,12 @@
       "hideSecret": "隐藏内容",
       "savedNotApplied": "已保存，容器未运行，启动后生效"
     },
+    "usage": {
+      "title": "外部使用方式",
+      "description": "把被测设备或客户端指到本服务的可复制示例。命令里的主机名已按当前访问地址替换、端口已按本服务首个端口替换；宿主机做过端口映射时请改成实际发布端口。",
+      "copy": "复制",
+      "copySuccess": "已复制到剪贴板"
+    },
     "validation": {
       "boolean": "必须为布尔值",
       "required": "此项为必填",

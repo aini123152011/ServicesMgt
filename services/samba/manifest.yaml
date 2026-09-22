@@ -17,3 +17,10 @@ ports:
     description: NetBIOS 会话端口
 reload_mode: restart          # 用户账号同步与全局协议参数需重启 smbd 进程以完整生效
 data_dir: /data/samba         # 数据卷在容器内的挂载点：Samba 共享物理路径
+usage:                        # 详情页「外部使用方式」卡片内容；command 里的 {{host}}/{{port}} 由前端按当前页面替换
+  - target: BMC
+    summary: 在 BMC 虚拟介质里挂载本服务的 CIFS 共享（Redfish VirtualMedia 的 Image 字段；共享名即本服务 share_name）
+    command: cifs://{{host}}/bmc_share
+  - target: Linux
+    summary: 用 smbclient 登录并列出共享内容（账号取本服务 username/password，默认 smbuser）
+    command: smbclient //{{host}}/bmc_share -p {{port}} -U smbuser

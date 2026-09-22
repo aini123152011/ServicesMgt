@@ -8,6 +8,7 @@
 
 import json
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -38,10 +39,15 @@ ALLOWED_TYPES = {"string", "integer", "boolean", "enum", "list", "text"}
 ALLOWED_GROUPS = {"base", "fault"}
 
 
-def _schemas() -> list[tuple[str, dict]]:
+def _schemas() -> list[tuple[str, dict[str, Any]]]:
     out = []
     for schema_path in sorted(SERVICES_DIR.glob("*/schema.json")):
-        out.append((schema_path.parent.name, json.loads(schema_path.read_text(encoding="utf-8"))))
+        out.append(
+            (
+                schema_path.parent.name,
+                json.loads(schema_path.read_text(encoding="utf-8")),
+            )
+        )
     return out
 
 
@@ -54,7 +60,7 @@ def test_schemas_discovered() -> None:
 
 
 @pytest.mark.parametrize("service,schema", SCHEMAS, ids=[name for name, _ in SCHEMAS])
-def test_field_keys_are_known(service: str, schema: dict) -> None:
+def test_field_keys_are_known(service: str, schema: dict[str, Any]) -> None:
     """字段键必须在允许集合内：多余的键会被静默忽略，等于把内容写进了没人读的地方。"""
     unknown: dict[str, list[str]] = {}
     for field in schema["fields"]:
@@ -65,27 +71,31 @@ def test_field_keys_are_known(service: str, schema: dict) -> None:
 
 
 @pytest.mark.parametrize("service,schema", SCHEMAS, ids=[name for name, _ in SCHEMAS])
-def test_every_field_has_label(service: str, schema: dict) -> None:
+def test_every_field_has_label(service: str, schema: dict[str, Any]) -> None:
     """每个字段都必须有非空 label —— 否则详情页上只剩一个控件与必填星号。"""
     missing = [f["name"] for f in schema["fields"] if not f.get("label")]
     assert not missing, f"{service} 缺少 label 的字段: {missing}"
 
 
 @pytest.mark.parametrize("service,schema", SCHEMAS, ids=[name for name, _ in SCHEMAS])
-def test_field_types_and_groups_are_valid(service: str, schema: dict) -> None:
+def test_field_types_and_groups_are_valid(service: str, schema: dict[str, Any]) -> None:
     """类型与分组取值受前端控件分支约束；enum 必须有 options。"""
     for field in schema["fields"]:
-        assert field["type"] in ALLOWED_TYPES, f"{service}.{field['name']} 类型非法: {field['type']}"
+        assert field["type"] in ALLOWED_TYPES, (
+            f"{service}.{field['name']} 类型非法: {field['type']}"
+        )
         assert field.get("group", "base") in ALLOWED_GROUPS, (
             f"{service}.{field['name']} 分组非法: {field.get('group')}"
         )
         if field["type"] == "enum":
-            assert field.get("options"), f"{service}.{field['name']} 是 enum 但没有 options"
+            assert field.get("options"), (
+                f"{service}.{field['name']} 是 enum 但没有 options"
+            )
 
 
 @pytest.mark.parametrize("service,schema", SCHEMAS, ids=[name for name, _ in SCHEMAS])
 def test_fault_mode_leads_fault_group_and_starts_with_none(
-    service: str, schema: dict
+    service: str, schema: dict[str, Any]
 ) -> None:
     """故障注入模式必须是 fault 组的**第一个**字段，且首项为 none。
 

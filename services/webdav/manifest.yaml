@@ -15,3 +15,13 @@ ports:
     description: WebDAV 服务端口
 reload_mode: restart          # 端口/根目录等指令无法经 SIGUSR1 热生效，重启进程保证配置整体一致
 data_dir: /var/lib/dav        # 数据卷在容器内的挂载点：DAV 根目录（root_dir）与文件锁数据库
+usage:                        # 详情页「外部使用方式」卡片内容；command 里的 {{host}}/{{port}} 由前端按当前页面替换
+  - target: 浏览器
+    summary: 浏览器打开本服务根路径（启用 Basic 认证时用本服务 users 清单账号登录，默认 bmc；BMC 侧无 WebDAV 能力）
+    command: http://{{host}}:{{port}}/
+  - target: Linux
+    summary: 用 curl 上传固件（read_only 开启或 method_not_allowed_405 模式下返回 405）
+    command: curl -u bmc:ChangeMe123 -T ./firmware.bin http://{{host}}:{{port}}/firmware.bin
+  - target: Linux
+    summary: 用 curl 下载文件（-O 按 URL 末段命名保存）
+    command: curl -u bmc:ChangeMe123 -O http://{{host}}:{{port}}/firmware.bin

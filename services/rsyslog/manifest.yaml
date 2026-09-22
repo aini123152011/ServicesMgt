@@ -17,3 +17,15 @@ ports:
     description: Syslog TCP 接收端口
 reload_mode: restart           # rsyslogd 收到 SIGHUP 只会重开输出文件、不重读配置，故重启进程生效
 data_dir: /var/log/bmc         # 数据卷在容器内的挂载点（本批新增的可选契约字段）
+usage:                        # 详情页「外部使用方式」卡片内容；command 里的 {{host}}/{{port}} 由前端按当前页面替换
+  - target: BMC
+    summary: 在 BMC 上把远程 Syslog 指向本服务（Redfish Managers/{id}/SyslogService，或 BMC Web 的日志/告警设置）
+    command: |
+      # BMC Web → 设置 → 日志与告警 → 远程 Syslog：
+      服务器 {{host}}    端口 {{port}}    传输 UDP
+  - target: Linux
+    summary: 用 logger 发一条测试日志（UDP 发到本服务首个端口；改过 listen_port 时以本服务配置为准）
+    command: logger -n {{host}} -P {{port}} -d "bmc-syslog-test"
+  - target: Linux
+    summary: 在目标机上确认日志按「日期目录/来源IP.log」落盘（容器内归档根 /var/log/bmc）
+    command: docker exec bmc-rsyslog ls -l /var/log/bmc/$(date +%F)/

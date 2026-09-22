@@ -16,3 +16,13 @@ ports:
     description: rpcbind 端口
 reload_mode: restart          # NFS-Ganesha 主导出改动需重启服务进程确保缓存与连接状态一致
 data_dir: /data/nfs           # 数据卷在容器内的挂载点：NFS 导出的物理目录
+usage:                        # 详情页「外部使用方式」卡片内容；command 里的 {{host}}/{{port}} 由前端按当前页面替换
+  - target: BMC
+    summary: 在 BMC 虚拟介质里挂载本服务的 NFS 导出（Redfish VirtualMedia 的 Image 字段；路径即本服务 export_path）
+    command: nfs://{{host}}/data/nfs
+  - target: Linux
+    summary: 用 NFSv3 挂载本服务导出（部分 BMC 仅支持 v3；导出目录即数据卷挂载点）
+    command: mount -t nfs -o vers=3,nolock {{host}}:/data/nfs /mnt
+  - target: Linux
+    summary: 用 NFSv4 挂载并读取导出目录（本服务不注册 mountd，showmount 会报 Program not registered，属预期）
+    command: mkdir -p /mnt/bmc-nfs && mount -t nfs4 {{host}}:/data/nfs /mnt/bmc-nfs && ls /mnt/bmc-nfs

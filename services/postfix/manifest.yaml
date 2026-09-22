@@ -14,3 +14,12 @@ ports:
     description: SMTP 服务端口
 reload_mode: restart           # inet_interfaces 等参数与 master.cf 结构变更官方要求重启生效
 data_dir: /var/spool/postfix   # 数据卷在容器内的挂载点（本批新增的可选契约字段）
+usage:                        # 详情页「外部使用方式」卡片内容；command 里的 {{host}}/{{port}} 由前端按当前页面替换
+  - target: BMC
+    summary: 在 BMC 上把告警邮件的中继服务器指向本服务（Redfish Managers/{id}/SmtpService，或 BMC Web 的邮件告警设置）
+    command: |
+      # BMC Web → 设置 → 告警/邮件通知：
+      SMTP 服务器 {{host}}    端口 {{port}}    发件地址 bmc@bmc-mail.local    认证 无
+  - target: Linux
+    summary: 用 SMTP 客户端验证本服务可中继（来源须在本服务可信网段 mynetworks 内，否则 RCPT 被拒）
+    command: curl -sv smtp://{{host}}:{{port}} --mail-from bmc@test.local --mail-rcpt test@example.com
