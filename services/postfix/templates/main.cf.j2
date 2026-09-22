@@ -44,8 +44,13 @@ smtpd_client_restrictions = reject
 # 故障注入：临时拒收（451 Temporary failure, try again later）
 smtpd_client_restrictions = defer 451 4.3.0 Temporary failure, please retry later
 {% elif fault_mode == 'force_tls' %}
-# 故障注入：强制要求 TLS 加密，拒绝明文发信
+# 故障注入：强制要求 TLS 加密，拒绝明文发信。
+# 必须同时给出证书路径：只写 encrypt 而不配证书时 postfix 会广告 STARTTLS 但握手直接失败
+# （454 4.7.0 TLS not available due to local problem），结果明文被拒、TLS 也发不进来——
+# 服务对任何客户端都不可用（实测踩到）。镜像里已有 Debian 的 snakeoil 自签证书。
 smtpd_tls_security_level = encrypt
+smtpd_tls_cert_file = /etc/ssl/certs/ssl-cert-snakeoil.pem
+smtpd_tls_key_file = /etc/ssl/private/ssl-cert-snakeoil.key
 {% elif fault_mode == 'tarpit_delay' %}
 # 故障注入：Tarpit 陷阱极慢响应
 smtpd_error_sleep_time = {{ tarpit_delay_seconds | default(20) }}s

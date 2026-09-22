@@ -348,6 +348,35 @@ def smtp_send(host: str, port: int, sender: str, rcpt: str, marker: str, timeout
         return False, f"{type(e).__name__}: {e}"
 
 
+def smtp_send_starttls(host: str, port: int, sender: str, rcpt: str, marker: str,
+                       timeout: float = 20):
+    """经 STARTTLS 投递一封测试邮件，返回 (是否 250 接受, 会话记录)。
+
+    用于验证 force_tls 故障模式：该模式下明文必须被拒、TLS 客户端必须仍能投递。
+    """
+    import smtplib
+    import ssl as _ssl
+
+    body = f"Subject: BMC E2E TLS {marker}\r\nFrom: {sender}\r\nTo: {rcpt}\r\n\r\n{marker}\r\n"
+    try:
+        with smtplib.SMTP(host, port, timeout=timeout) as s:
+            s.ehlo("bmc-e2e")
+            code, resp = s.starttls(context=_ssl._create_unverified_context())
+            if code != 220:
+                return False, f"STARTTLS 被拒: {code} {resp}"
+            s.ehlo("bmc-e2e")
+            code, resp = s.mail(sender)
+            if code != 250:
+                return False, f"MAIL 被拒: {code} {resp}"
+            code, resp = s.rcpt(rcpt)
+            if code != 250:
+                return False, f"RCPT 被拒: {code} {resp}"
+            code, resp = s.data(body)
+            return code == 250, f"DATA: {code} {resp[:120]}"
+    except Exception as e:  # noqa: BLE001
+        return False, f"{type(e).__name__}: {e}"
+
+
 def http_get(url: str, timeout: int = 15, insecure: bool = False, auth: tuple | None = None):
     """GET 请求，返回 (status, body 文本)。"""
     req = urllib.request.Request(url, method="GET")
@@ -1003,8 +1032,35 @@ def phase_postfix(token: str) -> None:
                                  "root@bmc-mail.local", f"{marker}_deny")
     record("12.6 故障注入：邮件被 554 永久拒收", not accepted and "554" in detail, detail)
 
+    # 12.7–12.9 故障注入 force_tls：明文被拒、TLS 客户端仍可投递。
+    # 注意这条故障模式曾经是坏的——模板只写 encrypt 不配证书时，postfix 会广告 STARTTLS
+    # 但握手报 454 TLS not available，结果明文和 TLS 都发不进来（服务对任何客户端不可用）。
+    st, applied, _ = put_config(token, "postfix",
+                                {**CFG_POSTFIX_RELAY, "fault_mode": "force_tls"})
+    record("12.7 force_tls 故障模式配置提交并生效",
+           st == 200 and applied is True, f"status={st}")
+    time.sleep(5)
+
+    def plaintext_rejected():
+        accepted, detail = smtp_send("127.0.0.1", PORT_SMTP, "bmc-e2e@bmc-mail.local",
+                                     "root@bmc-mail.local", f"{marker}_plain")
+        return detail if (not accepted and "STARTTLS" in detail) else None
+
+    got = wait_for(plaintext_rejected, timeout=60, interval=5, label="明文被拒")
+    record("12.8 force_tls 下明文投递被拒（要求先 STARTTLS）",
+           bool(got), (got or "明文未被拒").replace("\n", " ")[:140])
+
+    def tls_accepted():
+        ok_tls, detail = smtp_send_starttls("127.0.0.1", PORT_SMTP, "bmc-e2e@bmc-mail.local",
+                                            "root@bmc-mail.local", f"{marker}_tls")
+        return detail if ok_tls else None
+
+    got_tls = wait_for(tls_accepted, timeout=60, interval=5, label="STARTTLS 投递")
+    record("12.9 force_tls 下 STARTTLS 投递成功（TLS 真的可用）",
+           bool(got_tls), (got_tls or "STARTTLS 投递失败").replace("\n", " ")[:140])
+
     st, applied, _ = put_config(token, "postfix", CFG_POSTFIX)
-    record("12.7 复位正向配置生效", st == 200 and applied is True, f"status={st}")
+    record("12.10 复位正向配置生效", st == 200 and applied is True, f"status={st}")
 
 
 def phase_secrets(token: str) -> None:
