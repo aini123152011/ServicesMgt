@@ -25,7 +25,8 @@ env:
 jobs:
   validate:
     name: build validation (no push)
-    if: github.ref != 'refs/heads/main'
+    # 手动触发是「要发布」，别再白跑一遍校验；其余非 main 的推送/PR 才做校验
+    if: github.event_name != 'workflow_dispatch' && github.ref != 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
