@@ -7,7 +7,7 @@
       "default": 8080,
       "min": 1,
       "max": 65535,
-      "help": "HTTP 监听端口；修改后需同步调整宿主机端口映射",
+      "help": "HTTP 监听端口；修改后需同步调整宿主机端口映射。注意：本镜像的 Apache 在容器里设 IPV6_V6ONLY 会失败（AH00069），故 WebDAV 只监听 IPv4（已知限制，见验证矩阵）",
       "group": "base"
     },
     {
@@ -22,7 +22,9 @@
       "name": "users",
       "type": "list",
       "label": "WebDAV 用户清单",
-      "default": ["bmc:ChangeMe123"],
+      "default": [
+        "bmc:ChangeMe123"
+      ],
       "required": true,
       "help": "每项格式 \"用户名:密码\"：用户名以小写字母或下划线开头（3-32 位，可含数字、中划线）；密码至少 6 位且不含冒号。entrypoint 据此生成 AuthUserFile",
       "item_pattern": "^[a-z_][a-z0-9_-]{2,31}:[^:]{6,128}$",
@@ -69,7 +71,13 @@
       "name": "fault_mode",
       "type": "enum",
       "label": "BMC 故障注入模式",
-      "options": ["none", "lock_conflict_423", "quota_exceeded_507", "method_not_allowed_405", "auth_reject"],
+      "options": [
+        "none",
+        "lock_conflict_423",
+        "quota_exceeded_507",
+        "method_not_allowed_405",
+        "auth_reject"
+      ],
       "default": "none",
       "help": "故障注入：lock_conflict_423 模拟文件被锁定返回 423；quota_exceeded_507 模拟磁盘满返回 507；method_not_allowed_405 模拟写入方法未开放返回 405；auth_reject 拒绝所有身份认证",
       "group": "fault"

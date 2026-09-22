@@ -200,18 +200,20 @@ services:
 networks:
   # 每张网络显式指定 /24 网段：宿主机上已有 30 张网络，Docker 的默认地址池（/16 粒度）已被占满，
   # 不指定会报 "all predefined address pools have been fully subnetted"。172.30.0.0/16 在本机未被占用。
-  bmc-platform-isolated-net: { driver: bridge, ipam: { config: [{ subnet: 172.30.0.0/24 }] } }
-  chrony-net: { driver: bridge, ipam: { config: [{ subnet: 172.30.1.0/24 }] } }
-  nginx-net: { driver: bridge, ipam: { config: [{ subnet: 172.30.2.0/24 }] } }
-  rsyslog-net: { driver: bridge, ipam: { config: [{ subnet: 172.30.3.0/24 }] } }
-  webdav-net: { driver: bridge, ipam: { config: [{ subnet: 172.30.4.0/24 }] } }
-  sftp-net: { driver: bridge, ipam: { config: [{ subnet: 172.30.5.0/24 }] } }
-  vsftpd-net: { driver: bridge, ipam: { config: [{ subnet: 172.30.6.0/24 }] } }
-  tftpd-net: { driver: bridge, ipam: { config: [{ subnet: 172.30.7.0/24 }] } }
-  samba-net: { driver: bridge, ipam: { config: [{ subnet: 172.30.8.0/24 }] } }
-  nfs-net: { driver: bridge, ipam: { config: [{ subnet: 172.30.9.0/24 }] } }
-  snmptrapd-net: { driver: bridge, ipam: { config: [{ subnet: 172.30.10.0/24 }] } }
-  postfix-net: { driver: bridge, ipam: { config: [{ subnet: 172.30.11.0/24 }] } }
+  # 每张网络同时启用 IPv6（fd00:30:<n>::/64，ULA）：宿主机无全局 IPv6，容器网络内用 ULA 验证
+  # IPv6 客户端行为；enable_ipv6 是网络级开关，不需要改 Docker daemon。
+  bmc-platform-isolated-net: { driver: bridge, enable_ipv6: true, ipam: { config: [{ subnet: 172.30.0.0/24 }, { subnet: fd00:30:0::/64 }] } }
+  chrony-net: { driver: bridge, enable_ipv6: true, ipam: { config: [{ subnet: 172.30.1.0/24 }, { subnet: fd00:30:1::/64 }] } }
+  nginx-net: { driver: bridge, enable_ipv6: true, ipam: { config: [{ subnet: 172.30.2.0/24 }, { subnet: fd00:30:2::/64 }] } }
+  rsyslog-net: { driver: bridge, enable_ipv6: true, ipam: { config: [{ subnet: 172.30.3.0/24 }, { subnet: fd00:30:3::/64 }] } }
+  webdav-net: { driver: bridge, enable_ipv6: true, ipam: { config: [{ subnet: 172.30.4.0/24 }, { subnet: fd00:30:4::/64 }] } }
+  sftp-net: { driver: bridge, enable_ipv6: true, ipam: { config: [{ subnet: 172.30.5.0/24 }, { subnet: fd00:30:5::/64 }] } }
+  vsftpd-net: { driver: bridge, enable_ipv6: true, ipam: { config: [{ subnet: 172.30.6.0/24 }, { subnet: fd00:30:6::/64 }] } }
+  tftpd-net: { driver: bridge, enable_ipv6: true, ipam: { config: [{ subnet: 172.30.7.0/24 }, { subnet: fd00:30:7::/64 }] } }
+  samba-net: { driver: bridge, enable_ipv6: true, ipam: { config: [{ subnet: 172.30.8.0/24 }, { subnet: fd00:30:8::/64 }] } }
+  nfs-net: { driver: bridge, enable_ipv6: true, ipam: { config: [{ subnet: 172.30.9.0/24 }, { subnet: fd00:30:9::/64 }] } }
+  snmptrapd-net: { driver: bridge, enable_ipv6: true, ipam: { config: [{ subnet: 172.30.10.0/24 }, { subnet: fd00:30:10::/64 }] } }
+  postfix-net: { driver: bridge, enable_ipv6: true, ipam: { config: [{ subnet: 172.30.11.0/24 }, { subnet: fd00:30:11::/64 }] } }
 
 volumes:
   # 数据库用命名卷（平台自带）；服务用绑定挂载，与「单服务独立部署」的卷布局一致。

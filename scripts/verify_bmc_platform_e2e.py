@@ -30,6 +30,8 @@ from __future__ import annotations
 import argparse
 import io
 import json
+import os
+import platform
 import socket
 import ssl
 import struct
@@ -1501,6 +1503,69 @@ def phase_versions(token: str) -> None:
            f"总数={len(versions)} 最新={newest} 最旧={oldest}")
 
 
+# --------------------------------------------------------------------------- #
+# IPv6 阶段：宿主没有全局 IPv6 地址，探针跑在「挂在服务网络里的客户端容器」内。
+# 每张服务网络在 compose 里都开了 enable_ipv6 + fd00:30:<n>::/64，客户端用服务名解析 v6 地址。
+# 探针实现见同目录 scripts/v6_probe.py（真实协议请求，不是配置比对）。
+# --------------------------------------------------------------------------- #
+V6_CASES = [
+    ("nginx", "nginx-net", 80, "http"),  # 容器网络内用容器端口，不是宿主发布端口
+    ("rsyslog", "rsyslog-net", 514, "syslog"),
+    ("sftp", "sftp-net", 22, "ssh"),
+    ("vsftpd", "vsftpd-net", 21, "ftp"),
+    ("tftpd-hpa", "tftpd-net", 69, "tftp"),
+    ("samba", "samba-net", 445, "tcp"),
+    ("nfs-ganesha", "nfs-net", 2049, "tcp"),
+    ("snmptrapd", "snmptrapd-net", 162, "trap"),
+    ("postfix", "postfix-net", 25, "smtp"),
+]
+
+# 探针容器需要 python3：优先用平台镜像（部署机上都已有），其次用拉取态的 GHCR 标签。
+V6_CLIENT_IMAGES = [
+    "bmc-platform:latest",
+    "ghcr.nju.edu.cn/aini123152011/bmc-platform:latest",
+    "ghcr.io/aini123152011/bmc-platform:latest",
+]
+
+
+def _v6_client_image() -> str:
+    for image in V6_CLIENT_IMAGES:
+        if sh(f"docker image inspect {image} >/dev/null 2>&1 && echo ok") == "ok":
+            return image
+    return ""
+
+
+def phase_ipv6(token: str) -> None:
+    """每个支持 IPv6 的服务一条「IPv6 客户端可观测行为」用例。
+
+    判定口径与其它阶段一致：客户端能拿到正确响应（HTTP 状态行、SSH 横幅、TFTP DATA 块、
+    NTP leap/stratum、FTP 230 登录成功等），而不是去看配置文件里有没有 [::]。
+    """
+    print()
+    print(">>> 阶段 17: IPv6 支持（容器网络内真实 v6 客户端）")
+    # chrony 4.3 的 NTP 套接字实测只绑定 IPv4（官方文档说 bindaddress 支持 v6 且每协议族一条，
+    # 但本镜像里加了 :: 仍不产生 v6 套接字），故不列入用例，作为已知限制记录在验证矩阵。
+    print("    (已知限制：chrony 的 NTP 套接字只监听 IPv4；webdav 的 Apache 设 IPV6_V6ONLY 失败 → 只 v4)")
+    probe = os.path.join(os.path.dirname(os.path.abspath(__file__)), "v6_probe.py")
+    if not os.path.isfile(probe):
+        record("17.0 探针脚本就位", False, f"缺少 {probe}")
+        return
+    image = _v6_client_image()
+    if not image:
+        record("17.0 探针客户端镜像可用", False, "没有 bmc-platform 镜像（探针需要 python3）")
+        return
+
+    for index, (svc, net, port, kind) in enumerate(V6_CASES, start=1):
+        cmd = (
+            f"docker run --rm --network servicesmgt_{net} "
+            f"-v {probe}:/probe.py:ro {image} python3 /probe.py {svc} {port} {kind}"
+        )
+        out = sh(cmd, timeout=90)
+        ok = "PASS" in out
+        detail = out.strip().splitlines()[-1][:140] if out.strip() else "(无输出)"
+        record(f"17.{index} {svc}: IPv6 客户端可观测（{kind}）", ok, detail)
+
+
 def phase_frontend(token: str) -> None:
     """前端 SPA 静态分发。"""
     print("\n>>> 阶段 14: 前端 SPA 分发")
@@ -1527,6 +1592,7 @@ PHASES = {
     "frontend": phase_frontend,
     "audit": phase_audit,
     "versions": phase_versions,
+    "ipv6": phase_ipv6,
 }
 
 

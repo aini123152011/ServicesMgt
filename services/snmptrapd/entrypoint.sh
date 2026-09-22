@@ -47,7 +47,14 @@ while :; do
     # -Lf：日志追加写入文件；-f：前台不 fork；-n：不对 Trap 来源地址做反解
     # （容器内无 DNS 解析价值，纯开销，日志直接记 IP）；监听参数形如 <地址>:162。
     # RUNTIME_OUTPUT_OPTS 不加引号是故意的：空值展开为零个参数，非空值按空格拆分
-    snmptrapd -Lf "${OUTPUT_FILE}" -f -n ${RUNTIME_OUTPUT_OPTS} "${LISTEN}" &
+    # IPv6：v4 监听是通配（0.0.0.0）时额外监听 udp6:162，让 v6 客户端也能发 Trap。
+    # 指定了具体 v4 地址（如黑洞模式只监听 127.0.0.1）时不加 v6 —— 那正是"只收回环"的故障语义。
+    case "${LISTEN}" in
+        0.0.0.0:*|*:0.0.0.0:*) LISTEN_V6="udp6:162" ;;
+        *) LISTEN_V6="" ;;
+    esac
+    # LISTEN_V6 不加引号是故意的：空值展开为零个参数
+    snmptrapd -Lf "${OUTPUT_FILE}" -f -n ${RUNTIME_OUTPUT_OPTS} "${LISTEN}" ${LISTEN_V6} &
     CHILD_PID=$!
     wait "${CHILD_PID}" || true
     CHILD_PID=""

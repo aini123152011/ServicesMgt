@@ -247,3 +247,74 @@ def test_validate_secret_placeholder_and_masking() -> None:
         config_renderer.validate_values(
             schema, {"username": "admin", "password": "********"}
         )
+
+
+def test_address_fields_accept_ipv6_and_still_reject_garbage() -> None:
+    """地址/网段类字段必须同时接受 IPv4 与 IPv6（BMC 侧可能只配其中一种）。
+
+    覆盖四处历史遗留的 IPv4-only 正则：chrony.allow_networks、postfix.mynetworks、
+    snmptrapd.listen_address、nfs-ganesha.allowed_clients（后者还允许通配符 *）。
+    """
+    # CIDR 类字段（允许带掩码）与纯监听地址字段（不允许掩码）分开取合法值
+    good_cidr = [
+        "192.168.0.0/16",
+        "10.0.0.0/8",
+        "::/0",
+        "fd00:30:1::/64",
+        "2001:db8::/128",
+    ]
+    good_addr = ["0.0.0.0", "127.0.0.1", "::", "::1", "fd00:30:1::10", "2001:db8::1"]
+    bad_cidr = [
+        "not-an-address",
+        "1:2",
+        "192.168.0.0/33",
+        "2001:db8::1/129",
+        "host:port",
+    ]
+    bad_addr = ["not-an-address", "1:2", "::/0", "0.0.0.0/8"]
+
+    def base_values(schema: dict[str, Any]) -> dict[str, Any]:
+        """先铺满 schema 默认值，再覆盖待测字段（避免"缺少必填字段"混进断言）。"""
+        return {
+            field["name"]: field["default"]
+            for field in schema["fields"]
+            if "default" in field
+        }
+
+    list_fields = [("chrony", "allow_networks"), ("postfix", "mynetworks")]
+    for service, field in list_fields:
+        plugin = registry.get_service(service)
+        assert plugin is not None
+        base = base_values(plugin.schema)
+        for value in good_cidr:
+            config_renderer.validate_values(plugin.schema, {**base, field: [value]})
+        for value in bad_cidr:
+            with pytest.raises(config_renderer.ConfigValidationError):
+                config_renderer.validate_values(plugin.schema, {**base, field: [value]})
+
+    string_fields = [
+        ("snmptrapd", "listen_address"),
+        ("nfs-ganesha", "allowed_clients"),
+    ]
+    for service, field in string_fields:
+        plugin = registry.get_service(service)
+        assert plugin is not None
+        base = base_values(plugin.schema)
+        allowed, rejected = (
+            (good_addr, bad_addr)
+            if field == "listen_address"
+            else (good_cidr, bad_cidr)
+        )
+        for value in allowed:
+            config_renderer.validate_values(plugin.schema, {**base, field: value})
+        for value in rejected:
+            with pytest.raises(config_renderer.ConfigValidationError):
+                config_renderer.validate_values(plugin.schema, {**base, field: value})
+
+    # nfs 的通配符语义不能被正则改动破坏
+    nfs = registry.get_service("nfs-ganesha")
+    assert nfs is not None
+    validated = config_renderer.validate_values(
+        nfs.schema, {**base_values(nfs.schema), "allowed_clients": "*"}
+    )
+    assert validated["allowed_clients"] == "*"

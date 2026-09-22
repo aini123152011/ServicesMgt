@@ -12,7 +12,7 @@ TFTP_DIRECTORY="{{ root_dir }}"
 # 而进程仍在、健康检查（看 in.tftpd 进程）仍为 healthy，可与「服务挂了」区分开。
 TFTP_ADDRESS="127.0.0.1:{{ port }}"
 {% else %}
-TFTP_ADDRESS=":{{ port }}"
+TFTP_ADDRESS="[::]:{{ port }}"
 {% endif %}
 # --secure：chroot 到服务根目录；--create：允许客户端上传新文件；
 # NOTE: in.tftpd 的 --timeout(-t) 仅作用于 inetd 模式（standalone 下被忽略），

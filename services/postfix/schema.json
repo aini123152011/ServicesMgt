@@ -23,9 +23,12 @@
       "name": "mynetworks",
       "type": "list",
       "label": "可信网段",
-      "default": ["127.0.0.0/8", "192.168.0.0/16"],
-      "help": "来源在列表内的客户端允许经本机中继发信（CIDR），应包含全部 BMC 设备所在网段",
-      "item_pattern": "^([0-9]{1,3}\\.){3}[0-9]{1,3}(/(3[0-2]|[12]?[0-9]))?$",
+      "default": [
+        "127.0.0.0/8",
+        "192.168.0.0/16"
+      ],
+      "help": "来源在列表内的客户端允许经本机中继发信（IPv4 或 IPv6 CIDR），应包含全部 BMC 设备所在网段",
+      "item_pattern": "^([0-9]{1,3}\\.){3}[0-9]{1,3}(/(3[0-2]|[12]?[0-9]))?$|^[0-9a-fA-F]{0,4}(:[0-9a-fA-F]{0,4}){2,7}(/(12[0-8]|1[01][0-9]|[0-9]{1,2}))?$",
       "group": "base"
     },
     {
@@ -52,7 +55,13 @@
       "name": "fault_mode",
       "type": "enum",
       "label": "BMC 故障注入模式",
-      "options": ["none", "reject_554", "greylist_451", "force_tls", "tarpit_delay"],
+      "options": [
+        "none",
+        "reject_554",
+        "greylist_451",
+        "force_tls",
+        "tarpit_delay"
+      ],
       "default": "none",
       "help": "故障注入：reject_554 永久拒收测试错误终止；greylist_451 临时拒收测试重试队列；force_tls 强制加密拒绝明文；tarpit_delay 极端延迟握手测试超时处理",
       "group": "fault"

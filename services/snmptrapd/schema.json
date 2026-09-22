@@ -4,7 +4,10 @@
       "name": "communities",
       "type": "list",
       "label": "授权社区字符串",
-      "default": ["public", "bmctrap"],
+      "default": [
+        "public",
+        "bmctrap"
+      ],
       "required": true,
       "help": "允许接收 Trap 的 SNMPv1/v2c 社区列表，每个社区渲染一行 authCommunity 授权（log/execute/net）",
       "item_pattern": "^[\\w@.\\-]{1,64}$",
@@ -24,7 +27,11 @@
       "type": "enum",
       "label": "Trap 输出格式",
       "default": "full",
-      "options": ["default", "brief", "full"],
+      "options": [
+        "default",
+        "brief",
+        "full"
+      ],
       "help": "default=snmptrapd 内建格式；brief=只记变量值；full=OID 完整路径输出，信息最全（推荐，便于平台解析检索）",
       "group": "base"
     },
@@ -33,15 +40,20 @@
       "type": "string",
       "label": "监听地址",
       "default": "0.0.0.0",
-      "help": "Trap 接收的监听 IPv4 地址，端口固定 162；0.0.0.0 表示监听所有网卡",
-      "pattern": "^([0-9]{1,3}\\.){3}[0-9]{1,3}$",
+      "help": "Trap 接收的监听地址（IPv4 或 IPv6），端口固定 162；0.0.0.0 / :: 表示监听所有网卡",
+      "pattern": "^([0-9]{1,3}\\.){3}[0-9]{1,3}$|^[0-9a-fA-F]{0,4}(:[0-9a-fA-F]{0,4}){2,7}$",
       "group": "base"
     },
     {
       "name": "fault_mode",
       "type": "enum",
       "label": "BMC 故障注入模式",
-      "options": ["none", "reject_community", "force_v3_only", "blackhole_drop"],
+      "options": [
+        "none",
+        "reject_community",
+        "force_v3_only",
+        "blackhole_drop"
+      ],
       "default": "none",
       "help": "故障注入：reject_community 模拟社区名认证失败；force_v3_only 禁用 v1/v2c 仅限 v3；blackhole_drop 黑洞丢弃 Trap 报文",
       "group": "fault"

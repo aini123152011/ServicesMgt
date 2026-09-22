@@ -4,7 +4,11 @@
       "name": "servers",
       "type": "list",
       "label": "NTP 上游服务器",
-      "default": ["ntp.aliyun.com", "cn.pool.ntp.org", "time.windows.com"],
+      "default": [
+        "ntp.aliyun.com",
+        "cn.pool.ntp.org",
+        "time.windows.com"
+      ],
       "required": true,
       "help": "上游 NTP 服务器列表（域名或 IP），每项生成一条 server <host> iburst",
       "item_pattern": "^[A-Za-z0-9]([A-Za-z0-9.\\-:]*[A-Za-z0-9])?$",
@@ -14,9 +18,13 @@
       "name": "allow_networks",
       "type": "list",
       "label": "允许同步的网段",
-      "default": ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"],
-      "help": "允许向本机同步时间的 IPv4 网段（CIDR，掩码 0-32）；为空则本机仅作客户端、不对外提供 NTP 服务",
-      "item_pattern": "^([0-9]{1,3}\\.){3}[0-9]{1,3}(/(3[0-2]|[12]?[0-9]))?$",
+      "default": [
+        "10.0.0.0/8",
+        "172.16.0.0/12",
+        "192.168.0.0/16"
+      ],
+      "help": "允许向本机同步时间的网段（IPv4 或 IPv6 CIDR，如 192.168.0.0/16、fd00::/64）；为空则本机仅作客户端、不对外提供 NTP 服务。注意：chrony 4.3 的 NTP 套接字实测只绑定 IPv4，填 IPv6 网段不会让 v6 客户端连上（已知限制，见验证矩阵）",
+      "item_pattern": "^([0-9]{1,3}\\.){3}[0-9]{1,3}(/(3[0-2]|[12]?[0-9]))?$|^[0-9a-fA-F]{0,4}(:[0-9a-fA-F]{0,4}){2,7}(/(12[0-8]|1[01][0-9]|[0-9]{1,2}))?$",
       "group": "base"
     },
     {
@@ -59,7 +67,11 @@
       "name": "fault_mode",
       "type": "enum",
       "label": "BMC 故障注入模式",
-      "options": ["none", "fake_offset", "stratum_16"],
+      "options": [
+        "none",
+        "fake_offset",
+        "stratum_16"
+      ],
       "default": "none",
       "help": "测试桩异常注入：none 正常授时；fake_offset 用 libfaketime 授出偏移后的虚假时间（偏移变化会重启 chronyd 进程）；stratum_16 上游全部标记 offline 且不配置本地参考，对外应答未同步状态（stratum 0 / Not synchronised）",
       "group": "fault"

@@ -31,6 +31,7 @@ http {
 
     server {
         listen {{ listen_port }};
+        listen [::]:{{ listen_port }};
         server_name _;
 
         root /data/nginx;
@@ -81,6 +82,7 @@ http {
     {% if ssl_enabled %}
     server {
         listen {{ ssl_port }} ssl;
+        listen [::]:{{ ssl_port }} ssl;
         server_name _;
 
         root /data/nginx;

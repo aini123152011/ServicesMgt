@@ -90,6 +90,16 @@ docker compose down                     # 停止（保留卷）
   这几个必须保留（chrony、tftpd-hpa、snmptrapd、rsyslog、postfix、samba、nfs-ganesha、vsftpd 是双发布）；
 - nginx / sftp / webdav 没有标准端口需求，只发布范围内端口。
 
+### IPv6
+
+- **每张服务网络都启用了 IPv6**（`enable_ipv6: true` + `fd00:30:<n>::/64` ULA 子网），与 IPv4 的
+  `172.30.<n>.0/24` 一一对应；这是网络级开关，**不需要改 Docker daemon**。
+- 部署机若**没有全局 IPv6 地址**（本项目目标机就是这种情况），IPv6 只能在容器网络内验证：
+  起一个挂在服务网络里的客户端容器，用服务名解析出 v6 地址发真实请求
+  （`scripts/v6_probe.py` 就是这么做的，e2e 的 `--phase ipv6` 调用它）。
+- 需要**从外部经 IPv6 访问**时：先给宿主机配 IPv6 地址/路由，再把 compose 的端口发布改成显式 v6
+  绑定（`"[::]:<宿主端口>:<容器端口>"`）——当前默认只发布 IPv4。
+
 ### 环境变量
 
 `.env`（同目录，`chmod 600`，**不进仓库**）：

@@ -5,8 +5,10 @@
 
 # 独立监听模式：容器内无 inetd/systemd，必须 standalone；
 # background 保持默认 NO，进程前台运行由 entrypoint 监督
-listen=YES
-listen_ipv6=NO
+# v6 套接字：vsftpd 的 listen 与 listen_ipv6 互斥；listen_ipv6=YES 时
+# IPv4 客户端经 v4-mapped 地址接入（实测验证）
+listen=NO
+listen_ipv6=YES
 
 # FTP 控制端口
 listen_port={{ port }}

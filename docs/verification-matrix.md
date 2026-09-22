@@ -1,3 +1,23 @@
+## IPv6 支持（11 服务）
+
+每个服务一条「IPv6 客户端可观测行为」用例，跑在启用 IPv6 的容器网络内（宿主无全局 IPv6）：
+
+| 服务 | 探针 | 判定 | 结果 |
+| --- | --- | --- | --- |
+| chrony | SNTP over v6 | 回包 leap/stratum 正常 | ⚠️ 已知限制 |
+| nginx | HTTP GET over v6 | 状态行 200 | ✅ |
+| rsyslog | UDP syslog over v6 | 报文送达（落盘由宿主侧核对） | ✅ |
+| webdav | HTTP PUT + 回读 over v6 | 回读内容一致 | ⚠️ 已知限制 |
+| sftp | SSH 横幅 over v6 | `SSH-` 横幅 | ✅ |
+| vsftpd | FTP 横幅 + 登录 over v6 | `230` 登录成功 | ✅ |
+| tftpd-hpa | TFTP RRQ over v6 | DATA 块 | ✅ |
+| samba | TCP/445 over v6 | 可连接（连接级探针） | ✅ |
+| nfs-ganesha | TCP/2049 over v6 | 可连接（连接级探针） | ✅ |
+| snmptrapd | SNMPv2c Trap over v6 | 已发送（落盘由宿主侧核对） | ✅ |
+| postfix | SMTP 横幅 over v6 | `220` 问候语 | ✅ |
+
+> samba/nfs 用连接级探针：探针容器里没有 smbclient 与挂载能力；协议级验证仍由 IPv4 阶段覆盖。
+
 # 服务验证矩阵（2026-09-22）
 
 > 逐服务的四类验证结论：**正向协议** / **故障注入** / **页面** / **BMC 侧**。
