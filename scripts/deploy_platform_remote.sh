@@ -7,12 +7,20 @@
 #   ssh root@<目标机> 'cat > /tmp/platform-update.tgz' < /tmp/platform-update.tgz
 #   ssh root@<目标机> 'VERSION=0.4.7 bash -s' < scripts/deploy_platform_remote.sh
 #
+# 镜像来源：默认**从镜像仓库拉取**平台镜像（IMAGE_PREFIX/IMAGE_TAG，见 .env），
+# 不再在目标机构建；需要离线或紧急本地构建时用 BUILD_LOCAL=1。
+#
 # 设计要点：**运行参数从现有容器读回**（环境变量、端口、网络、挂载），脚本里不写任何密钥——
 # 平台容器的 DATABASE_URL / FIRST_SUPERUSER_PASSWORD / SECRET_KEY 只存在于容器运行时，
 # 不落到仓库与脚本里。凭据有变动时改容器即可，脚本无需跟着改。
 set -euo pipefail
 
 VERSION="${VERSION:-dev}"
+# 镜像来源：IMAGE_PREFIX 含结尾斜杠（如 docker.io/<账号>/），IMAGE_TAG 默认与 VERSION 一致
+IMAGE_PREFIX="${IMAGE_PREFIX:-}"
+IMAGE_TAG="${IMAGE_TAG:-$VERSION}"
+IMAGE_REF="${IMAGE_PREFIX}bmc-platform:${IMAGE_TAG}"
+BUILD_LOCAL="${BUILD_LOCAL:-0}"
 DEPLOY_DIR="${DEPLOY_DIR:-/opt/bmc-servicesmgt-deploy}"
 CONTAINER="${CONTAINER:-bmc-platform-backend}"
 PACKAGE="${PACKAGE:-/tmp/platform-update.tgz}"
@@ -39,7 +47,17 @@ port=$(docker inspect "$CONTAINER" --format '{{range $p, $conf := .HostConfig.Po
 network=$(docker inspect "$CONTAINER" --format '{{.HostConfig.NetworkMode}}')
 restart=$(docker inspect "$CONTAINER" --format '{{.HostConfig.RestartPolicy.Name}}')
 
-echo "==> 构建 bmc-platform:$VERSION（基于现有 latest 的分层构建）"
+if [ "$BUILD_LOCAL" = "1" ]; then
+  echo "==> 本地构建 bmc-platform:$VERSION（BUILD_LOCAL=1，基于现有 latest 的分层构建）"
+else
+  echo "==> 拉取平台镜像 $IMAGE_REF"
+  docker pull "$IMAGE_REF" || {
+    echo "ERROR: 拉取 $IMAGE_REF 失败。检查 .env 的 IMAGE_PREFIX/IMAGE_TAG、是否已 docker login、以及该 tag 是否已发布" >&2
+    exit 1
+  }
+fi
+
+if [ "$BUILD_LOCAL" = "1" ]; then
 # Dockerfile.platform.fast 是 `FROM bmc-platform:latest` 的分层增量构建，每次叠约 5 层；
 # overlay2 的下层上限是 128 层，累计到 120+ 层时构建会直接失败（报 "max depth exceeded"，
 # 实测 122 层触发）。超过阈值就先把 latest 压成单层：docker commit 只会在原层上再加一层，
@@ -66,11 +84,12 @@ if [ "${layers:-0}" -gt "$MAX_LAYERS" ]; then
 fi
 
 docker build -f Dockerfile.platform.fast \
-  -t "bmc-platform:$VERSION" \
+  -t "$IMAGE_REF" \
   --build-arg APP_VERSION="$VERSION" \
   --build-arg APP_BUILD="$(date +%Y%m%d%H%M)" \
   . 2>&1 | tail -3
-docker tag "bmc-platform:$VERSION" bmc-platform:latest
+docker tag "$IMAGE_REF" bmc-platform:latest
+fi   # BUILD_LOCAL
 
 echo "==> 先跑数据库迁移（用新镜像，在切流之前）"
 # 顺序有意为之：迁移必须由**新镜像**执行（它才带新迁移文件），且要在新容器接管流量前完成，
@@ -91,7 +110,7 @@ docker run -d --name "$CONTAINER" --restart "$restart" \
   --network "$network" -p "$port" \
   $binds \
   "${env_args[@]}" \
-  "bmc-platform:$VERSION" >/dev/null
+  "$IMAGE_REF" >/dev/null
 
 echo "==> 等待健康检查"
 for _ in $(seq 1 40); do

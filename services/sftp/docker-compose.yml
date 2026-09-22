@@ -3,7 +3,7 @@
 services:
   sftp:
     # 有 image 时 compose 会把 build 产物打上该 tag，也方便直接使用 CI 构建好的镜像
-    image: bmc/sftp:latest
+    image: ${IMAGE_PREFIX:-}bmc-sftp:${IMAGE_TAG:-latest}
     build: .
     container_name: bmc-sftp
     restart: unless-stopped

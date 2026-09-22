@@ -1,4 +1,16 @@
-# 服务镜像多架构(arm64+amd64)构建 —— 仅做环境准备 + 调用统一脚本 scripts/build.sh，构建逻辑不在此重复
+# 服务镜像 + 平台镜像的多架构(arm64+amd64)构建与发布。
+#
+# 构建逻辑**不在流水线里重复**：全部交给 scripts/publish.sh（它内部再调 scripts/build.sh），
+# 本地手动发布用的是同一个入口。
+#
+# 触发：
+#   - PR / 非默认分支：只做多架构构建校验（不推镜像）
+#   - 默认分支（main）/ 手动触发（workflow_dispatch，可指定分支）：构建并推送到镜像仓库
+#
+# 需要配置的仓库密钥（缺哪个就跳过哪个仓库，不会让流水线失败）：
+#   DOCKERHUB_USERNAME / DOCKERHUB_TOKEN   → Docker Hub
+#   GHCR 用内置 GITHUB_TOKEN（packages: write），无需额外配置
+#   内网 GitLab 容器仓库在 GitHub Runner 上不可达，不在此推
 name: build-images
 
 on:
@@ -11,12 +23,10 @@ env:
   PLATFORMS: linux/arm64,linux/amd64
 
 jobs:
-  build:
-    name: build service images
+  validate:
+    name: build validation (no push)
+    if: github.ref != 'refs/heads/main'
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
     steps:
       - uses: actions/checkout@v4
 
@@ -24,24 +34,51 @@ jobs:
       - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
 
-      # 仅默认分支需要登录 GHCR 推送
-      - name: Login to GHCR
-        if: github.ref == 'refs/heads/main'
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      # PR / 非默认分支：多架构构建校验，不产出镜像
       - name: Build (validate only)
-        if: github.ref != 'refs/heads/main'
         run: bash scripts/build.sh --check
 
-      # 默认分支：多架构构建并推送 ghcr.io/<owner>/<service>:latest
-      - name: Build & push
-        if: github.ref == 'refs/heads/main'
+  publish:
+    name: build & publish images
+    # 默认分支自动发布；也可以手动触发（workflow_dispatch 时可指定任意分支，用于补发/试发）
+    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      # 前端产物：平台镜像的 Dockerfile 会 COPY platform/frontend/dist
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: platform/frontend/pnpm-lock.yaml
+      - name: Build frontend dist
+        working-directory: platform/frontend
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm build
+
+      - name: Publish images
         env:
-          REGISTRY: ghcr.io/${{ github.repository_owner }}
-          PUSH: '1'
-        run: bash scripts/build.sh
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+          TAG: latest
+        run: |
+          REGISTRIES="ghcr.io/${{ github.repository_owner }}/"
+          if [ -n "${DOCKERHUB_USER}" ] && [ -n "${DOCKERHUB_TOKEN}" ]; then
+            REGISTRIES="${REGISTRIES},docker.io/${DOCKERHUB_USER}/"
+          else
+            echo "未配置 DOCKERHUB_USERNAME/DOCKERHUB_TOKEN，跳过 Docker Hub"
+          fi
+          export REGISTRIES
+          bash scripts/publish.sh

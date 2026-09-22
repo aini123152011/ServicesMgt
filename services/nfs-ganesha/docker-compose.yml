@@ -2,7 +2,7 @@
 # 独立网络 + 独立卷，与其他服务互不干扰（R1 隔离）
 services:
   nfs-ganesha:
-    image: bmc/nfs-ganesha:latest
+    image: ${IMAGE_PREFIX:-}bmc-nfs-ganesha:${IMAGE_TAG:-latest}
     build: .
     container_name: bmc-nfs
     restart: unless-stopped

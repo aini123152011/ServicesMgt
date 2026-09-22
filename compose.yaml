@@ -45,7 +45,7 @@ services:
       retries: 5
 
   platform:
-    image: bmc-platform:${PLATFORM_TAG:-latest}
+    image: ${IMAGE_PREFIX:-}bmc-platform:${IMAGE_TAG:-latest}
     container_name: bmc-platform-backend
     restart: unless-stopped
     depends_on:
@@ -76,7 +76,7 @@ services:
 
   # ---------------------------------------------------------------- 11 个服务
   chrony:
-    image: bmc/chrony:latest
+    image: ${IMAGE_PREFIX:-}bmc-chrony:${IMAGE_TAG:-latest}
     container_name: bmc-chrony
     restart: unless-stopped
     ports: ["123:123/udp", "18101:123/udp"]
@@ -86,7 +86,7 @@ services:
     networks: [chrony-net]
 
   nginx:
-    image: bmc/nginx:latest
+    image: ${IMAGE_PREFIX:-}bmc-nginx:${IMAGE_TAG:-latest}
     container_name: bmc-nginx
     restart: unless-stopped
     ports: ["18102:80", "18103:443"]
@@ -96,7 +96,7 @@ services:
     networks: [nginx-net]
 
   rsyslog:
-    image: bmc/rsyslog:latest
+    image: ${IMAGE_PREFIX:-}bmc-rsyslog:${IMAGE_TAG:-latest}
     container_name: bmc-rsyslog
     restart: unless-stopped
     ports: ["514:514/tcp", "514:514/udp", "18104:514/tcp", "18104:514/udp"]
@@ -106,7 +106,7 @@ services:
     networks: [rsyslog-net]
 
   webdav:
-    image: bmc/webdav:latest
+    image: ${IMAGE_PREFIX:-}bmc-webdav:${IMAGE_TAG:-latest}
     container_name: bmc-webdav
     restart: unless-stopped
     ports: ["18105:8080"]
@@ -116,7 +116,7 @@ services:
     networks: [webdav-net]
 
   sftp:
-    image: bmc/sftp:latest
+    image: ${IMAGE_PREFIX:-}bmc-sftp:${IMAGE_TAG:-latest}
     container_name: bmc-sftp
     restart: unless-stopped
     ports: ["18106:22"]
@@ -126,7 +126,7 @@ services:
     networks: [sftp-net]
 
   vsftpd:
-    image: bmc/vsftpd:latest
+    image: ${IMAGE_PREFIX:-}bmc-vsftpd:${IMAGE_TAG:-latest}
     container_name: bmc-vsftpd
     restart: unless-stopped
     # 被动模式数据端口段必须整段发布，否则登录成功但列目录/传输会挂住
@@ -140,7 +140,7 @@ services:
     networks: [vsftpd-net]
 
   tftpd-hpa:
-    image: bmc/tftpd-hpa:latest
+    image: ${IMAGE_PREFIX:-}bmc-tftpd-hpa:${IMAGE_TAG:-latest}
     container_name: bmc-tftpd-hpa
     restart: unless-stopped
     # 69 是被测 BMC 取固件/配置文件的 TFTP 标准端口，必须保留；18108 是统一范围内的入口
@@ -151,7 +151,7 @@ services:
     networks: [tftpd-net]
 
   samba:
-    image: bmc/samba:latest
+    image: ${IMAGE_PREFIX:-}bmc-samba:${IMAGE_TAG:-latest}
     container_name: bmc-samba
     restart: unless-stopped
     ports: ["445:445", "18109:445"]
@@ -161,7 +161,7 @@ services:
     networks: [samba-net]
 
   nfs-ganesha:
-    image: bmc/nfs-ganesha:latest
+    image: ${IMAGE_PREFIX:-}bmc-nfs-ganesha:${IMAGE_TAG:-latest}
     container_name: bmc-nfs
     restart: unless-stopped
     # VFS FSAL 在 ext4 绑定挂载上需要完整能力（见文件头说明）
@@ -173,7 +173,7 @@ services:
     networks: [nfs-net]
 
   snmptrapd:
-    image: bmc/snmptrapd:latest
+    image: ${IMAGE_PREFIX:-}bmc-snmptrapd:${IMAGE_TAG:-latest}
     container_name: bmc-snmptrapd
     restart: unless-stopped
     ports: ["162:162/udp", "18111:162/udp"]
@@ -183,7 +183,7 @@ services:
     networks: [snmptrapd-net]
 
   postfix:
-    image: bmc/postfix:latest
+    image: ${IMAGE_PREFIX:-}bmc-postfix:${IMAGE_TAG:-latest}
     container_name: bmc-postfix
     restart: unless-stopped
     ports: ["25:25", "18112:25"]

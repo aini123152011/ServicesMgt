@@ -3,7 +3,7 @@
 services:
   tftpd-hpa:
     # 有 image 时 compose 会把 build 产物打上该 tag，也方便直接使用 CI 构建好的镜像
-    image: bmc/tftpd-hpa:latest
+    image: ${IMAGE_PREFIX:-}bmc-tftpd-hpa:${IMAGE_TAG:-latest}
     build: .
     container_name: bmc-tftpd-hpa
     restart: unless-stopped
