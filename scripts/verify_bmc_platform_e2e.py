@@ -990,6 +990,28 @@ def phase_tftpd(token: str) -> None:
             timeout=45, interval=4, label="复位后写请求被接受")
         record("8.5 复位正向配置后写请求重新被接受", bool(back))
 
+    # 8.6/8.7 故障注入 timeout_simulate：只绑回环 → 外部 RRQ 收不到应答（超时），
+    # 而进程仍在、健康检查仍 healthy——这样才与「服务挂了」区分得开。
+    put_config(token, "tftpd-hpa", {**CFG_TFTPD, "fault_mode": "timeout_simulate"})
+    time.sleep(8)
+
+    def external_rrq_times_out():
+        try:
+            tftp_get(HOST_ADDR, PORT_TFTP, "e2e_tftp.bin", timeout=6)
+            return None  # 收到应答 → 故障未生效
+        except Exception:  # noqa: BLE001
+            return "timeout"
+
+    got = wait_for(external_rrq_times_out, timeout=45, interval=5, label="外部 RRQ 超时")
+    healthy = exec_in("bmc-tftpd-hpa", "grep -qs in.tftpd /proc/[0-9]*/comm && echo ok || echo no")
+    record("8.6 故障注入 timeout_simulate：外部 RRQ 超时且进程仍健康",
+           bool(got) and "ok" in healthy, f"{got} 进程={healthy.strip()}")
+
+    st, applied, _ = put_config(token, "tftpd-hpa", CFG_TFTPD)
+    record("8.7 复位正向配置生效", st == 200 and applied is True, f"status={st}")
+    ok = wait_for(fetch, timeout=45, interval=4, label="复位后可下载")
+    record("8.8 复位后恢复可下载", bool(ok))
+
 
 def phase_samba(token: str) -> None:
     """SMB 共享读写（AC11）。"""
@@ -1161,15 +1183,36 @@ def phase_snmptrapd(token: str) -> None:
     record("11.4 故障注入 force_v3_only：v2c Trap 不落盘且容器仍在运行",
            marker3 not in logged3 and container_running("bmc-snmptrapd"))
 
-    st, applied, _ = put_config(token, "snmptrapd", CFG_SNMPTRAPD)
-    record("11.5 复位正向配置生效", st == 200 and applied is True, f"status={st}")
+    # 11.5/11.6 故障注入 blackhole_drop：只监听 127.0.0.1 → 外部 Trap 收不到，
+    # 但进程与健康检查仍正常（与「服务挂了」可区分）。
+    # 这条依赖 entrypoint 每轮重读 `# runtime:` 参数——修复前重启会沿用旧值，故障不生效。
+    put_config(token, "snmptrapd", {**CFG_SNMPTRAPD, "fault_mode": "blackhole_drop"})
+
+    def bound_to_loopback():
+        row = exec_in("bmc-snmptrapd",
+                      "grep -i :00A2 /proc/net/udp | head -1").split()
+        # /proc/net/udp 第 2 列是 local_address:port 的小端十六进制；0100007F = 127.0.0.1
+        return row[1] if len(row) > 1 and row[1].startswith("0100007F") else None
+
+    got_bind = wait_for(bound_to_loopback, timeout=45, interval=4, label="只绑回环")
+    marker_bh = f"BMC_TRAP_BLACKHOLE_{int(time.time())}"
+    exec_in("bmc-snmptrapd", ": > /var/log/snmp/traps.log")
+    snmp_v2c_trap(HOST_ADDR, PORT_SNMPTRAP, "bmctrap", marker_bh)
     time.sleep(5)
+    logged_bh = exec_in("bmc-snmptrapd", "cat /var/log/snmp/traps.log 2>/dev/null")
+    record("11.5 故障注入 blackhole_drop：只监听回环，外部 Trap 不落盘",
+           bool(got_bind) and marker_bh not in logged_bh and container_running("bmc-snmptrapd"),
+           f"bind={got_bind or '非回环'} 已落盘={marker_bh in logged_bh}")
+
+    st, applied, _ = put_config(token, "snmptrapd", CFG_SNMPTRAPD)
+    record("11.6 复位正向配置生效", st == 200 and applied is True, f"status={st}")
+    time.sleep(10)
     marker4 = f"BMC_TRAP_RESET_{int(time.time())}"
     snmp_v2c_trap(HOST_ADDR, PORT_SNMPTRAP, "bmctrap", marker4)
     got = wait_for(lambda: True if marker4 in exec_in(
         "bmc-snmptrapd", "cat /var/log/snmp/traps.log 2>/dev/null") else None,
         timeout=40, interval=5, label="复位后 Trap 落盘")
-    record("11.6 复位后 Trap 重新落盘", bool(got))
+    record("11.7 复位后 Trap 重新落盘", bool(got))
 
 
 def phase_postfix(token: str) -> None:

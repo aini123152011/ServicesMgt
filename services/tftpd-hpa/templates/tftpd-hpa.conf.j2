@@ -7,7 +7,13 @@
 # entrypoint 直接 source 后按变量拼装 in.tftpd 启动参数
 TFTP_USERNAME="tftp"
 TFTP_DIRECTORY="{{ root_dir }}"
+{% if fault_mode == 'timeout_simulate' %}
+# 故障注入：只绑回环 → 外部客户端收不到任何应答（表现为 RRQ 超时），
+# 而进程仍在、健康检查（看 in.tftpd 进程）仍为 healthy，可与「服务挂了」区分开。
+TFTP_ADDRESS="127.0.0.1:{{ port }}"
+{% else %}
 TFTP_ADDRESS=":{{ port }}"
+{% endif %}
 # --secure：chroot 到服务根目录；--create：允许客户端上传新文件；
 # NOTE: in.tftpd 的 --timeout(-t) 仅作用于 inetd 模式（standalone 下被忽略），
 # 首包重传等待与 RFC 2349 超时协商共用 --retransmit(-T)，单位为微秒
@@ -15,7 +21,8 @@ TFTP_ADDRESS=":{{ port }}"
 # 故障注入：强制不加 --create，客户端上传新文件时触发 Error Code 2 Access Violation
 TFTP_OPTIONS="--secure --blocksize {{ blksize }} --retransmit {{ timeout * 1000000 }}"
 {% elif fault_mode == 'timeout_simulate' %}
-# 故障注入：设置 100ms 极短重传超时，模拟高丢包环境
+# 故障注入：超短重传超时 + 只监听回环（见上方 TFTP_ADDRESS）。单独改重传超时在干净网络下
+# 没有任何客户端可观测效果（实测下载照常成功），必须配合「不对外应答」才构成可观测故障。
 TFTP_OPTIONS="--secure --blocksize {{ blksize }} --retransmit 100000"
 {% else %}
 TFTP_OPTIONS="--secure{% if create_enabled %} --create{% endif %} --blocksize {{ blksize }} --retransmit {{ timeout * 1000000 }}"
