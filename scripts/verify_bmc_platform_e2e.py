@@ -896,8 +896,54 @@ def phase_vsftpd(token: str) -> None:
     ok = wait_for(expect_550, timeout=60, interval=5, label="550 拒写")
     record("7.3 故障注入：写入被 550 拒绝", bool(ok))
 
+    # 7.6/7.7 故障注入 deny_pasv_data：关闭被动模式 → 登录正常但数据通道被拒
+    put_config(token, "vsftpd", {**CFG_VSFTPD, "fault_mode": "deny_pasv_data"})
+
+    def pasv_rejected():
+        ftp = FTP()
+        try:
+            ftp.connect("127.0.0.1", PORT_FTP, timeout=15)
+            ftp.login("bmce2e", "ChangeMe123")
+            ftp.set_pasv(True)
+            try:
+                ftp.nlst()
+                ftp.quit()
+                return None  # 被动模式仍可用 → 故障未生效
+            except Exception:  # noqa: BLE001
+                ftp.close()
+                return "passive-rejected"
+        except Exception:  # noqa: BLE001
+            try:
+                ftp.close()
+            except Exception:  # noqa: BLE001
+                pass
+            return None
+
+    got = wait_for(pasv_rejected, timeout=60, interval=5, label="被动模式被拒")
+    record("7.6 故障注入 deny_pasv_data：登录正常但被动数据通道被拒",
+           bool(got), got or "被动模式仍可用")
+
+    # 7.8/7.9 故障注入 extreme_throttle：500 B/s 限速 → 大文件在短超时内下不完。
+    # 注意要用足够大的文件：小文件会被限速器的突发额度一次放完（实测 20KB 仍秒传），
+    # 200KB 才能观察到「下不完」。
+    put_config(token, "vsftpd", {**CFG_VSFTPD, "fault_mode": "extreme_throttle"})
+    exec_in("bmc-vsftpd", "mkdir -p /data/bmce2e && dd if=/dev/urandom of=/data/bmce2e/throttle.bin bs=1024 count=200 2>/dev/null")
+    time.sleep(6)
+
+    def slow_download_incomplete():
+        out = sh(f"curl -s --max-time 15 -u bmce2e:ChangeMe123 -o /dev/null "
+                 f"-w '%{{size_download}}' ftp://127.0.0.1:{PORT_FTP}/throttle.bin 2>&1")
+        # 限速生效时 curl 会在 15s 内被 --max-time 掐断，下载量远小于 200KB
+        return out if out.isdigit() and int(out) < 200 * 1024 else None
+
+    got = wait_for(slow_download_incomplete, timeout=60, interval=5, label="限速下大文件下不完")
+    record("7.7 故障注入 extreme_throttle：限速生效（15s 内下不完 200KB）",
+           bool(got), f"15s 内下载 {got} 字节" if got else "下载速度未被限制")
+
     st, applied, _ = put_config(token, "vsftpd", CFG_VSFTPD)
-    record("7.4 复位正向配置生效", st == 200 and applied is True, f"status={st}")
+    record("7.8 复位正向配置生效", st == 200 and applied is True, f"status={st}")
+    ok = wait_for(try_ftp, timeout=90, interval=5, label="复位后可读写")
+    record("7.9 复位后恢复可读写", bool(ok))
 
 
 def phase_tftpd(token: str) -> None:
