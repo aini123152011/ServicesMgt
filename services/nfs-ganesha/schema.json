@@ -3,7 +3,7 @@
     {
       "name": "export_path",
       "type": "string",
-      "description": "NFS 共享导出路径",
+      "label": "NFS 共享导出路径",
       "default": "/data/nfs",
       "pattern": "^/([a-zA-Z0-9_-]+/)*[a-zA-Z0-9_-]+$",
       "required": true,
@@ -12,7 +12,7 @@
     {
       "name": "export_id",
       "type": "integer",
-      "description": "NFS 导出条目唯一 ID",
+      "label": "NFS 导出条目唯一 ID",
       "default": 1,
       "min": 1,
       "max": 65535,
@@ -22,45 +22,59 @@
     {
       "name": "allowed_clients",
       "type": "string",
-      "description": "允许挂载的客户端网段（通配符 * 或 CIDR 如 192.168.0.0/16）",
+      "label": "允许挂载的客户端网段",
+      "help": "通配符 * 或 CIDR 如 192.168.0.0/16",
       "default": "*",
       "group": "base"
     },
     {
       "name": "access_type",
       "type": "enum",
-      "description": "访问权限类型（RW 读写，RO 只读）",
-      "options": ["RW", "RO"],
+      "label": "访问权限类型",
+      "help": "RW 读写，RO 只读",
+      "options": [
+        "RW",
+        "RO"
+      ],
       "default": "RW",
       "group": "base"
     },
     {
       "name": "squash",
       "type": "enum",
-      "description": "Root 权限压制策略",
-      "options": ["root_squash", "no_root_squash", "all_squash"],
+      "label": "Root 权限压制策略",
+      "options": [
+        "root_squash",
+        "no_root_squash",
+        "all_squash"
+      ],
       "default": "no_root_squash",
       "group": "base"
     },
     {
       "name": "enable_v3",
       "type": "boolean",
-      "description": "启用 NFSv3 协议（部分 BMC 仅支持 v3 挂载）",
+      "label": "启用 NFSv3 协议",
+      "help": "部分 BMC 仅支持 v3 挂载",
       "default": true,
       "group": "base"
     },
     {
       "name": "enable_v4",
       "type": "boolean",
-      "description": "启用 NFSv4 协议",
+      "label": "启用 NFSv4 协议",
       "default": true,
       "group": "base"
     },
     {
       "name": "fault_mode",
       "type": "enum",
-      "description": "BMC 故障注入模式",
-      "options": ["none", "access_denied", "force_readonly"],
+      "label": "BMC 故障注入模式",
+      "options": [
+        "none",
+        "access_denied",
+        "force_readonly"
+      ],
       "default": "none",
       "group": "fault"
     }
