@@ -7,6 +7,7 @@ docker compose 负责，平台只管理已存在的容器。
 """
 
 import logging
+import time
 from typing import Any
 
 import docker
@@ -14,6 +15,11 @@ from docker.errors import APIError, DockerException, NotFound
 from docker.models.containers import Container
 
 logger = logging.getLogger(__name__)
+
+# 容器重启窗口的容忍参数，见 exec_reload 的说明：5 次 × 3s 覆盖 Docker 重启策略的退避
+# （RestartCount 很大时单次退避可达 1 分钟，实测反复切换故障模式后窗口约 30s）。
+RELOAD_RETRY_ATTEMPTS = 5
+RELOAD_RETRY_INTERVAL_SECONDS = 3.0
 
 
 class LifecycleError(Exception):
@@ -125,8 +131,37 @@ def restart(container_name: str) -> None:
     _run_container_action(container_name, "restart")
 
 
+def _is_restarting_conflict(error: APIError) -> bool:
+    """判断 Docker 的 409 是否只是「容器正在重启 / 尚未回到运行态」。
+
+    重启期间 docker exec 会被拒绝（409 Conflict / "is restarting, wait until the
+    container is running"；退避等待期间则是 "is not running"）。这类拒绝不代表 reload
+    失败——容器重启本身就是某些服务让配置生效的方式（如 chrony 的 faketime 偏移只能随
+    进程启动注入），此时配置已落盘并正在生效，等容器回来重试即可。
+
+    文案来源不止一处：docker SDK 的 APIError.__str__ 依赖 response 细节，某些路径下
+    只剩 args，因此把 explanation 与 args 一起纳入判断。
+    """
+    response = getattr(error, "response", None)
+    if getattr(response, "status_code", None) != 409:
+        return False
+    text = " ".join(
+        [
+            str(error),
+            str(getattr(error, "explanation", "") or ""),
+            *(str(arg) for arg in error.args),
+        ]
+    ).lower()
+    return "restarting" in text or "is not running" in text
+
+
 def exec_reload(manifest: dict[str, Any]) -> str:
     """在容器内执行 /reload.sh 触发新配置生效（平台统一契约）。
+
+    容器重启窗口内会等待并重试：reload 期间容器可能因配置生效而重启（进程无法热加载
+    的配置项只能重启进程），Docker 此时以 409 拒绝 exec。若不重试，平台会把「正在生效」
+    报成下发失败，调用方看到 502 却其实已经生效（实测：回滚 chrony 的 faketime 偏移时
+    接口报 502，版本未记录，而 NTP 应答已经变了）。
 
     Args:
         manifest: 服务 manifest 字典，用 container_name 定位容器。
@@ -139,30 +174,48 @@ def exec_reload(manifest: dict[str, Any]) -> str:
     """
     container_name = manifest["container_name"]
     container = _get_container(container_name, "exec /reload.sh in")
-    try:
-        result = container.exec_run("/reload.sh")
-    except (APIError, OSError) as e:
-        logger.error(f"Reload failed for container '{container_name}': {e}")
-        raise LifecycleError(
-            f"Failed to exec '/reload.sh' in container '{container_name}': {e}"
-        ) from e
-    output = result.output
-    text = (
-        output.decode("utf-8", errors="replace")
-        if isinstance(output, bytes)
-        else str(output or "")
+    for attempt in range(1, RELOAD_RETRY_ATTEMPTS + 1):
+        try:
+            result = container.exec_run("/reload.sh")
+        except (APIError, OSError) as e:
+            if (
+                isinstance(e, APIError)
+                and _is_restarting_conflict(e)
+                and attempt < RELOAD_RETRY_ATTEMPTS
+            ):
+                logger.info(
+                    f"Container '{container_name}' is restarting (reload attempt "
+                    f"{attempt}/{RELOAD_RETRY_ATTEMPTS}); waiting "
+                    f"{RELOAD_RETRY_INTERVAL_SECONDS}s and retrying"
+                )
+                time.sleep(RELOAD_RETRY_INTERVAL_SECONDS)
+                continue
+            logger.error(f"Reload failed for container '{container_name}': {e}")
+            raise LifecycleError(
+                f"Failed to exec '/reload.sh' in container '{container_name}': {e}"
+            ) from e
+        output = result.output
+        text = (
+            output.decode("utf-8", errors="replace")
+            if isinstance(output, bytes)
+            else str(output or "")
+        )
+        exit_code = result.exit_code
+        if exit_code is None or exit_code != 0:
+            # None 表示 exec 建立阶段就失败；非零码是脚本自身的失败信号
+            logger.error(
+                f"Reload failed for container '{container_name}': exit code {exit_code}, output: {text.strip()}"
+            )
+            raise LifecycleError(
+                f"/reload.sh in container '{container_name}' exited with code {exit_code}: {text.strip()}"
+            )
+        logger.info(f"Reloaded container '{container_name}' via /reload.sh")
+        return text
+    # 循环内每次失败都已 raise，走到这里说明重试次数用尽仍未成功
+    raise LifecycleError(
+        f"Container '{container_name}' kept restarting; gave up after "
+        f"{RELOAD_RETRY_ATTEMPTS} reload attempts"
     )
-    exit_code = result.exit_code
-    if exit_code is None or exit_code != 0:
-        # None 表示 exec 建立阶段就失败；非零码是脚本自身的失败信号
-        logger.error(
-            f"Reload failed for container '{container_name}': exit code {exit_code}, output: {text.strip()}"
-        )
-        raise LifecycleError(
-            f"/reload.sh in container '{container_name}' exited with code {exit_code}: {text.strip()}"
-        )
-    logger.info(f"Reloaded container '{container_name}' via /reload.sh")
-    return text
 
 
 def get_logs(container_name: str, tail: int) -> str:
