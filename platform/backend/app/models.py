@@ -360,8 +360,16 @@ class ServiceConfigVersionBase(SQLModel):
     service_name: str = Field(max_length=64, index=True)
     # 每服务独立自增的版本号，从 1 开始
     version: int
-    # 提交后的真实配置值（含 secret 明文）；对外接口必须脱敏后再返回
-    values: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
+    # 提交后的真实配置值（含 secret 明文）；对外接口必须脱敏后再返回。
+    # nullable=False 与 serviceconfig 表同口径：下发必写值，空字典也写 {}
+    values: dict[str, Any] = Field(
+        default_factory=dict, sa_column=Column(JSON, nullable=False)
+    )
+    # 写入时 schema 里的 secret 字段名。详情接口据此脱敏，而不是按「当前 schema」反推——
+    # schema 演进（字段改名/去掉 secret）后，历史版本里的密文才不会明文返回
+    secret_fields: list[str] = Field(
+        default_factory=list, sa_column=Column(JSON, nullable=False)
+    )
     # 本次渲染产物是否已在容器内生效（容器未运行或 reload 失败时为 False）
     applied: bool = False
     # 渲染产物摘要（sha256 前 16 位）：用于回答「这两次下发的产物是否一致」

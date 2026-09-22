@@ -241,6 +241,48 @@ def validate_values(
     return normalized
 
 
+def secret_field_names(schema: dict[str, Any]) -> list[str]:
+    """取出 schema 里标记为 secret 的字段名（保持声明顺序）。
+
+    Args:
+        schema: 服务 schema.json 解析后的字典。
+
+    Returns:
+        secret 字段名列表；schema 结构异常时为空的列表。
+    """
+    fields = schema.get("fields")
+    if not isinstance(fields, list):
+        return []
+    return [
+        str(field_def["name"])
+        for field_def in fields
+        if isinstance(field_def, dict)
+        and field_def.get("secret") is True
+        and "name" in field_def
+    ]
+
+
+def mask_values(values: dict[str, Any], secret_fields: list[str]) -> dict[str, Any]:
+    """把指定字段名对应的值替换为掩码占位符。
+
+    与 `mask_secret_values` 分开是因为**名单来源不同**：当前配置用「现在的 schema」，
+    而历史版本要用「写入时的名单」（版本行存下来的 secret_fields）——只按现在的 schema
+    反推，schema 演进后历史版本里的密文就会明文返回。
+
+    Args:
+        values: 原始配置字典（含明文 secret）。
+        secret_fields: 需要打码的字段名。
+
+    Returns:
+        脱敏后的新字典副本。
+    """
+    masked = dict(values)
+    for name in secret_fields:
+        if name in masked and masked[name] not in (None, ""):
+            masked[name] = MASKED_SECRET_PLACEHOLDER
+    return masked
+
+
 def mask_secret_values(
     schema: dict[str, Any], values: dict[str, Any] | None
 ) -> dict[str, Any] | None:
@@ -255,21 +297,10 @@ def mask_secret_values(
     """
     if values is None:
         return None
-    fields = schema.get("fields")
-    if not isinstance(fields, list):
-        return values
-    secret_fields = {
-        field_def["name"]
-        for field_def in fields
-        if isinstance(field_def, dict) and field_def.get("secret") is True
-    }
+    secret_fields = secret_field_names(schema)
     if not secret_fields:
         return dict(values)
-    masked = dict(values)
-    for name in secret_fields:
-        if name in masked and masked[name] not in (None, ""):
-            masked[name] = MASKED_SECRET_PLACEHOLDER
-    return masked
+    return mask_values(values, secret_fields)
 
 
 def _atomic_write(target: Path, content: str) -> None:

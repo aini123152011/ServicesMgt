@@ -7,10 +7,12 @@ operator 及以上角色（admin/超管放行），操作成功后写审计日�
 """
 
 import logging
+import uuid
 from enum import StrEnum
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlmodel import Session
 
 from app import config_renderer, config_versions, lifecycle, registry
 from app.api.deps import CurrentUser, RequireOperator, SessionDep, get_current_user
@@ -124,32 +126,39 @@ def read_service(session: SessionDep, name: str) -> Any:
 
 def _apply_config_values(
     *,
-    session: SessionDep,
+    session: Session,
     plugin: ServicePlugin,
     name: str,
     values: dict[str, Any],
     user_email: str | None,
+    user_id: uuid.UUID | None = None,
+    action: str = "config.update",
     rolled_back_from: int | None = None,
 ) -> bool:
-    """渲染 → 写卷 → 落库 → reload → 记一条配置版本，返回 applied。
+    """渲染 → 写卷 → 落库 → reload → 记一条配置版本与审计，返回 applied。
 
     PUT /config 与回滚共用这一段：两条路径对「生效」的定义必须完全一致，否则回滚会出现
-    「界面说成功、服务其实没生效」。版本记录放在最后、用最终 applied 值——一次下发只产生
-    一条版本，中途 applied=False 的中间态不入历史。
+    「界面说成功、服务其实没生效」。
+
+    版本与审计**在 reload 失败时也要写**：渲染产物此时已经落盘，服务下次启动就会读到它
+    （reload=restart 的服务尤其如此），如果不留痕，「最新版本 = 当前生效配置」这条不变量
+    就不成立，用户按历史列表挑回滚基线会挑错版本，且这次变更在审计里查不到。
 
     Args:
         session: 数据库会话。
         plugin: 服务插件（提供 schema/manifest）。
         name: 服务名。
         values: 已校验的配置值。
-        user_email: 操作者邮箱，记入版本。
+        user_email: 操作者邮箱，记入版本与审计。
+        user_id: 操作者 ID，记入审计。
+        action: 审计动作名（config.update / config.rollback）。
         rolled_back_from: 回滚来源版本号；普通下发为 None。
 
     Returns:
         applied：渲染产物是否已在容器内生效。
 
     Raises:
-        HTTPException: 502 渲染失败或 Docker 调用失败。
+        HTTPException: 502 渲染失败或 Docker 调用失败；409 版本号分配冲突。
     """
     rendered_at = get_datetime_utc()
     try:
@@ -164,6 +173,7 @@ def _apply_config_values(
         rendered_at=rendered_at,
         applied=False,
     )
+    reload_error: str | None = None
     applied = False
     try:
         status = lifecycle.get_status(plugin.manifest["container_name"])
@@ -171,8 +181,8 @@ def _apply_config_values(
             lifecycle.exec_reload(plugin.manifest)
             applied = True
     except lifecycle.LifecycleError as e:
+        reload_error = str(e)
         logger.error(f"Config apply failed for service '{name}': {e}")
-        raise HTTPException(status_code=502, detail=str(e)) from e
     if applied:
         # reload 成功后才把 applied 置 True；失败路径保持 False 落库
         upsert_service_config(
@@ -182,16 +192,62 @@ def _apply_config_values(
             rendered_at=rendered_at,
             applied=True,
         )
-    config_versions.record_config_version(
+    _record_version(
         session=session,
-        service_name=name,
+        plugin=plugin,
+        name=name,
         values=values,
         applied=applied,
         user_email=user_email,
         digest=config_versions.rendered_digest(list(rendered_paths)),
         rolled_back_from=rolled_back_from,
     )
+    # 审计只记结果状态，不记配置值（值里可能含密码类字段）
+    detail = f"applied={'true' if applied else 'false'}"
+    if rolled_back_from is not None:
+        detail = f"from_version={rolled_back_from} {detail}"
+    if reload_error is not None:
+        detail = f"{detail} reload_failed"
+    record_audit_log(
+        session=session,
+        user_id=user_id,
+        user_email=user_email,
+        action=action,
+        service_name=name,
+        detail=detail,
+    )
+    if reload_error is not None:
+        raise HTTPException(status_code=502, detail=reload_error)
     return applied
+
+
+def _record_version(
+    *,
+    session: Session,
+    plugin: ServicePlugin,
+    name: str,
+    values: dict[str, Any],
+    applied: bool,
+    user_email: str | None,
+    digest: str,
+    rolled_back_from: int | None,
+) -> None:
+    """写版本记录；并发导致的版本号冲突转 409（与项目「唯一性冲突一律 409」口径一致）。"""
+    try:
+        config_versions.record_config_version(
+            session=session,
+            service_name=name,
+            values=values,
+            applied=applied,
+            user_email=user_email,
+            digest=digest,
+            rolled_back_from=rolled_back_from,
+            # 存下当时的 secret 名单：详情接口据此脱敏，不依赖后续 schema 是否还标着 secret
+            secret_fields=config_renderer.secret_field_names(plugin.schema),
+        )
+    except config_versions.ConfigVersionConflictError as e:
+        logger.error(f"Config version conflict for service '{name}': {e}")
+        raise HTTPException(status_code=409, detail=str(e)) from e
 
 
 @router.get(
@@ -201,8 +257,8 @@ def _apply_config_values(
 def read_config_versions(
     session: SessionDep,
     name: str,
-    offset: int = 0,
-    limit: int = 50,
+    offset: int = Query(default=0, ge=0),
+    limit: int = Query(default=50, ge=1, le=500),
 ) -> Any:
     """列出该服务的配置版本（版本号倒序，新版本在前）。
 
@@ -256,12 +312,16 @@ def read_config_version(session: SessionDep, name: str, version: int) -> Any:
     )
     if row is None:
         raise HTTPException(status_code=404, detail=f"Version {version} not found")
-    # 历史行的 values 理论上不会为空（写入时必填），但类型上是可空的，兜底成空字典
-    raw_values: dict[str, Any] = row.values if row.values is not None else {}
-    masked = config_renderer.mask_secret_values(plugin.schema, raw_values)
+    # 脱敏名单取「写入时的 secret 字段 ∪ 当前 schema 的 secret 字段」：
+    # 只用当前 schema 反推的话，schema 演进（字段改名/去掉 secret）会让历史版本里的密文
+    # 明文返回；反过来，历史名单能覆盖后来新增的 secret 标记（旧行没记过它）。
+    secret_fields = sorted(
+        set(row.secret_fields or [])
+        | set(config_renderer.secret_field_names(plugin.schema))
+    )
     return ServiceConfigVersionDetail(
         version=row.version,
-        values=masked if masked is not None else {},
+        values=config_renderer.mask_values(row.values or {}, secret_fields),
         applied=row.applied,
         rendered_digest=row.rendered_digest,
         user_email=row.user_email,
@@ -316,15 +376,9 @@ def rollback_config_version(
         name=name,
         values=values,
         user_email=current_user.email,
-        rolled_back_from=version,
-    )
-    record_audit_log(
-        session=session,
         user_id=current_user.id,
-        user_email=current_user.email,
         action="config.rollback",
-        service_name=name,
-        detail=f"from_version={version} applied={'true' if applied else 'false'}",
+        rolled_back_from=version,
     )
     return ServiceConfigApplyResult(
         message=(
@@ -382,15 +436,7 @@ def update_service_config(
         name=name,
         values=values,
         user_email=current_user.email,
-    )
-    # 审计只记结果状态，不记配置值（值里可能含密码类字段）
-    record_audit_log(
-        session=session,
         user_id=current_user.id,
-        user_email=current_user.email,
-        action="config.update",
-        service_name=name,
-        detail=f"applied={'true' if applied else 'false'}",
     )
     message = (
         "Configuration applied successfully"
