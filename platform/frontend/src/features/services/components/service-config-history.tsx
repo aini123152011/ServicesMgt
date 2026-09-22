@@ -3,16 +3,6 @@ import { Eye, History, LoaderCircle, RotateCcw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { type ServiceConfigVersion, type ServiceField } from '@/api/services'
 import { usePermissions } from '@/hooks/use-permissions'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -38,6 +28,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { ConfirmDialog } from '@/components/confirm-dialog'
 import {
   useConfigVersionDetailQuery,
   useConfigVersionsQuery,
@@ -165,6 +156,9 @@ export function ServiceConfigHistory({
                             ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400'
                             : undefined
                         }
+                        // 这是「下发那一刻」的快照：容器当时没运行就是未生效，
+                        // 之后启动容器也不会回填这一列
+                        title={t('services.history.stateHint')}
                       >
                         {item.applied
                           ? t('services.history.applied')
@@ -247,6 +241,10 @@ export function ServiceConfigHistory({
             <p className='py-6 text-center text-sm text-muted-foreground'>
               {t('services.history.detailFailed')}
             </p>
+          ) : Object.keys(detailQuery.data?.values ?? {}).length === 0 ? (
+            <p className='py-6 text-center text-sm text-muted-foreground'>
+              {t('services.history.detailEmpty')}
+            </p>
           ) : (
             <dl className='grid gap-2'>
               {orderedEntries(detailQuery.data?.values ?? {}, fields).map(
@@ -269,36 +267,22 @@ export function ServiceConfigHistory({
       </Dialog>
 
       {/* 回滚确认：回滚是覆盖当前生效配置的动作，必须先说清会新增一个版本 */}
-      <AlertDialog
+      <ConfirmDialog
         open={pendingRollback !== null}
         onOpenChange={(open) => !open && setPendingRollback(null)}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              {t('services.history.rollbackTitle', {
-                version: pendingRollback?.version,
-              })}
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              {t('services.history.rollbackDesc')}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                if (pendingRollback) {
-                  rollbackMutation.mutate(pendingRollback.version)
-                }
-                setPendingRollback(null)
-              }}
-            >
-              {t('services.history.rollbackConfirm')}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        title={t('services.history.rollbackTitle', {
+          version: pendingRollback?.version,
+        })}
+        desc={t('services.history.rollbackDesc')}
+        confirmText={t('services.history.rollbackConfirm')}
+        isLoading={rollbackMutation.isPending}
+        handleConfirm={() => {
+          if (pendingRollback) {
+            rollbackMutation.mutate(pendingRollback.version)
+          }
+          setPendingRollback(null)
+        }}
+      />
     </Card>
   )
 }

@@ -115,7 +115,8 @@
       "userCreate": "User created",
       "userUpdate": "User updated",
       "userDelete": "User deleted",
-      "systemUpdate": "Platform update"
+      "systemUpdate": "Platform update",
+      "configRollback": "Config rollback"
     },
     "total": "{{count}} records",
     "empty": "No records match the current filters",
@@ -361,12 +362,14 @@
         "version": "Version",
         "time": "Time",
         "user": "Operator",
-        "state": "State",
+        "state": "Apply result",
         "digest": "Digest",
         "actions": "Actions"
       },
       "viewVersion": "View config of v{{version}}",
-      "rollbackVersion": "Roll back to v{{version}}"
+      "rollbackVersion": "Roll back to v{{version}}",
+      "stateHint": "Result at the time this version was applied; if the container was not running it stays \"not applied\" even after it starts",
+      "detailEmpty": "This version has no config values to show."
     }
   },
   "users": {

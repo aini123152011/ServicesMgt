@@ -115,7 +115,8 @@
       "userCreate": "创建用户",
       "userUpdate": "修改用户",
       "userDelete": "删除用户",
-      "systemUpdate": "平台更新"
+      "systemUpdate": "平台更新",
+      "configRollback": "配置回滚"
     },
     "total": "共 {{count}} 条记录",
     "empty": "当前筛选条件下没有记录",
@@ -361,12 +362,14 @@
         "version": "版本",
         "time": "时间",
         "user": "操作者",
-        "state": "状态",
+        "state": "下发结果",
         "digest": "渲染摘要",
         "actions": "操作"
       },
       "viewVersion": "查看 v{{version}} 的配置",
-      "rollbackVersion": "回滚到 v{{version}}"
+      "rollbackVersion": "回滚到 v{{version}}",
+      "stateHint": "该版本下发时的结果；容器当时未运行则记未生效，之后启动也不会回填",
+      "detailEmpty": "该版本没有可展示的配置值。"
     }
   },
   "users": {

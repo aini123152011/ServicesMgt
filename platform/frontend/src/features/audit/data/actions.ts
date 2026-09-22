@@ -9,6 +9,7 @@ import { type TranslationKey } from '@/lib/i18n'
  */
 const actionLabelKeys: Record<string, TranslationKey> = {
   'config.update': 'audit.action.configUpdate',
+  'config.rollback': 'audit.action.configRollback',
   'service.start': 'audit.action.serviceStart',
   'service.stop': 'audit.action.serviceStop',
   'service.restart': 'audit.action.serviceRestart',
@@ -27,7 +28,8 @@ export function actionLabelKey(action: string): TranslationKey | null {
 type ActionKind = 'service' | 'user' | 'system' | 'other'
 
 export function actionKind(action: string): ActionKind {
-  if (action.startsWith('service.') || action === 'config.update')
+  // 配置类动作统一按 service 上色：新增 config.* 动作时不必再逐个补判断
+  if (action.startsWith('service.') || action.startsWith('config.'))
     return 'service'
   if (action.startsWith('user.')) return 'user'
   if (action.startsWith('system.')) return 'system'
