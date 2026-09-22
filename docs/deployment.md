@@ -19,8 +19,7 @@ IMAGE_TAG=latest                          # 也可钉版本，如 0.6.2
 | 仓库 | IMAGE_PREFIX | 目标机需要 |
 | --- | --- | --- |
 | Docker Hub | `docker.io/aini123152008/` | 公开仓库无需登录 |
-| GitHub GHCR | `ghcr.io/aini123152011/` | 包为私有，需 `docker login ghcr.io`（PAT 带 read:packages） |
-| 内网 GitLab | `<内网 GitLab 主机>:5050/<组>/<项目>/` | 需 `docker login`（账号或部署令牌） |
+| GitHub GHCR | `ghcr.io/aini123152011/` | 包为公开，匿名可拉；若改成私有则需 `docker login ghcr.io`（PAT 带 read:packages） |
 | 本地镜像（开发态） | 留空 | 配 `compose.build.yaml` 本地构建 |
 
 **发布镜像**（本地与 CI 同一个入口）：
@@ -33,12 +32,10 @@ REGISTRIES="docker.io/aini123152008/" TAG=latest   DOCKERHUB_USER=<账号> DOCKE
 REGISTRIES="ghcr.io/<账号>/,docker.io/<账号>/" TAG=0.6.2   GHCR_USER=<账号> GHCR_TOKEN=<带 write:packages 的 PAT>   DOCKERHUB_USER=<账号> DOCKERHUB_TOKEN=<令牌> bash scripts/publish.sh
 ```
 
-CI 侧：**GitLab CI**（内网路径）在默认分支用内置 `CI_REGISTRY_*` 推自己的容器仓库，
-需要一台能跑 docker 的 runner；`.github/workflows/build.yml` 保留备用——以后若再推公开镜像，
-它会在 main/手动触发时构建多架构并推 GHCR（配了 `DOCKERHUB_USERNAME`/`DOCKERHUB_TOKEN`
-两个仓库密钥则一并推 Docker Hub）。
+CI 侧：`.github/workflows/build.yml` 在 main 或手动触发时构建多架构并推 GHCR
+（配了 `DOCKERHUB_USERNAME`/`DOCKERHUB_TOKEN` 两个仓库密钥则一并推 Docker Hub）。
 
-没有 runner 时也可以在任何能直连仓库的机器上手动发布（上面的 `publish.sh` 一条命令）。
+也可以在任何能直连仓库的机器上手动发布（上面的 `publish.sh` 一条命令）。
 
 **本地构建**（开发态，改代码后想立刻验证时用）：
 

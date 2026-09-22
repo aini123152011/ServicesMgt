@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# services 镜像统一构建入口 —— 唯一事实来源，GitHub Actions 与 GitLab CI 均调用本脚本
+# services 镜像统一构建入口 —— 唯一事实来源，本地与 CI（GitHub Actions）均调用本脚本
 #
 # 用法:
 #   scripts/build.sh                          # 本地构建全部服务（当前平台，--load 入本地镜像）

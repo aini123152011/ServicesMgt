@@ -21,7 +21,7 @@ docker compose up -d          # 拉起平台（含 PostgreSQL）与 11 个服务
 docker compose ps             # 看健康状态
 ```
 
-镜像名统一为 `bmc-<服务>` / `bmc-platform`，支持三家仓库（Docker Hub / GHCR / 内网 GitLab）
+镜像名统一为 `bmc-<服务>` / `bmc-platform`，支持 Docker Hub 与 GHCR 两家仓库
 切换，详见[部署指南](docs/deployment.md)。本地开发改代码时再走构建：
 `docker compose -f compose.yaml -f compose.build.yaml up -d --build`。
 
@@ -107,9 +107,8 @@ REGISTRIES="docker.io/<账号>/" TAG=latest   DOCKERHUB_USER=... DOCKERHUB_TOKEN
 
 CI 只做「准备环境 + 调用同一个 `scripts/build.sh`」，构建逻辑不在流水线里重复：
 
-- GitLab CI：`.gitlab-ci.yml`（内网路径，需要能跑 docker 的 runner）
-- GitHub Actions：`.github/workflows/build.yml`（保留备用：以后若再推公开镜像，多架构构建与
-  推 GHCR/Docker Hub 的流水线可直接用）
+- GitHub Actions：`.github/workflows/build.yml`（现役 CI：main 或手动触发时构建多架构并推 GHCR，
+  配了 `DOCKERHUB_USERNAME`/`DOCKERHUB_TOKEN` 则一并推 Docker Hub）
 
 ---
 

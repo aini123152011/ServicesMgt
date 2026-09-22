@@ -2,7 +2,7 @@
 
 > 逐服务的四类验证结论：**正向协议** / **故障注入** / **页面** / **BMC 侧**。
 > 数据来源：`scripts/verify_bmc_platform_e2e.py` 实际存在的检查项与 `fault_mode` 取值、各服务 `schema.json`、
-> BMC Redfish 实测记录（见 `.trellis/tasks/archive/2026-09/09-22-services-page-audit/research/`）。
+> BMC Redfish 实测记录（见本机任务记录）。
 
 ## 总览
 

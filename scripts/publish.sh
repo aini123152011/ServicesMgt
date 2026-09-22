@@ -7,8 +7,8 @@
 #     DOCKERHUB_USER=... DOCKERHUB_TOKEN=... bash scripts/publish.sh
 #
 #   # 推多家（逗号分隔，按顺序逐个推送）
-#   REGISTRIES="docker.io/aini123152008/,ghcr.io/<账号>/,<内网 GitLab 主机>:5050/<组>/<项目>/" \
-#     TAG=0.6.2 GHCR_USER=... GHCR_TOKEN=... GITLAB_USER=... GITLAB_TOKEN=... bash scripts/publish.sh
+#   REGISTRIES="docker.io/<账号>/,ghcr.io/<账号>/" \
+#     TAG=0.6.2 DOCKERHUB_USER=... DOCKERHUB_TOKEN=... GHCR_USER=... GHCR_TOKEN=... bash scripts/publish.sh
 #
 #   # 只发布服务镜像 / 只发布平台镜像
 #   SERVICES_ONLY=1 ... bash scripts/publish.sh
@@ -62,12 +62,12 @@ login_registry() {
     ghcr.io)
       user="${GHCR_USER:-}"; token="${GHCR_TOKEN:-}" ;;
     *)
-      # 其它（含内网 GitLab 与自建仓库）统一用 GITLAB_*/REGISTRY_* 两组兜底
-      user="${GITLAB_USER:-${REGISTRY_USER:-}}"; token="${GITLAB_TOKEN:-${REGISTRY_TOKEN:-}}" ;;
+      # 其它自建仓库用 REGISTRY_* 两组兜底
+      user="${REGISTRY_USER:-}"; token="${REGISTRY_TOKEN:-}" ;;
   esac
 
   if [ -z "$user" ] || [ -z "$token" ]; then
-    info "跳过 ${host}：没有对应凭据（docker.io→DOCKERHUB_*，ghcr.io→GHCR_*，其它→GITLAB_*/REGISTRY_*）"
+    info "跳过 ${host}：没有对应凭据（docker.io→DOCKERHUB_*，ghcr.io→GHCR_*，自建仓库→REGISTRY_*）"
     return 1
   fi
   if [ "$DRY_RUN" = "1" ]; then

@@ -10,7 +10,6 @@
 # 需要配置的仓库密钥（缺哪个就跳过哪个仓库，不会让流水线失败）：
 #   DOCKERHUB_USERNAME / DOCKERHUB_TOKEN   → Docker Hub
 #   GHCR 用内置 GITHUB_TOKEN（packages: write），无需额外配置
-#   内网 GitLab 容器仓库在 GitHub Runner 上不可达，不在此推
 name: build-images
 
 on:

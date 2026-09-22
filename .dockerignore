@@ -7,7 +7,6 @@
 .gitignore
 .gitattributes
 .github
-.gitlab-ci.yml
 
 # 依赖与缓存（构建时在镜像内重新安装）
 **/node_modules
