@@ -20,7 +20,7 @@ IMAGE_TAG=latest                          # 也可钉版本，如 0.6.2
 | --- | --- | --- |
 | Docker Hub | `docker.io/aini123152008/` | 公开仓库无需登录 |
 | GitHub GHCR | `ghcr.io/aini123152011/` | 包为私有，需 `docker login ghcr.io`（PAT 带 read:packages） |
-| 内网 GitLab | `<内网 GitLab 容器仓库>/` | 需 `docker login`（账号或部署令牌） |
+| 内网 GitLab | `<内网 GitLab 主机>:5050/<组>/<项目>/` | 需 `docker login`（账号或部署令牌） |
 | 本地镜像（开发态） | 留空 | 配 `compose.build.yaml` 本地构建 |
 
 **发布镜像**（本地与 CI 同一个入口）：
@@ -142,7 +142,7 @@ ssh root@<目标机> 'cat > /tmp/platform-update.tgz' < /tmp/platform-update.tgz
 ssh root@<目标机> 'VERSION=<x.y.z> bash -s' < scripts/deploy_platform_remote.sh
 ```
 
-脚本要点（都在 `.trellis/spec/deploy/platform-deployment.md` 里展开）：
+脚本要点：
 
 - **运行参数从现有容器读回**（环境变量、挂载、端口、网络、重启策略），脚本里不写任何密钥；
 - 排除 `PLATFORM_VERSION` / `PLATFORM_BUILD`（镜像自带元数据，照抄旧值会让新镜像继续报旧版本）；
@@ -165,4 +165,4 @@ ssh root@<目标机> 'VERSION=<x.y.z> bash -s' < scripts/deploy_platform_remote.
 | 平台更新后版本号没变 | 部署时把旧容器的 `PLATFORM_VERSION` 也带过去了；见上面的「排除镜像自带元数据」 |
 
 更多容器层面的坑（权限、`/var/run` 空 tmpfs、被动端口段、降权守护进程的 reload 陷阱等）见
-[容器运行时踩坑清单](../.trellis/spec/services/container-runtime-guidelines.md)。
+[容器运行时踩坑清单](./container-runtime-guidelines.md)。

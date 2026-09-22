@@ -40,7 +40,7 @@ docker compose ps             # 看健康状态
 | 能力 | 说明 |
 | --- | --- |
 | 配置下发 | 表单 → Jinja2 渲染 → 写入服务配置卷 → 触发 `/reload.sh`；**以服务真实生效为准**，不是「改了文件就算」 |
-| 故障注入 | 每个服务一组故障模式（共 29 个），全部经真实协议客户端验证，详见 [验证矩阵](.trellis/spec/services/verification-matrix.md) |
+| 故障注入 | 每个服务一组故障模式（共 29 个），全部经真实协议客户端验证，详见 [验证矩阵](docs/verification-matrix.md) |
 | 配置版本与回滚 | 每次下发（含回滚）留存版本，可查看内容（secret 脱敏）并一键回滚；回滚走同一条渲染→生效→审计链路 |
 | 生命周期 | 起停重启、状态与健康检查、容器日志、数据卷浏览（日志按 IP/日期归档、支持关键字过滤） |
 | 外部用法提示 | 每个服务详情页给出「BMC / Linux 客户端 / 浏览器怎么连」的命令示例，可直接照抄 |
@@ -80,8 +80,7 @@ platform/frontend/          React 19 + Vite + TanStack + shadcn/ui
 compose.yaml                一键编排：平台 + PostgreSQL + 11 个服务
 scripts/build.sh            服务镜像统一构建入口（本地/CI 共用，支持多架构）
 scripts/verify_bmc_platform_e2e.py   实机验收套件（117 条用例，真实协议判定）
-docs/                       部署、服务接入文档
-.trellis/                   任务、规范与开发记录（本项目的工程知识库）
+docs/                       部署、服务接入、容器踩坑与验证矩阵
 ```
 
 ---
@@ -90,8 +89,8 @@ docs/                       部署、服务接入文档
 
 - [部署指南](docs/deployment.md) —— 一键编排、单服务独立部署、平台更新与排障
 - [如何新增一个服务插件](docs/adding-a-service.md) —— 目录契约、manifest/schema 字段、验收清单
-- [容器运行时踩坑清单](.trellis/spec/services/container-runtime-guidelines.md) —— 11 类「配置写对了但服务没按配置工作」的坑与修法
-- [验证矩阵](.trellis/spec/services/verification-matrix.md) —— 11 服务 × 4 类验证项 × 29 个故障模式的实测结论
+- [容器运行时踩坑清单](docs/container-runtime-guidelines.md) —— 11 类「配置写对了但服务没按配置工作」的坑与修法
+- [验证矩阵](docs/verification-matrix.md) —— 11 服务 × 4 类验证项 × 29 个故障模式的实测结论
 
 ---
 

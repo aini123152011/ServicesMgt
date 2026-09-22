@@ -1,4 +1,4 @@
-"""BMC 服务管理平台实机验收套件（目标机 <目标机地址> / openEuler aarch64）。
+"""BMC 服务管理平台实机验收套件（在部署目标机上运行，脚本内通过 127.0.0.1 访问平台与服务）。
 
 在目标机上运行（脚本内部通过 127.0.0.1 访问平台与服务容器）：
 
@@ -67,7 +67,7 @@ def host_address() -> str:
 
     UDP 探测统一走真实网卡地址而非 127.0.0.1：经 Docker 端口映射的回环路径下，
     "服务端另起临时端口应答"的协议（TFTP 最典型）会因 NAT 会话匹配不上而收不到
-    回包——实测 127.0.0.1:69 无应答、<目标机地址>:69 正常。
+    回包——实测回环地址无应答、本机网卡地址正常。
     """
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
@@ -1538,7 +1538,7 @@ def main() -> None:
 
     print("=" * 68)
     print("  BMC Services Platform 实机验收套件")
-    print("  目标机 <目标机地址> (openEuler 22.03 LTS-SP1 aarch64)")
+    print(f"  目标机 {host_address()} ({sys.platform} {platform.machine()})")
     print("=" * 68)
 
     load_credentials()

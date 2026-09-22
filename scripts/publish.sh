@@ -3,11 +3,11 @@
 #
 # 用法：
 #   # 推到一家（前缀含结尾斜杠）
-#   REGISTRIES="docker.io/aini123152008/" TAG=latest \
+#   REGISTRIES="docker.io/<账号>/" TAG=latest \
 #     DOCKERHUB_USER=... DOCKERHUB_TOKEN=... bash scripts/publish.sh
 #
 #   # 推多家（逗号分隔，按顺序逐个推送）
-#   REGISTRIES="docker.io/aini123152008/,ghcr.io/aini123152011/,<内网 GitLab 容器仓库>/" \
+#   REGISTRIES="docker.io/aini123152008/,ghcr.io/<账号>/,<内网 GitLab 主机>:5050/<组>/<项目>/" \
 #     TAG=0.6.2 GHCR_USER=... GHCR_TOKEN=... GITLAB_USER=... GITLAB_TOKEN=... bash scripts/publish.sh
 #
 #   # 只发布服务镜像 / 只发布平台镜像
