@@ -14,18 +14,10 @@ if [ ! -f "${CONF_FILE}" ]; then
     cp "${SEED_FILE}" "${CONF_FILE}"
 fi
 
-# 从渲染产物重读运行时参数：snmptrapd 的输出文件/监听地址/输出格式只能通过命令行指定，
-# 模板把它们回写为 "# runtime:" 注释行，这里按约定解析（缺省回落 schema 默认值），
-# 使每次重启都使用渲染产物的当前值
-RUNTIME_OUTPUT_FILE="$(sed -n 's/^# runtime: output_file=//p' "${CONF_FILE}" | tail -n 1)"
-RUNTIME_LISTEN="$(sed -n 's/^# runtime: listen=//p' "${CONF_FILE}" | tail -n 1)"
-RUNTIME_OUTPUT_OPTS="$(sed -n 's/^# runtime: output_opts=//p' "${CONF_FILE}" | tail -n 1)"
-OUTPUT_FILE="${RUNTIME_OUTPUT_FILE:-/var/log/snmp/traps.log}"
-LISTEN="${RUNTIME_LISTEN:-0.0.0.0:162}"
-
 # 空卷播种输出文件：-Lf 追加写但要求父目录存在，预先建好目录与文件避免首条 Trap 丢失
-mkdir -p "$(dirname "${OUTPUT_FILE}")"
-touch "${OUTPUT_FILE}"
+# （输出文件本身在循环内按渲染产物确定，这里先按缺省路径准备好目录）
+mkdir -p /var/log/snmp
+touch /var/log/snmp/traps.log
 
 # 监督循环：reload.sh 终止 snmptrapd 后，循环检测到退出并带新配置重新拉起；
 # docker stop 的 SIGTERM 由 stop_handler 转发给 snmptrapd 后退出容器
@@ -40,6 +32,18 @@ stop_handler() {
 trap stop_handler TERM INT
 
 while :; do
+    # 每轮都从渲染产物重读运行时参数：输出文件/监听地址/输出格式只能通过命令行指定，
+    # 模板把它们回写为 "# runtime:" 注释行，这里按约定解析（缺省回落 schema 默认值）。
+    # **必须在循环内读**：reload.sh 只杀守护进程、不重启容器，若在循环外读一次，
+    # 后续重启会一直用容器启动时的旧值——改监听地址/输出文件都会静默不生效（实测踩到：
+    # blackhole_drop 的 listen=127.0.0.1 不生效，外部 Trap 照样被收到）。
+    RUNTIME_OUTPUT_FILE="$(sed -n 's/^# runtime: output_file=//p' "${CONF_FILE}" | tail -n 1)"
+    RUNTIME_LISTEN="$(sed -n 's/^# runtime: listen=//p' "${CONF_FILE}" | tail -n 1)"
+    RUNTIME_OUTPUT_OPTS="$(sed -n 's/^# runtime: output_opts=//p' "${CONF_FILE}" | tail -n 1)"
+    OUTPUT_FILE="${RUNTIME_OUTPUT_FILE:-/var/log/snmp/traps.log}"
+    LISTEN="${RUNTIME_LISTEN:-0.0.0.0:162}"
+    mkdir -p "$(dirname "${OUTPUT_FILE}")"
+    touch "${OUTPUT_FILE}"
     # -Lf：日志追加写入文件；-f：前台不 fork；-n：不对 Trap 来源地址做反解
     # （容器内无 DNS 解析价值，纯开销，日志直接记 IP）；监听参数形如 <地址>:162。
     # RUNTIME_OUTPUT_OPTS 不加引号是故意的：空值展开为零个参数，非空值按空格拆分

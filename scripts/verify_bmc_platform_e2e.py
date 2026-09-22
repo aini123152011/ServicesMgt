@@ -1150,8 +1150,26 @@ def phase_snmptrapd(token: str) -> None:
     logged = exec_in("bmc-snmptrapd", "cat /var/log/snmp/traps.log 2>/dev/null")
     record("11.3 故障注入：非授权社区被丢弃", marker2 not in logged)
 
+    # 11.4/11.5 故障注入 force_v3_only：不配置 v1/v2c 社区 → v2c Trap 不落盘，但服务仍活着
+    put_config(token, "snmptrapd", {**CFG_SNMPTRAPD, "fault_mode": "force_v3_only"})
+    time.sleep(5)
+    marker3 = f"BMC_TRAP_V3ONLY_{int(time.time())}"
+    exec_in("bmc-snmptrapd", ": > /var/log/snmp/traps.log")
+    snmp_v2c_trap(HOST_ADDR, PORT_SNMPTRAP, "bmctrap", marker3)
+    time.sleep(5)
+    logged3 = exec_in("bmc-snmptrapd", "cat /var/log/snmp/traps.log 2>/dev/null")
+    record("11.4 故障注入 force_v3_only：v2c Trap 不落盘且容器仍在运行",
+           marker3 not in logged3 and container_running("bmc-snmptrapd"))
+
     st, applied, _ = put_config(token, "snmptrapd", CFG_SNMPTRAPD)
-    record("11.4 复位正向配置生效", st == 200 and applied is True, f"status={st}")
+    record("11.5 复位正向配置生效", st == 200 and applied is True, f"status={st}")
+    time.sleep(5)
+    marker4 = f"BMC_TRAP_RESET_{int(time.time())}"
+    snmp_v2c_trap(HOST_ADDR, PORT_SNMPTRAP, "bmctrap", marker4)
+    got = wait_for(lambda: True if marker4 in exec_in(
+        "bmc-snmptrapd", "cat /var/log/snmp/traps.log 2>/dev/null") else None,
+        timeout=40, interval=5, label="复位后 Trap 落盘")
+    record("11.6 复位后 Trap 重新落盘", bool(got))
 
 
 def phase_postfix(token: str) -> None:
@@ -1211,8 +1229,41 @@ def phase_postfix(token: str) -> None:
     record("12.9 force_tls 下 STARTTLS 投递成功（TLS 真的可用）",
            bool(got_tls), (got_tls or "STARTTLS 投递失败").replace("\n", " ")[:140])
 
+    # 12.10/12.11 故障注入 greylist_451：投递被临时拒绝（4xx，客户端应稍后重试）。
+    # 实测 postfix 回的是 450 4.3.2（而非模式名里的 451），故按「4xx 临时失败」判定，
+    # 码值记入 detail——名字与实际码值的差异已在任务记录里说明。
+    put_config(token, "postfix", {**CFG_POSTFIX, "fault_mode": "greylist_451"})
+    time.sleep(5)
+
+    def temporary_reject():
+        accepted, detail = smtp_send("127.0.0.1", PORT_SMTP, "bmc-e2e@bmc-mail.local",
+                                     "root@bmc-mail.local", f"{marker}_grey")
+        return detail if (not accepted and " 4" in detail) else None
+
+    got = wait_for(temporary_reject, timeout=60, interval=5, label="临时拒绝")
+    record("12.10 故障注入 greylist_451：投递被临时拒绝（4xx）",
+           bool(got), (got or "未被临时拒绝").replace("\n", " ")[:140])
+
+    # 12.12/12.13 故障注入 tarpit_delay：**出错**会话被拖慢（smtpd_error_sleep_time）。
+    # 注意必须触发错误（RCPT 被拒）才走 sleep 路径；正常投递不受影响。
+    put_config(token, "postfix", {**CFG_POSTFIX, "fault_mode": "tarpit_delay"})
+    time.sleep(5)
+    start = time.time()
+    smtp_send("127.0.0.1", PORT_SMTP, "bmc-e2e@bmc-mail.local", "root@bmc-mail.local",
+              f"{marker}_tarpit", timeout=90)
+    slow = time.time() - start
+    record("12.11 故障注入 tarpit_delay：出错会话被拖慢（>=15s）",
+           slow >= 15, f"耗时 {slow:.1f}s")
+
     st, applied, _ = put_config(token, "postfix", CFG_POSTFIX)
-    record("12.10 复位正向配置生效", st == 200 and applied is True, f"status={st}")
+    record("12.12 复位正向配置生效", st == 200 and applied is True, f"status={st}")
+    time.sleep(5)
+    start = time.time()
+    accepted, detail = smtp_send("127.0.0.1", PORT_SMTP, "bmc-e2e@bmc-mail.local",
+                                 "root@bmc-mail.local", f"{marker}_after")
+    fast = time.time() - start
+    record("12.13 复位后同样出错会话恢复快速响应",
+           fast < 15 and "4" in detail, f"耗时 {fast:.1f}s {detail[:80]}")
 
 
 def phase_secrets(token: str) -> None:
