@@ -19,7 +19,7 @@ const statusMessageKeys: Record<number, TranslationKey> = {
 }
 
 /** 错误 → 展示文案：状态码本地化文案 > 后端 detail/title > 通用兜底 */
-export function resolveErrorMessage(error: unknown): string {
+function resolveErrorMessage(error: unknown): string {
   if (
     error &&
     typeof error === 'object' &&

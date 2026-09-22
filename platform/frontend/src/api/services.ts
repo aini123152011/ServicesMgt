@@ -46,13 +46,13 @@ export interface ServiceField {
   pem?: boolean
 }
 
-export interface ServiceManifest extends ServiceSummary {
+interface ServiceManifest extends ServiceSummary {
   config_dir: string
   config_files: string[]
   data_dir?: string | null
 }
 
-export interface ServiceSchema {
+interface ServiceSchema {
   fields: ServiceField[]
 }
 
@@ -64,13 +64,13 @@ export interface ServiceConfig {
 }
 
 /** GET /services/{name} 的返回体 */
-export interface ServiceDetailResponse {
+interface ServiceDetailResponse {
   manifest: ServiceManifest
   schema: ServiceSchema
   config: ServiceConfig
 }
 
-export interface UpdateConfigResponse {
+interface UpdateConfigResponse {
   message: string
   applied: boolean
 }
@@ -84,7 +84,7 @@ export interface ServiceStatusResponse {
 
 export type ServiceAction = 'start' | 'stop' | 'restart'
 
-export interface ServiceLogsResponse {
+interface ServiceLogsResponse {
   logs: string
 }
 
@@ -149,19 +149,19 @@ export async function getServiceLogs(
   return data
 }
 
-export interface ServiceDataEntry {
+interface ServiceDataEntry {
   name: string
   type: 'file' | 'dir'
   size: number
   modified: string | null
 }
 
-export interface ServiceDataTree {
+interface ServiceDataTree {
   path: string
   entries: ServiceDataEntry[]
 }
 
-export interface ServiceDataContent {
+interface ServiceDataContent {
   path: string
   size: number
   truncated: boolean

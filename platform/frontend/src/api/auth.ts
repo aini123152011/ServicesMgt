@@ -1,7 +1,7 @@
 import { apiClient } from './client'
 
 /** 后端 POST /login/access-token 的返回体 */
-export interface Token {
+interface Token {
   access_token: string
   token_type: string
 }

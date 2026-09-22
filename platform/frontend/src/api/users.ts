@@ -7,7 +7,7 @@ export const ROLE_NAMES = ['admin', 'operator', 'readonly'] as const
 export type RoleName = (typeof ROLE_NAMES)[number]
 
 /** 后端通用 Message 返回体 */
-export interface Message {
+interface Message {
   message?: string | null
   detail?: string | null
 }

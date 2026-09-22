@@ -34,7 +34,7 @@ export interface SystemInfo {
   targets: UpdateTarget[]
 }
 
-export interface UpdateCheckResult {
+interface UpdateCheckResult {
   registry: string
   targets: UpdateTarget[]
   update_available: string[]
