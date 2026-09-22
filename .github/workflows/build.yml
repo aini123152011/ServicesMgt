@@ -36,7 +36,7 @@ jobs:
       # PR / 非默认分支：多架构构建校验，不产出镜像
       - name: Build (validate only)
         if: github.ref != 'refs/heads/main'
-        run: scripts/build.sh --check
+        run: bash scripts/build.sh --check
 
       # 默认分支：多架构构建并推送 ghcr.io/<owner>/<service>:latest
       - name: Build & push
@@ -44,4 +44,4 @@ jobs:
         env:
           REGISTRY: ghcr.io/${{ github.repository_owner }}
           PUSH: '1'
-        run: scripts/build.sh
+        run: bash scripts/build.sh
