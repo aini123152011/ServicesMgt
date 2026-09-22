@@ -72,13 +72,20 @@ docker build -f Dockerfile.platform.fast \
   . 2>&1 | tail -3
 docker tag "bmc-platform:$VERSION" bmc-platform:latest
 
-echo "==> 重建容器（沿用原运行参数：网络 $network / 端口 $port / 重启策略 $restart）"
-docker rm -f "$CONTAINER" >/dev/null
+echo "==> 先跑数据库迁移（用新镜像，在切流之前）"
+# 顺序有意为之：迁移必须由**新镜像**执行（它才带新迁移文件），且要在新容器接管流量前完成，
+# 否则新代码会短暂跑在旧表结构上（新接口 500）。一次性容器只挂网络与环境变量，不碰 docker.sock。
 # 环境变量逐个作为独立数组元素传递：值里可能含 !# 之类的字符，拼字符串会被 shell 再解释一次
 env_args=()
 for entry in "${envs[@]}"; do
   env_args+=(-e "$entry")
 done
+docker run --rm --network "$network" \
+  "${env_args[@]}" \
+  "bmc-platform:$VERSION" alembic upgrade head
+
+echo "==> 重建容器（沿用原运行参数：网络 $network / 端口 $port / 重启策略 $restart）"
+docker rm -f "$CONTAINER" >/dev/null
 # shellcheck disable=SC2086  # binds 需要按空格拆分
 docker run -d --name "$CONTAINER" --restart "$restart" \
   --network "$network" -p "$port" \

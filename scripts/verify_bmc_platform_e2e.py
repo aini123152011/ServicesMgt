@@ -57,6 +57,9 @@ PORT_SNMPTRAP = 18111
 PORT_SMTP = 18112
 PORT_SYSLOG = 18104
 
+# 每服务保留的配置版本上限，与后端 settings.CONFIG_VERSION_LIMIT 默认值一致
+VERSION_LIMIT = 20
+
 
 def host_address() -> str:
     """本机对外 IPv4（BMC 设备从局域网访问服务时用的就是这个地址）。
@@ -1382,6 +1385,118 @@ def phase_audit(token: str) -> None:
            st == 422, f"status={st}")
 
 
+def _config_versions(token: str, service: str) -> list:
+    """读取服务的配置版本列表（最新在前）；接口异常时返回空列表，由用例判失败。"""
+    st, resp = api("GET", f"/api/v1/services/{service}/config/versions?limit=100",
+                   token=token)
+    if st != 200:
+        return []
+    return json.loads(resp).get("data", [])
+
+
+def phase_versions(token: str) -> None:
+    """AC1–AC4：版本历史、详情脱敏、回滚真实生效、超限裁剪。
+
+    回滚的验收落在协议上而不是配置对比：回滚到「stratum_16」那一版后，NTP 应答必须
+    重新宣告未同步——配置对比只能证明库里的值变了，证明不了容器真的重读了配置。
+    """
+    print("\n>>> 阶段 16: 配置版本历史与回滚（AC1–AC4）")
+    service = "chrony"
+    # 版本号由历史累积决定，先取当前最大版本号再往后造，避免依赖「干净库」的假设
+    base = max((v["version"] for v in _config_versions(token, service)), default=0)
+
+    # 造 3 个可区分的版本：正向授时 → stratum_16 故障 → 正向授时
+    for values in (CFG_CHRONY, {**CFG_CHRONY, "fault_mode": "stratum_16"}, CFG_CHRONY):
+        st, applied, resp = put_config(token, service, values)
+        if not (st == 200 and applied is True):
+            record("16.1 连续 3 次下发配置均生效", False, f"status={st} {resp[:140]}")
+            return
+
+    versions = _config_versions(token, service)
+    newest = [v["version"] for v in versions][:3]
+    record("16.1 历史列表按版本倒序返回最近 3 次下发（含操作者与时间）",
+           newest == [base + 3, base + 2, base + 1]
+           and all(v.get("user_email") and v.get("created_at") for v in versions),
+           f"版本={newest} 期望={[base + 3, base + 2, base + 1]} 总数={len(versions)}")
+
+    fault_version = base + 2
+    st, resp = api("GET", f"/api/v1/services/{service}/config/versions/{fault_version}",
+                   token=token)
+    detail = json.loads(resp) if st == 200 else {}
+    record("16.2 版本详情返回该版本的配置值",
+           st == 200 and detail.get("version") == fault_version
+           and detail.get("values", {}).get("fault_mode") == "stratum_16",
+           f"status={st} fault_mode={detail.get('values', {}).get('fault_mode')!r}")
+
+    # secret 字段在版本详情里同样是掩码：历史接口不能成为绕过脱敏的后门
+    put_config(token, "nginx", {**CFG_NGINX, "auth_basic_enabled": True,
+                                "auth_basic_password": "bmc-fixture-pass"})
+    nginx_versions = _config_versions(token, "nginx")
+    if nginx_versions:
+        newest_nginx = nginx_versions[0]["version"]
+        st, resp = api("GET",
+                       f"/api/v1/services/nginx/config/versions/{newest_nginx}",
+                       token=token)
+        values = json.loads(resp).get("values", {}) if st == 200 else {}
+        record("16.3 版本详情里 secret 字段为掩码",
+               st == 200 and values.get("auth_basic_password") == "********",
+               f"status={st} auth_basic_password={values.get('auth_basic_password')!r}")
+    else:
+        record("16.3 版本详情里 secret 字段为掩码", False, "nginx 无版本记录")
+    put_config(token, "nginx", CFG_NGINX)
+
+    st, resp = api("POST",
+                   f"/api/v1/services/{service}/config/versions/{fault_version}/rollback",
+                   token=token)
+    applied = json.loads(resp).get("applied") if st == 200 else None
+    record("16.4 回滚接口接受并重新渲染下发", st == 200 and applied is True,
+           f"status={st} {resp[:140]}")
+
+    got = wait_for(lambda: (lambda r: r if r[0] == 3 else None)(ntp_query()),
+                   timeout=45, label="回滚后未同步宣告")
+    record("16.5 回滚后协议表现回到该版本（NTP 宣告未同步）", bool(got),
+           f"stratum={got[1]} leap={got[0]}" if got else f"实测 leap={ntp_query()[0]}")
+
+    st, resp = api("GET", f"/api/v1/services/{service}", token=token)
+    values = json.loads(resp).get("config", {}).get("values", {}) if st == 200 else {}
+    record("16.6 回滚后当前配置等于该版本的值",
+           st == 200 and values.get("fault_mode") == "stratum_16",
+           f"status={st} fault_mode={values.get('fault_mode')!r}")
+
+    after = _config_versions(token, service)
+    # 回滚写的是「当前最新版本 + 1」，不是「来源版本 + 1」：中间可能还有别的下发
+    record("16.7 回滚写入新版本并标注来源版本",
+           bool(after) and after[0]["version"] == base + 4
+           and after[0]["rolled_back_from"] == fault_version,
+           f"最新={after[0] if after else None}")
+
+    st, resp = api("GET", "/api/v1/audit-logs?action=config.rollback&limit=20",
+                   token=token)
+    entries = json.loads(resp).get("data", []) if st == 200 else []
+    record("16.8 审计记录回滚操作",
+           st == 200 and any(e["service_name"] == service for e in entries),
+           f"status={st} 命中={len(entries)}")
+
+    # 复位：回滚到正向版本，协议上必须恢复同步（不能把故障模式留在机器上）
+    st, resp = api("POST",
+                   f"/api/v1/services/{service}/config/versions/{base + 3}/rollback",
+                   token=token)
+    got = wait_for(lambda: (lambda r: r if r[0] == 0 and abs(r[2]) < 300 else None)(ntp_query()),
+                   timeout=60, label="复位后授时")
+    record("16.9 复位回滚到正向版本后恢复同步授时", bool(got),
+           f"stratum={got[1]} offset={got[2]:.1f}s" if got else f"status={st} {resp[:120]}")
+
+    # 上限裁剪：下发次数超过上限后，历史条数收敛到上限（旧版本被删，版本号不重排）
+    for _ in range(VERSION_LIMIT + 2):
+        put_config(token, service, CFG_CHRONY)
+    versions = _config_versions(token, service)
+    record(f"16.10 版本数超过上限后裁剪到 {VERSION_LIMIT} 条",
+           len(versions) == VERSION_LIMIT
+           and versions[0]["version"] > versions[-1]["version"],
+           f"总数={len(versions)} 最新={versions[0]['version'] if versions else None} "
+           f"最旧={versions[-1]['version'] if versions else None}")
+
+
 def phase_frontend(token: str) -> None:
     """前端 SPA 静态分发。"""
     print("\n>>> 阶段 14: 前端 SPA 分发")
@@ -1407,6 +1522,7 @@ PHASES = {
     "secrets": phase_secrets,
     "frontend": phase_frontend,
     "audit": phase_audit,
+    "versions": phase_versions,
 }
 
 
