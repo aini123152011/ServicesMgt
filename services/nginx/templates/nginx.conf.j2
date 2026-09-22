@@ -47,6 +47,12 @@ http {
         }
         {% else %}
         location / {
+            {% if fault_mode == 'corrupt_content_length' %}
+            # BMC 故障注入：声明一个远大于实际文件的 Content-Length。
+            # nginx 仍会发自己的真实长度，于是响应里出现两个 Content-Length（实测客户端
+            # 直接下载失败/挂起）——用来测 BMC 遇到「固件下载长度不符」时的处理。
+            add_header Content-Length 99999999 always;
+            {% endif %}
             {% if autoindex %}
             autoindex on;
             autoindex_exact_size off;
@@ -96,6 +102,12 @@ http {
         }
         {% else %}
         location / {
+            {% if fault_mode == 'corrupt_content_length' %}
+            # BMC 故障注入：声明一个远大于实际文件的 Content-Length。
+            # nginx 仍会发自己的真实长度，于是响应里出现两个 Content-Length（实测客户端
+            # 直接下载失败/挂起）——用来测 BMC 遇到「固件下载长度不符」时的处理。
+            add_header Content-Length 99999999 always;
+            {% endif %}
             {% if autoindex %}
             autoindex on;
             autoindex_exact_size off;

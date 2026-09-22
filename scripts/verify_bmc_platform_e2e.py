@@ -600,8 +600,28 @@ def phase_nginx(token: str) -> None:
         exec_in("bmc-nginx", "cat /etc/nginx-bmc/nginx.conf")), timeout=25, label="限速规则")
     record("3.10 故障注入：限速规则 limit_rate 5k 已生效", bool(conf))
 
+    # 3.11/3.12 故障注入 corrupt_content_length：声明一个远大于实际文件的 Content-Length。
+    # 客户端可观测：响应里出现**两个** Content-Length（nginx 自己的 + 注入的），
+    # 且请求会一直等那个永远不来的大 body（用 --max-time 兜住，避免拖死套件）。
+    def content_length_headers() -> str:
+        return sh(
+            f"curl -s -D - -o /dev/null --max-time 8 "
+            f"http://127.0.0.1:{PORT_NGINX_HTTP}/bmc_fw_e2e.bin 2>&1 | grep -ci content-length"
+        ).strip()
+
+    put_config(token, "nginx", {**CFG_NGINX, "fault_mode": "corrupt_content_length"})
+    got = wait_for(lambda: (lambda n: n if n == "2" else None)(content_length_headers()),
+                   timeout=40, interval=5, label="长度不符注入")
+    record("3.11 故障注入：响应出现两个 Content-Length（长度不符）",
+           bool(got), f"Content-Length 头数={got or content_length_headers()}")
+
     st, applied, _ = put_config(token, "nginx", CFG_NGINX)
-    record("3.11 复位正向配置生效", st == 200 and applied is True, f"status={st}")
+    record("3.12 复位正向配置生效", st == 200 and applied is True, f"status={st}")
+    got = wait_for(lambda: (lambda n: n if n == "1" else None)(content_length_headers()),
+                   timeout=40, interval=5, label="复位后长度恢复")
+    record("3.13 复位后恢复单个 Content-Length 且可正常下载",
+           bool(got) and http_get(f"http://127.0.0.1:{PORT_NGINX_HTTP}/bmc_fw_e2e.bin")[0] == 200,
+           f"Content-Length 头数={got or content_length_headers()}")
     time.sleep(3)
 
 
@@ -651,15 +671,49 @@ def phase_rsyslog(token: str) -> None:
     else:
         record("4.4 日志浏览接口 /data/content 关键字过滤命中（AC12）", False, "归档文件中未找到本次标记")
 
-    put_config(token, "rsyslog", {**CFG_RSYSLOG, "fault_mode": "drop_all"})
-    conf = wait_for(lambda: (lambda c: c if "\nstop" in c or c.startswith("stop") else None)(
-        exec_in("bmc-rsyslog", "cat /etc/rsyslog/rsyslog.conf")), timeout=25, label="stop 指令")
-    record("4.5 故障注入：黑洞丢弃(stop)指令已注入", bool(conf))
+    # 4.5/4.6 故障注入 port_blackhole：端口仍可连（服务没死）但消息不落盘。
+    # 这是**客户端可观测**的判定：只看配置里有没有 `stop` 无法区分「黑洞」与「服务挂了」。
+    def archived(marker: str) -> bool:
+        return bool(sh(
+            f"docker exec bmc-rsyslog sh -c 'grep -rl {marker} /var/log/bmc 2>/dev/null | head -1'"
+        ).strip())
 
+    def tcp_open() -> bool:
+        import socket as _socket
+
+        try:
+            with _socket.create_connection(("127.0.0.1", PORT_SYSLOG), timeout=6):
+                return True
+        except OSError:
+            return False
+
+    def send_syslog(marker: str) -> None:
+        import socket as _socket
+
+        sock = _socket.socket(_socket.AF_INET, _socket.SOCK_DGRAM)
+        try:
+            sock.sendto(f"<134>{marker}".encode(), ("127.0.0.1", PORT_SYSLOG))
+        finally:
+            sock.close()
+
+    bh_marker = f"BMC_BLACKHOLE_{int(time.time())}"
+    put_config(token, "rsyslog", {**CFG_RSYSLOG, "fault_mode": "port_blackhole"})
+    time.sleep(8)
+    send_syslog(bh_marker)
+    time.sleep(4)
+    record("4.5 故障注入 port_blackhole：端口仍可连但消息不落盘",
+           tcp_open() and not archived(bh_marker),
+           f"TCP 可连={tcp_open()} 已落盘={archived(bh_marker)}")
+
+    reset_marker = f"BMC_BLACKHOLE_RESET_{int(time.time())}"
     st, applied, _ = put_config(token, "rsyslog", CFG_RSYSLOG)
     record("4.6 复位正向配置生效", st == 200 and applied is True, f"status={st}")
+    time.sleep(8)
+    send_syslog(reset_marker)
+    got = wait_for(lambda: True if archived(reset_marker) else None,
+                   timeout=40, interval=5, label="复位后重新落盘")
+    record("4.7 复位后消息重新落盘", bool(got), f"已落盘={archived(reset_marker)}")
     time.sleep(3)
-
 
 def phase_webdav(token: str) -> None:
     """WebDAV 正向 PUT/GET 与 423/507 故障注入。"""
