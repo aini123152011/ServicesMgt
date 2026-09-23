@@ -250,21 +250,51 @@ def _validated(config_in: L2ConfigUpdate) -> dict[str, str]:
 
 
 def _blocking(
-    params: dict[str, str], dhcp_values: dict[str, Any] | None
+    params: dict[str, str],
+    dhcp_values: dict[str, Any] | None,
+    *,
+    sync_service_config: bool,
+    l2_services: str,
 ) -> list[dict[str, Any]]:
-    """用目标参数预检，返回阻断级（error）结论。
+    """用目标参数预检，返回阻断级结论。
 
-    预检要拿「改完之后」的 dhcp 配置去校验：池子/RA 前缀是否落在新网段内，取决于联动后的值，
-    否则每次都会误报 pool_outside_parent_subnet。
+    预检要拿「改完之后」的 dhcp 配置去校验：池子/RA 前缀是否落在新网段内取决于联动后的值，
+    否则每次都会误报 pool_outside_parent_subnet。**用户关掉联动时不能按「已同步」算**——
+    那种情况下池子确实会落在网段外，必须如实报出来。
+
+    Args:
+        params: 已归一化的目标 L2 参数。
+        dhcp_values: dhcp 当前配置值；None 表示取不到。
+        sync_service_config: 用户是否勾选了同步 dhcp 服务配置。
+        l2_services: 当前的 L2 服务清单，原样带过去（否则相关校验会被跳过）。
+
+    Returns:
+        阻断级结论列表；空列表表示可以执行。
     """
     merged = dict(dhcp_values or {})
-    merged.update(l2_config.derive_dhcp_values(dhcp_values or {}, params))
-    checks = _evaluate(env_values=params, dhcp_values=merged)
+    if sync_service_config:
+        merged.update(l2_config.derive_dhcp_values(dhcp_values or {}, params))
+    checks = _evaluate(
+        env_values={**params, "L2_SERVICES": l2_services}, dhcp_values=merged
+    )
     return [
         item
         for item in checks
         if item["level"] == "error" or item["code"] in BLOCKING_WARN_CODES
     ]
+
+
+def _network_matches(state: l2_network.L2NetworkState, params: dict[str, str]) -> bool:
+    """当前网络与容器连接是否已等于目标参数（幂等判定的 Docker 侧）。"""
+    return (
+        state.exists
+        and state.attached
+        and state.parent == params["DHCP_PARENT_IFACE"]
+        and state.subnet == params["L2_SUBNET"]
+        and state.gateway == params["L2_GATEWAY"]
+        and state.subnet_v6 == params["L2_SUBNET_V6"]
+        and state.gateway_v6 == params["L2_GATEWAY_V6"]
+    )
 
 
 def _planned_steps(
@@ -364,10 +394,19 @@ def preflight_l2_config(session: SessionDep, config_in: L2ConfigUpdate) -> Any:
         if config_in.sync_service_config
         else {}
     )
-    blocking = _blocking(params, dhcp_values)
+    env_values, _ = _env_values_or_502()
+    l2_services = env_values.get("L2_SERVICES", "")
+    blocking = _blocking(
+        params,
+        dhcp_values,
+        sync_service_config=config_in.sync_service_config,
+        l2_services=l2_services,
+    )
     merged = dict(dhcp_values or {})
     merged.update(service_changes)
-    checks = _evaluate(env_values=params, dhcp_values=merged)
+    checks = _evaluate(
+        env_values={**params, "L2_SERVICES": l2_services}, dhcp_values=merged
+    )
     return L2PreflightResult(
         ok=not blocking,
         blocking=[HostNetworkCheck(**item) for item in blocking],
@@ -408,17 +447,34 @@ def apply_l2_config(
     previous_parent = env_values.get("DHCP_PARENT_IFACE", "").strip()
     action = "l2.update" if previous_parent else "l2.enable"
 
-    blocking = _blocking(params, _dhcp_values(session))
+    l2_services = env_values.get("L2_SERVICES", "")
+    dhcp_values = _dhcp_values(session)
+    blocking = _blocking(
+        params,
+        dhcp_values,
+        sync_service_config=config_in.sync_service_config,
+        l2_services=l2_services,
+    )
     if blocking:
         codes = ", ".join(str(item["code"]) for item in blocking)
         raise HTTPException(
             status_code=400, detail=f"Blocked by preflight checks: {codes}"
         )
 
-    dhcp_values = _dhcp_values(session)
     service_changes: dict[str, Any] = {}
     if config_in.sync_service_config and dhcp_values:
         service_changes = l2_config.derive_dhcp_values(dhcp_values, params)
+
+    # 幂等：.env、网络与要联动的服务配置都已一致时不碰任何东西——提交相同参数不该
+    # 白白重启一次 dnsmasq（那会让 BMC 侧短暂取不到地址）
+    if not service_changes and l2_config.matches_env(env_values, params):
+        if _network_matches(_network_state_or_502(), params):
+            return L2ApplyResult(
+                applied=True,
+                rolled_back=False,
+                steps=["无需变更：.env、macvlan 网络与容器连接都已与目标一致"],
+                message="二层夹具已是目标状态。",
+            )
 
     snapshot = _Snapshot(
         env_values=dict(env_values),
@@ -466,17 +522,24 @@ def apply_l2_config(
                 f"（applied={applied}）"
             )
 
-        errors = [
-            item
-            for item in _evaluate(env_values=params, dhcp_values=None)
-            if item["level"] == "error"
-        ]
+        # 落地校验必须用**生效后**的 dhcp 配置去比：传 None 会跳过池子/RA 前缀检查，
+        # 于是「改了网段但池子没跟上」这种坏状态会被判成「校验通过」（代码评审发现）
+        post_values = _dhcp_values(session) or {}
+        post_checks = _evaluate(
+            env_values={**params, "L2_SERVICES": l2_services}, dhcp_values=post_values
+        )
+        errors = [item for item in post_checks if item["level"] == "error"]
         if errors:
             raise l2_network.L2NetworkError(
                 "Post-apply checks failed: "
                 + ", ".join(str(item["code"]) for item in errors)
             )
-        steps.append("校验通过：无 error 级结论")
+        warns = [item for item in post_checks if item["level"] == "warn"]
+        steps.append(
+            f"校验完成：无 error 级结论（warn {len(warns)} 条）"
+            if warns
+            else "校验通过：无 error / warn 级结论"
+        )
     except _EXEC_ERRORS as e:
         detail = f"{type(e).__name__}: {e}"
         logger.error(f"L2 apply failed: {detail}")

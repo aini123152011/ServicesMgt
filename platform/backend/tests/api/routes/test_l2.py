@@ -746,3 +746,66 @@ def test_apply_failure_after_sync_rolls_back_service_config(
     env_text = _env_file.read_text(encoding="utf-8")
     assert "DHCP_PARENT_IFACE=enp125s0f1" in env_text
     assert "L2_SUBNET=192.168.90.0/24" in env_text
+
+
+def test_disable_failure_rolls_back_network_and_env(
+    client: TestClient,
+    superuser_token_headers: dict[str, str],
+    db: Session,  # noqa: ARG001 - 只用于激活 monkeypatch
+    _env_file: Path,
+    fake_l2_state: l2_network.L2NetworkState,  # noqa: ARG001 - 只用于激活 monkeypatch
+    fake_apply_network: list[dict[str, Any]],
+    monkeypatch: pytest.MonkeyPatch,
+    fake_restart: list[str],  # noqa: ARG001 - 只用于激活 monkeypatch
+) -> None:
+    """停用中途失败（例如重启容器失败）时，网络与 .env 都要回到原状。"""
+
+    def _fake_detach_l2(*_args: Any) -> list[str]:
+        raise l2_network.L2NetworkError("Failed to disconnect: boom")
+
+    monkeypatch.setattr(l2_network, "detach_l2", _fake_detach_l2)
+
+    body = client.post(
+        f"{settings.API_V1_STR}/l2/disable", headers=superuser_token_headers
+    ).json()
+
+    assert body["applied"] is False
+    assert body["rolled_back"] is True
+    assert "boom" in body["message"]
+    # .env 未被清空（失败发生在写 .env 之前，回滚仍按快照恢复一次）
+    env_text = _env_file.read_text(encoding="utf-8")
+    assert "DHCP_PARENT_IFACE=enp125s0f1" in env_text
+    # 网络按快照恢复
+    assert fake_apply_network and fake_apply_network[0]["parent"] == "enp125s0f1"
+
+
+def test_apply_is_noop_when_already_at_target(
+    client: TestClient,
+    superuser_token_headers: dict[str, str],
+    db: Session,
+    _env_file: Path,
+    fake_l2_state: l2_network.L2NetworkState,  # noqa: ARG001 - 只用于激活 monkeypatch
+    fake_apply_network: list[dict[str, Any]],
+    fake_restart: list[str],
+) -> None:
+    """提交与当前状态完全相同的参数时是空操作：不重建网络、不重启容器、不写审计。"""
+    _seed_dhcp_config(db)
+
+    body = client.put(
+        f"{settings.API_V1_STR}/l2/config",
+        headers=superuser_token_headers,
+        json={
+            "parent_iface": "enp125s0f1",
+            "l2_subnet": "192.168.90.0/24",
+            "l2_gateway": "192.168.90.1",
+            "l2_subnet_v6": "fd00:90::/64",
+            "l2_gateway_v6": "fd00:90::1",
+            "sync_service_config": True,
+        },
+    ).json()
+
+    assert body["applied"] is True
+    assert body["steps"] == ["无需变更：.env、macvlan 网络与容器连接都已与目标一致"]
+    assert fake_apply_network == []
+    assert fake_restart == []
+    assert db.exec(select(AuditLog)).all() == []

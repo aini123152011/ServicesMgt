@@ -32,18 +32,6 @@ L2_KEYS: tuple[str, ...] = (
     "L2_SERVICES",
 )
 
-# 页面可改的键：L2_SERVICES 不在其中（它只影响「哪些服务预期在测试网段上被访问」的展示与校验）
-EDITABLE_KEYS: tuple[str, ...] = (
-    "DHCP_PARENT_IFACE",
-    "L2_SUBNET",
-    "L2_GATEWAY",
-    "L2_SUBNET_V6",
-    "L2_GATEWAY_V6",
-)
-
-# 启用二层夹具时若 .env 里没有服务列表，用这个默认值（与 compose.yaml 的默认一致）
-DEFAULT_L2_SERVICES = "dhcp,tftpd-hpa,rsyslog,chrony"
-
 # .env 含密钥，写入后必须保持 0600
 ENV_FILE_MODE = 0o600
 
@@ -220,7 +208,7 @@ def validate_params(values: dict[str, str]) -> dict[str, str]:
     macvlan 建不起来。
 
     Args:
-        values: 至少含 EDITABLE_KEYS 里的键（`DHCP_PARENT_IFACE` 不可为空）。
+        values: 至少含 5 个可编辑键（`DHCP_PARENT_IFACE` 不可为空）；`L2_SERVICES` 不在页面可改范围。
 
     Returns:
         归一化后的参数（网段按标准写法、去空白）。
@@ -349,6 +337,19 @@ def derive_dhcp_values(
         changes["ipv6_pool_end"] = pool_end_v6
 
     return changes
+
+
+def matches_env(env_values: dict[str, str], params: dict[str, str]) -> bool:
+    """`.env` 里的 L2 参数是否已等于目标值（幂等判定的 .env 侧）。
+
+    Args:
+        env_values: 从 .env 读出的键值。
+        params: 已归一化的目标参数。
+
+    Returns:
+        全部相等为 True。
+    """
+    return all(env_values.get(key) == value for key, value in params.items())
 
 
 def nmcli_commands(parent: str, gateway: str, subnet: str) -> list[str]:

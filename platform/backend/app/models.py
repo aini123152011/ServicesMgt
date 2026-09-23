@@ -464,7 +464,6 @@ class L2ConfigUpdate(SQLModel):
 class L2ServiceConfigChange(SQLModel):
     changed: dict[str, str] = Field(default_factory=dict)
     applied: bool = False
-    version: int | None = None
 
 
 class L2PreflightResult(SQLModel):
