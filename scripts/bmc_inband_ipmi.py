@@ -1,4 +1,4 @@
-"""在  上做只读的「带内 ipmitool」查询。
+"""在被测服务器上做只读的「带内 ipmitool」查询（地址用环境变量 BMC_HOST 传，不写死）。
 
 带内 = 用本机 IPMI 接口（/dev/ipmi0，走 KCS/SMIC）直接读本机 BMC，不经网络、不需要 BMC 账号。
 本脚本只做读取（mc info / lan print / lan6 print / channel info），不改任何设置。
@@ -89,8 +89,8 @@ def run(client: paramiko.SSHClient, script: str, label: str, sudo_pw: str = "") 
 
 
 def main() -> int:
-    if not PASSWORD:
-        print("缺少 BMC_SSH_PASSWORD", file=sys.stderr)
+    if not HOST or not PASSWORD:
+        print("缺少 BMC_HOST / BMC_SSH_PASSWORD", file=sys.stderr)
         return 2
     client = paramiko.SSHClient()
     client.set_missing_host_key_policy(paramiko.AutoAddPolicy())

@@ -163,7 +163,7 @@ snmptrapd 重载不生效导致 blackhole_drop 与 output_file 等参数都改�
   - 「RA 通告错误前缀」：把 ra-only 的 range 换成接口子网外的前缀后，dnsmasq 启动正常但**一个 RA 都不发**（被动监听 25 秒 0 包）。
   - 「DHCPv6 池耗尽」：池缩成一个地址后，dnsmasq 会把同一地址发给多个客户端（两个 DUID 都拿到 `fd00:30:12::100`），BMC 侧无可观测差异。
   - 另外两个实测坑：`dhcp-boot` 的服务器地址必须写在**第 3 段**才进 `siaddr`（两段式只填 option 66）；dnsmasq 租约下限是 **2 分钟**，写 60 会被静默抬到 120。
-- BMC 侧：✅ **v4 与 v6 真机都取到了**（对端 BMC <被测服务器管理地址>，夹具 `enp125s0f1` 经 macvlan 与 BMC 管理口同二层）
+- BMC 侧：✅ **v4 与 v6 真机都取到了**（对端 BMC `<被测服务器管理地址>`，夹具 `enp125s0f1` 经 macvlan 与 BMC 管理口同二层）
   - v4：夹具日志完整走完 `DHCPDISCOVER → DHCPOFFER → DHCPREQUEST → DHCPACK 192.168.90.135`，BMC 带内 `ipmitool lan print 1` 读到 `IP Address Source: DHCP Address`、地址 `192.168.90.135`、网关 `192.168.90.1`；夹具反向 `ping` 3/3 通（~1 ms）。
   - v6：夹具日志 `DHCPSOLICIT → DHCPADVERTISE → DHCPREQUEST → DHCPREPLY fd00:90::10d`（DUID `00:03:00:01:94:a4:f9:fa:98:21`），BMC 带内 `lan6 print 1` 的 `IPv6 Dynamic Address 0` 显示 `Source/Type: DHCPv6 / fd00:90::10d/64 / Status: active`；夹具 `ping6 fd00:90::10d` 3/3 通，v6 邻居表里该地址的 lladdr 正是 BMC 的 `94:a4:f9:fa:98:21`（REACHABLE）。
   - 一个绕不过的坑：v6 最初起不来，根因是**取址方式不匹配**而非链路——BMC 设的是 DHCPv6，而夹具当时渲染的是 `dhcp-range=fd00:90::,ra-only`（只发 RA、不做 DHCPv6 分配）。夹具侧把 `ra_mode` 从 `slaac` 切成 `stateful`（`dhcp-range=fd00:90::100,fd00:90::200,64,12h`）后立刻取到。
