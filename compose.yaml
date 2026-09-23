@@ -214,6 +214,7 @@ services:
       - ./volumes/dhcp-data:/var/lib/dnsmasq
     networks: [dhcp-net]
 
+
   freeradius:
     image: ${IMAGE_PREFIX:-}bmc-freeradius:${IMAGE_TAG:-latest}
     container_name: bmc-freeradius
