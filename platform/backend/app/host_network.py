@@ -258,18 +258,19 @@ def host_facts(force: bool = False) -> dict[str, Any]:
             if not isinstance(item, dict) or not item.get("address"):
                 continue
             try:
-                cidr6 = str(
-                    ipaddress.ip_network(
-                        f"{item['address']}/{item['prefix']}", strict=False
-                    )
+                network6 = ipaddress.ip_network(
+                    f"{item['address']}/{item['prefix']}", strict=False
                 )
+                # 归一成压缩写法：/proc/net/if_inet6 出来的是补零的四位一组
+                # （fd00:0090:0000:...:0001），直接展示又长又难读
+                address6 = str(ipaddress.ip_address(str(item["address"])))
             except ValueError:
                 continue
             info["ipv6"].append(
                 {
-                    "address": str(item["address"]),
+                    "address": address6,
                     "prefix": int(item["prefix"]),
-                    "cidr": cidr6,
+                    "cidr": str(network6),
                 }
             )
 
