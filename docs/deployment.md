@@ -47,7 +47,7 @@ docker compose -f compose.yaml -f compose.build.yaml up -d --build
 
 ---
 
-## 一、一键编排（平台 + 12 个服务）
+## 一、一键编排（平台 + 13 个服务）
 
 前置：Linux 宿主、Docker 24+ 与 Compose v2；宿主机需能拉取 `debian:bookworm-slim`、`postgres:18.4-alpine`
 等基础镜像（国内可给 Docker 配 registry 镜像加速）。
@@ -116,6 +116,100 @@ docker compose down                     # 停止（保留卷）
 | `POSTGRES_USER` / `POSTGRES_DB` | 默认 `bmc` / `bmc_platform` |
 | `PROJECT_NAME` / `FRONTEND_HOST` | 界面标题与前端地址（默认 `http://localhost:18080`） |
 | `UPDATE_REGISTRY` | 平台自更新用的镜像仓库地址；留空则关闭在线更新入口 |
+
+---
+
+## 一之二、把 DHCP 夹具接到被测 BMC（二层接线）
+
+**为什么不能靠端口映射**：DHCP 客户端从 `0.0.0.0` 广播到 `255.255.255.255`，Docker 的 NAT 端口发布
+只处理单播，BMC 也必须在同一二层广播域。所以根 compose **不发布 67/547**，`dhcp` 容器默认只在
+容器网络里服务（实机验收用同网络的客户端容器发真实报文）。
+
+要让真实 BMC 取址，必须给它和夹具拉一条**二层直通**的路径。
+
+### 网口怎么选（以本机 6 个口为例）
+
+```
+夹具机（HNS 卡 7d:00.x + ConnectX-4 Lx 04:00.x）
+┌──────────────────────────────────────────────────────────────────────────────┐
+│  HNS 网卡（7d:00.0 ~ 7d:00.3）              ConnectX-4 Lx（04:00.0/.1）        │
+│ ┌──────────────┐ ┌──────────────┐ ┌──────────────┐ ┌──────────────┐ ┌────────┐ │
+│ │ enp125s0f0   │ │ enp125s0f1   │ │ enp125s0f2   │ │ enp125s0f3   │ │enp4s0  │ │
+│ │ 管理网        │ │ ★ 接 BMC ★   │ │ 备用         │ │ 172.30.5/24  │ │f0/f1   │ │
+│ │ <管理网段>  │ │ 测试网段      │ │ 测试网段      │ │ 真实网段在用 │ │空闲    │ │
+│ │ .153/20      │ │ 192.168.90/24│ │              │ │（勿占用）    │ │        │ │
+│ │ 已插线 ✅     │ │ 未插线        │ │ 未插线        │ │ 已插线 ✅     │ │未插线  │ │
+│ └──────┬───────┘ └──────┬───────┘ └──────────────┘ └──────┬───────┘ └────────┘ │
+└────────┼────────────────┼─────────────────────────────────┼───────────────────┘
+         │                │                                 │
+   管理交换机         ★ 直连网线 ★                      172.30.5 真实网段
+   （SSH / 平台）          │                            （不要接 DHCP 夹具）
+                    ┌─────┴──────┐
+                    │ BMC 管理口  │
+                    │ 设为 DHCP   │
+                    └────────────┘
+```
+
+选择原则：**挑一块不承载管理/业务、当前没有链路的口**（上例是 `enp125s0f1`，备用 `enp125s0f2`）。
+管理口（`enp125s0f0`）不能动——SSH 与平台都走它；真实业务网口（`enp125s0f3`）也不要占用。
+
+### 直连时的数据流
+
+```
+BMC 管理口                          enp125s0f1（macvlan parent）         bmc-dhcp 容器
+    │                                      │                                │
+    │ DHCPDISCOVER  0.0.0.0:68 → 255.255.255.255:67                        │
+    │ ────────────────广播（同一二层，直连即可达）──────────────────────────► │
+    │                                      │   macvlan 子接口 192.168.90.1/24
+    │ ◄──────────────── 广播 DHCPOFFER（地址 + 网关 + DNS + 可选 PXE）─────── │
+    │ 拿到 192.168.90.100/24                                                  │
+    │                                                                        │
+    │ SLAAC/DHCPv6（可选）：RA 前缀 fd00:90::/64                              │
+```
+
+管理面与测试面是分开的：BMC 取址走 `enp125s0f1` 那条线，平台/SSH 继续走 `enp125s0f0`。
+
+### 三种接法对比
+
+| 接法 | 怎么做 | 适用 |
+| --- | --- | --- |
+| **直连（推荐）** | 一根网线：BMC 管理口 ↔ 空闲网口 | 单台 BMC 验证，最安全（该段只有夹具一个 DHCP） |
+| 经交换机同 VLAN | BMC 口与夹具口划进同一 untagged VLAN | BMC 只能接机柜交换机；跨交换机时 VLAN 要透传 |
+| 生产网内 | ❌ 不要 | 会与现场 DHCP 抢答，可能把 BMC 或别的设备配到错误地址 |
+
+### 配套要改的三处（线接对了但不改这三处，BMC 仍拿不到地址）
+
+1. `dhcp` 容器改挂 macvlan：
+   ```yaml
+   networks:
+     dhcp-net:
+       driver: macvlan
+       driver_opts: { parent: enp125s0f1 }        # 换成接 BMC 的那块口
+       ipam: { config: [{ subnet: 192.168.90.0/24, gateway: 192.168.90.1 }] }
+   ```
+2. 把 dnsmasq 的**地址池 / 网关 / RA 前缀**改成该测试网段（池不在接口子网内 dnsmasq 会拒绝服务，
+   实测踩过）。
+3. 平台**不用**加入这张网络——它通过 `docker.sock` 管容器。
+
+### 接线后自检
+
+```bash
+# 1) 链路是否起来（接上 BMC 后 carrier 应变成 1）
+cat /sys/class/net/enp125s0f1/carrier
+
+# 2) 该网口能否承载 macvlan（建一个临时子接口再删掉，不动现有配置）
+ip link add link enp125s0f1 name mv-probe type macvlan mode bridge &&   ip link set mv-probe up && ip -d link show mv-probe && ip link del mv-probe
+
+# 3) 真实取址验证：在与 dhcp 同网络的客户端容器里跑探针
+docker run --rm --network servicesmgt_dhcp-net   -v "$PWD/dhcp_probe.py:/probe.py:ro" bmc-platform:latest python3 /probe.py v4
+```
+
+### 三个坑
+
+- **macvlan 容器与宿主机默认不通**：父接口不能直接和子接口通信。若 BMC 还要访问夹具机上其它
+  服务（例如宿主发布的 TFTP 69/18108），需在宿主机再加一个 macvlan shim 接口。
+- **无线网卡不能做 macvlan parent**（有线才行）。
+- **交换机开了 DHCP snooping / 端口安全**会丢掉夹具的 DHCP 应答，需要把夹具所在口设为 trusted。
 
 ---
 
