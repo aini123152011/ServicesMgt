@@ -339,6 +339,7 @@
       "fileEmpty": "文件内容为空",
       "selectFile": "请在左侧选择文件以查看日志内容",
       "structureHint": "rsyslog 将按 日期目录 / BMC_IP.log 结构组织日志",
+      "structureHintGeneric": "文件位于容器内 {{dir}}，按目录逐层展开即可浏览",
       "copySuccess": "已复制到剪贴板",
       "copyTitle": "复制全文",
       "downloadTitle": "下载日志"

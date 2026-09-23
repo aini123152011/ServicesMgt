@@ -328,7 +328,11 @@ export function ServiceDataExplorer({
                 <FileText className='mb-2 size-10 opacity-30' />
                 <p className='text-sm'>{t('services.data.selectFile')}</p>
                 <p className='mt-1 text-xs text-muted-foreground/70'>
-                  {t('services.data.structureHint')}
+                  {/* rsyslog 的归档结构是它特有的（日期目录 / BMC_IP.log），
+                      别的服务（如 dhcp 的租约文件）显示这句会误导 */}
+                  {name === 'rsyslog'
+                    ? t('services.data.structureHint')
+                    : t('services.data.structureHintGeneric', { dir: dataDir })}
                 </p>
               </div>
             )}

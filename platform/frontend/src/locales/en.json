@@ -339,6 +339,7 @@
       "fileEmpty": "The file is empty",
       "selectFile": "Select a file on the left to view its content",
       "structureHint": "rsyslog organizes logs as date-directory / BMC_IP.log",
+      "structureHintGeneric": "Files live in {{dir}} inside the container; expand the tree to browse them",
       "copySuccess": "Copied to clipboard",
       "copyTitle": "Copy all",
       "downloadTitle": "Download log"
