@@ -607,3 +607,82 @@ def test_evaluate_checks_blocks_default_route_parent_for_preflight() -> None:
     assert "dhcp_not_attached" in codes
     level = next(c["level"] for c in checks if c["code"] == "parent_has_default_route")
     assert level == "warn"
+
+
+def test_evaluate_checks_uses_l2_subnet_as_reference() -> None:
+    """池子/RA 的判定基准是 L2_SUBNET（显式意图），不是宿主测试口当前的地址。
+
+    实机场景（2026-09-23 联调）：网段已切到 192.168.95.0/24——容器 macvlan 接口在新网段、
+    dnsmasq 正常服务，但宿主测试口地址还没搬（那一步是人工的）。此时若拿测试口的旧网段当基准，
+    会误报「dnsmasq 会拒绝服务」与「BMC 自动配置出的地址与本服务不在同一网段」——
+    dnsmasq 服务的是**容器接口**所在的网段，不是宿主口。真正该报的只有「测试口没搬」这一条。
+    """
+    iface = _iface("enp125s0f1", cidr="192.168.90.0/24")  # 测试口还停在旧网段
+    checks = host_network.evaluate_checks(
+        interfaces=[iface],
+        bindings=[
+            {
+                "service": "dhcp",
+                "container": "bmc-dhcp",
+                "network": "servicesmgt_dhcp-l2-net",
+                "parent": "enp125s0f1",
+                "attached": True,
+                "address": "192.168.95.2",
+                "address_v6": "fd00:95::2",
+            }
+        ],
+        dhcp_values={
+            "pool_start": "192.168.95.100",
+            "pool_end": "192.168.95.200",
+            "ipv6_prefix": "fd00:95::/64",
+        },
+        parent="enp125s0f1",
+        l2_subnet="192.168.95.0/24",
+        l2_services={"dhcp", "tftpd-hpa", "rsyslog"},
+        l2_subnet_v6="fd00:95::/64",
+        default_iface="enp125s0f0",
+    )
+
+    codes = [c["code"] for c in checks]
+    assert "pool_outside_parent_subnet" not in codes
+    assert "ra_prefix_outside_parent_subnet" not in codes
+    # 该报的是「测试口没搬」：影响走宿主地址的 L2 服务，且消息里点名是哪些
+    assert "parent_subnet_mismatch" in codes
+    mismatch = next(c for c in checks if c["code"] == "parent_subnet_mismatch")
+    assert "tftpd-hpa" in mismatch["message"]
+    assert "rsyslog" in mismatch["message"]
+    assert "BMC 取址不受影响" in mismatch["message"]
+
+
+def test_l2_intent_prefers_env_and_honors_empty(
+    tmp_path: Any, monkeypatch: Any
+) -> None:
+    """意图优先取 .env；键存在但为空是有意义的（= 未启用），只有键不存在才回落容器环境变量。"""
+    env = tmp_path / ".env"
+    env.write_text(
+        "\n".join(
+            [
+                "DHCP_PARENT_IFACE=",
+                "L2_SUBNET=192.168.95.0/24",
+                "L2_SERVICES=dhcp",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(settings, "HOST_DEPLOY_DIR", str(tmp_path))
+    monkeypatch.setattr(settings, "DHCP_PARENT_IFACE", "enp125s0f1")
+    monkeypatch.setattr(settings, "L2_SUBNET", "192.168.90.0/24")
+
+    intent = host_network.l2_intent()
+
+    assert intent["parent_iface"] == ""  # 键存在且为空 → 未启用，不能回落成 enp125s0f1
+    assert intent["l2_subnet"] == "192.168.95.0/24"  # 以 .env 为准，不是容器环境变量
+    assert intent["l2_services"] == "dhcp"
+    assert intent["l2_subnet_v6"] == ""  # 键不存在 → 回落（容器里没有该变量，故为空）
+
+    # 部署目录没挂载时整体回落到容器环境变量
+    monkeypatch.setattr(settings, "HOST_DEPLOY_DIR", str(tmp_path / "missing"))
+    fallback = host_network.l2_intent()
+    assert fallback["parent_iface"] == "enp125s0f1"
+    assert fallback["l2_subnet"] == "192.168.90.0/24"

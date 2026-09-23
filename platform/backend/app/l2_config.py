@@ -352,14 +352,35 @@ def matches_env(env_values: dict[str, str], params: dict[str, str]) -> bool:
     return all(env_values.get(key) == value for key, value in params.items())
 
 
-def nmcli_commands(parent: str, gateway: str, subnet: str) -> list[str]:
+def nmcli_commands(
+    parent: str,
+    gateway: str,
+    subnet: str,
+    gateway_v6: str = "",
+    subnet_v6: str = "",
+) -> list[str]:
     """宿主测试口地址的配置命令（平台不代执行，给页面复制）。
 
     与 docs/network-plan.md 里写的一致；`never-default` 是关键——测试口一旦承载默认路由，
-    网段波动会影响管理通道。
+    网段波动会影响管理通道。**v6 地址一并带上**：切 v6 网段时只改 v4 会让测试口留在旧前缀上，
+    走宿主地址的 L2 服务在 v6 侧同样够不到（实机核对发现）。
+
+    Args:
+        parent: 宿主测试口网口名。
+        gateway: 测试网段网关（即测试口自己的地址）。
+        subnet: 测试网段，用于取前缀长度。
+        gateway_v6: 测试网段的 IPv6 网关；为空表示不改 v6。
+        subnet_v6: 测试网段的 IPv6 前缀，用于取前缀长度。
+
+    Returns:
+        两条可直接执行的 nmcli 命令（`con mod` 一行 + `con up` 一行）。
     """
     prefix = ipaddress.ip_network(subnet, strict=False).prefixlen
-    return [
-        f'nmcli con mod {parent} ipv4.addresses {gateway}/{prefix} ipv4.gateway "" ipv4.never-default yes',
-        f"nmcli con up {parent}",
-    ]
+    mod = (
+        f"nmcli con mod {parent} ipv4.addresses {gateway}/{prefix} "
+        'ipv4.gateway "" ipv4.never-default yes'
+    )
+    if gateway_v6 and subnet_v6:
+        prefix_v6 = ipaddress.ip_network(subnet_v6, strict=False).prefixlen
+        mod = f"{mod} ipv6.method manual ipv6.addresses {gateway_v6}/{prefix_v6}"
+    return [mod, f"nmcli con up {parent}"]

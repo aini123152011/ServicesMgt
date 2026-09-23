@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import ipaddress
 import logging
+import time
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -216,6 +217,44 @@ def apply_network(
         f"已把容器重连到 {name}（v4={target_address}, v6={target_address_v6}）"
     )
     return read_state(client, container_name), steps
+
+
+def archive_leases(
+    client: docker.DockerClient, container_name: str = DHCP_CONTAINER
+) -> str:
+    """把 dnsmasq 的租约文件改名归档，返回归档后的路径；没有租约文件时返回空串。
+
+    为什么网段变更时要归档：BMC 手里那份旧网段租约（默认 12h）不会自己消失，会一直用到续租失败
+    才重新取址；不归档的话「切了网段但 BMC 还停在旧网段」会挂很久（设计 D10）。
+    归档而不是删除：保留排查线索，dnsmasq 重启后会新建一份空租约文件。
+
+    Args:
+        client: Docker 客户端。
+        container_name: 服务容器名。
+
+    Returns:
+        归档后的容器内路径；没有租约文件时为 ""。
+
+    Raises:
+        L2NetworkError: 容器内执行失败时。
+    """
+    container = get_container(client, container_name)
+    lease_file = "/var/lib/dnsmasq/dnsmasq.leases"
+    target = f"{lease_file}.bak.{time.strftime('%Y%m%d%H%M%S')}"
+    try:
+        result = container.exec_run(
+            ["sh", "-c", f"[ -f {lease_file} ] && mv {lease_file} {target} || true"]
+        )
+    except (APIError, OSError) as e:
+        raise L2NetworkError(
+            f"Failed to archive leases in '{container_name}': {e}"
+        ) from e
+    if result.exit_code != 0:
+        raise L2NetworkError(
+            f"Failed to archive leases in '{container_name}': exit {result.exit_code}"
+        )
+    logger.info(f"Archived dnsmasq leases in {container_name} as {target}")
+    return target
 
 
 def detach_l2(

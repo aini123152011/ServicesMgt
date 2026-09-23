@@ -174,6 +174,19 @@ def _fake_docker_client(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.fixture(autouse=True)
+def _fake_archive_leases(monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    """替身租约归档：记录调用并返回一个归档路径（网段变更时会走这里）。"""
+    calls: list[str] = []
+
+    def _fake(*_args: Any, **_kwargs: Any) -> str:
+        calls.append("archived")
+        return "/var/lib/dnsmasq/dnsmasq.leases.bak.test"
+
+    monkeypatch.setattr(l2_network, "archive_leases", _fake)
+    return calls
+
+
+@pytest.fixture(autouse=True)
 def _default_l2_state(monkeypatch: pytest.MonkeyPatch) -> None:
     """默认网络状态：已启用且与 .env 一致；用例需要别的状态时自行覆盖 read_state。"""
     monkeypatch.setattr(
@@ -303,7 +316,7 @@ def test_read_status_returns_env_network_and_candidates(
 
     assert body["nmcli_commands"] == [
         'nmcli con mod enp125s0f1 ipv4.addresses 192.168.90.1/24 ipv4.gateway "" '
-        "ipv4.never-default yes",
+        "ipv4.never-default yes ipv6.method manual ipv6.addresses fd00:90::1/64",
         "nmcli con up enp125s0f1",
     ]
 
@@ -809,3 +822,28 @@ def test_apply_is_noop_when_already_at_target(
     assert fake_apply_network == []
     assert fake_restart == []
     assert db.exec(select(AuditLog)).all() == []
+
+
+def test_apply_archives_leases_when_subnet_changes(
+    client: TestClient,
+    superuser_token_headers: dict[str, str],
+    db: Session,
+    _env_file: Path,
+    fake_l2_state: l2_network.L2NetworkState,  # noqa: ARG001 - 只用于激活 monkeypatch
+    fake_apply_network: list[dict[str, Any]],  # noqa: ARG001 - 只用于激活 monkeypatch
+    fake_apply_config: list[dict[str, Any]],  # noqa: ARG001 - 只用于激活 monkeypatch
+    fake_restart: list[str],  # noqa: ARG001 - 只用于激活 monkeypatch
+    _fake_archive_leases: list[str],
+) -> None:
+    """网段变更时归档旧租约：否则 BMC 会拿着旧网段地址一直到续租失败（默认 12h）。"""
+    _seed_dhcp_config(db)
+
+    body = client.put(
+        f"{settings.API_V1_STR}/l2/config",
+        headers=superuser_token_headers,
+        json=TARGET,
+    ).json()
+
+    assert body["applied"] is True
+    assert _fake_archive_leases == ["archived"]
+    assert any("已归档 dnsmasq 旧租约" in step for step in body["steps"])

@@ -28,6 +28,7 @@ from typing import Any
 import docker
 from docker.errors import DockerException
 
+from app import l2_config
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -369,6 +370,66 @@ def _normalize_ip(value: str) -> str:
         return value
 
 
+def l2_intent() -> dict[str, str]:
+    """当前的二层夹具意图：**优先读部署目录 `.env`**（页面改的就是它），读不到才退回容器环境变量。
+
+    两个来源必须只认一个：容器环境变量是**启动时的快照**，页面上改过 `.env` 之后它就过期了；
+    继续用它会让「宿主网口」面板与「二层夹具绑定」面板显示两套值（实机联调踩到）。
+    `.env` 里键存在但值为空是有意义的（= 未启用），所以只有**键不存在**才回落。
+
+    Returns:
+        含 parent_iface / l2_subnet / l2_subnet_v6 / l2_services 的意图值。
+    """
+    try:
+        values = l2_config.read_l2_env(settings.env_file_path).values
+    except l2_config.L2EnvError as e:
+        logger.warning(f"L2 env file unavailable, falling back to container env: {e}")
+        values = {}
+
+    def pick(key: str, fallback: str) -> str:
+        return values[key].strip() if key in values else fallback.strip()
+
+    return {
+        "parent_iface": pick("DHCP_PARENT_IFACE", settings.DHCP_PARENT_IFACE),
+        "l2_subnet": pick("L2_SUBNET", settings.L2_SUBNET),
+        "l2_subnet_v6": pick("L2_SUBNET_V6", ""),
+        "l2_services": pick("L2_SERVICES", settings.L2_SERVICES),
+    }
+
+
+def _reference_v4(
+    iface: dict[str, Any], l2_subnet: str
+) -> tuple[list[ipaddress.IPv4Network], str]:
+    """IPv4 地址池的判定基准：L2_SUBNET 优先，否则绑定口自己的网段。
+
+    Args:
+        iface: 绑定网口的采集结果。
+        l2_subnet: 期望的测试网段；空串或解析失败时退回绑定口网段。
+
+    Returns:
+        (基准网段列表, 基准的人话说明)。
+    """
+    if l2_subnet:
+        try:
+            network = ipaddress.ip_network(l2_subnet, strict=False)
+        except ValueError:
+            network = None
+        # 只接受 IPv4：L2_SUBNET 写成 v6 前缀时退回绑定口网段（另有专门提示）
+        if isinstance(network, ipaddress.IPv4Network):
+            return [network], f"测试网段 {l2_subnet}"
+    return _ipv4_networks(iface), f"绑定网口 {iface['name']} 的网段"
+
+
+def _reference_v6(iface: dict[str, Any], l2_subnet_v6: str) -> tuple[list[str], str]:
+    """RA 前缀的判定基准：L2_SUBNET_V6 优先，否则绑定口自己的 v6 网段。"""
+    if l2_subnet_v6:
+        return [l2_subnet_v6], f"测试网段 {l2_subnet_v6}"
+    prefixes = [
+        str(item.get("cidr")) for item in (iface.get("ipv6") or []) if item.get("cidr")
+    ]
+    return prefixes, f"绑定网口 {iface['name']} 的 IPv6 网段"
+
+
 def evaluate_checks(
     *,
     interfaces: list[dict[str, Any]],
@@ -377,6 +438,7 @@ def evaluate_checks(
     parent: str,
     l2_subnet: str,
     l2_services: set[str],
+    l2_subnet_v6: str = "",
     default_iface: str = "",
 ) -> list[dict[str, Any]]:
     """按 PRD R3 产出校验结论（纯函数：不读 settings、不连 Docker）。
@@ -390,6 +452,7 @@ def evaluate_checks(
         parent: 期望的 macvlan 父口名（空串表示未启用二层夹具）。
         l2_subnet: 期望的测试网段（空串表示未配置）。
         l2_services: 需要在测试网段上被 BMC 访问的服务名集合。
+        l2_subnet_v6: 期望的测试网段 IPv6 前缀（空串表示未配置，此时退回绑定口的 v6 网段）。
         default_iface: 宿主默认路由出口网口（空串表示未知，相关校验跳过）。
 
     Returns:
@@ -441,8 +504,13 @@ def evaluate_checks(
             "建议把该连接设为 never-default（见 docs/network-plan.md）。",
         )
 
-    # 地址池是否落在绑定口网段内（dnsmasq 要求池在接口子网内，否则拒绝服务）
-    networks = _ipv4_networks(iface)
+    # 挂在 macvlan 上的服务：后面几处判断都要用（池子基准、测试口地址提示）
+    bound_services = {item["service"] for item in bindings if item.get("attached")}
+
+    # 地址池该落在哪个网段：**优先 L2_SUBNET**（平台/页面维护的显式意图），没配时才退回绑定口自己的网段。
+    # 不能只比绑定口——网段切过去、宿主测试口地址还没搬时（那一步是人工的），容器 macvlan 接口
+    # 已经在新网段上、dnsmasq 服务正常，拿旧网段当基准会误报「dnsmasq 会拒绝服务」（实机联调踩到）。
+    networks, ref_label = _reference_v4(iface, l2_subnet)
     if dhcp_values and networks:
         for field_name, label in (
             ("pool_start", "IPv4 地址池起始"),
@@ -461,15 +529,15 @@ def evaluate_checks(
                     "warn",
                     "pool_outside_parent_subnet",
                     "dhcp",
-                    f"{label} {raw} 不在绑定网口 {parent} 的网段（{covered}）内，dnsmasq 会拒绝服务。",
+                    f"{label} {raw} 不在{ref_label}（{covered}）内，dnsmasq 只服务接口所在网段。",
                 )
     elif dhcp_values and not networks:
         add(
             "info",
             "parent_subnet_unknown",
             "dhcp",
-            f"绑定网口 {parent} 当前没有 IPv4 地址，无法判定地址池是否落在其网段内"
-            "（若网段配在交换机侧，可忽略此项）。",
+            f"没有可用的网段基准（L2_SUBNET 未配置，且绑定网口 {parent} 没有 IPv4 地址），"
+            "无法判定地址池是否落在网段内（若网段配在交换机侧，可忽略此项）。",
         )
 
     if l2_subnet and networks:
@@ -485,15 +553,26 @@ def evaluate_checks(
                 "网段一致性与二层地址判定已跳过。",
             )
             l2_network = None
-        if l2_network is not None and not any(
-            network.overlaps(l2_network) for network in networks
+        parent_networks = _ipv4_networks(iface)
+        if (
+            l2_network is not None
+            and parent_networks
+            and not any(network.overlaps(l2_network) for network in parent_networks)
         ):
-            covered = "、".join(str(network) for network in networks)
+            covered = "、".join(str(network) for network in parent_networks)
+            host_served = sorted(l2_services - bound_services - {"dhcp"})
+            affected = (
+                f"走宿主地址的 {'、'.join(host_served)} 在测试网段上够不到"
+                if host_served
+                else "走宿主地址的 L2 服务在测试网段上够不到"
+            )
             add(
                 "warn",
                 "parent_subnet_mismatch",
                 "dhcp",
-                f"L2_SUBNET={l2_network} 与绑定网口 {parent} 的网段（{covered}）不一致。",
+                f"宿主测试口 {parent} 的地址（{covered}）不在测试网段 {l2_network} 内："
+                f"BMC 取址不受影响（dnsmasq 走容器在 macvlan 上的接口），但{affected}。"
+                "按页面给出的 nmcli 命令把测试口地址搬到该网段即可。",
             )
 
     # 地址冲突：dhcp 容器在 macvlan 上的地址与绑定口自己的地址相同。
@@ -541,11 +620,9 @@ def evaluate_checks(
                 "（L2_GATEWAY_V6）后重建，容器会从 ::2 起分配。",
             )
 
-    # RA 前缀（IPv6）是否落在绑定口的 v6 网段内：只有 ipv6_prefix 写错时 BMC 拿不到 RA，
-    # 平台此前给不出任何提示（PRD R3③ 的 v6 半边）
-    v6_prefixes = [
-        str(item.get("cidr")) for item in (iface.get("ipv6") or []) if item.get("cidr")
-    ]
+    # RA 前缀（IPv6）该落在哪个网段：同样**优先 L2_SUBNET_V6**，没配时才退回绑定口的 v6 网段。
+    # 只有 ipv6_prefix 写错时 BMC 拿不到 RA，平台此前给不出任何提示（PRD R3③ 的 v6 半边）
+    v6_prefixes, v6_ref_label = _reference_v6(iface, l2_subnet_v6)
     if dhcp_values and v6_prefixes:
         raw_prefix = str(dhcp_values.get("ipv6_prefix") or "")
         try:
@@ -566,11 +643,9 @@ def evaluate_checks(
                     "warn",
                     "ra_prefix_outside_parent_subnet",
                     "dhcp",
-                    f"RA 通告前缀 {ra_network} 不在绑定网口 {parent} 的 IPv6 网段"
+                    f"RA 通告前缀 {ra_network} 不在{v6_ref_label}"
                     f"（{'、'.join(v6_prefixes)}）内，BMC 自动配置出的地址与本服务不在同一网段。",
                 )
-
-    bound_services = {item["service"] for item in bindings if item.get("attached")}
 
     # 最可能发生的错配：.env 配了网口，但 dhcp 还挂在 bridge 上（忘了叠加 compose.l2.yaml 重建）。
     # 此时 BMC 收不到任何 DHCP 应答，而其它检查都「看起来正常」——必须显式报出来。
@@ -607,13 +682,17 @@ def build_checks(
     default_iface: str = "",
 ) -> list[dict[str, Any]]:
     """用当前 settings 里的 L2 意图调 `evaluate_checks`（保持既有调用方式）。"""
+    intent = l2_intent()
     return evaluate_checks(
         interfaces=interfaces,
         bindings=bindings,
         dhcp_values=dhcp_values,
-        parent=settings.DHCP_PARENT_IFACE.strip(),
-        l2_subnet=settings.L2_SUBNET.strip(),
-        l2_services=settings.l2_service_names,
+        parent=intent["parent_iface"],
+        l2_subnet=intent["l2_subnet"],
+        l2_services={
+            item.strip() for item in intent["l2_services"].split(",") if item.strip()
+        },
+        l2_subnet_v6=intent["l2_subnet_v6"],
         default_iface=default_iface,
     )
 
@@ -625,11 +704,14 @@ def snapshot(
     facts = host_facts()
     interfaces = facts["interfaces"]
     bindings = service_bindings(service_names)
+    intent = l2_intent()
     return {
         "ip_source": facts["ip_source"],
-        "parent_iface": settings.DHCP_PARENT_IFACE.strip(),
-        "l2_subnet": settings.L2_SUBNET.strip(),
-        "l2_services": sorted(settings.l2_service_names),
+        "parent_iface": intent["parent_iface"],
+        "l2_subnet": intent["l2_subnet"],
+        "l2_services": sorted(
+            item.strip() for item in intent["l2_services"].split(",") if item.strip()
+        ),
         "default_iface": facts["default_iface"],
         "interfaces": interfaces,
         "bindings": bindings,
@@ -653,9 +735,14 @@ def l2_address_for(
     两类来源（见 design §5）：macvlan 绑定的服务取容器在该网络上的 IP；其余 L2 服务取宿主测试口
     在测试网段上的地址。
     """
-    if not settings.DHCP_PARENT_IFACE.strip():
+    intent = l2_intent()
+    parent = intent["parent_iface"]
+    l2_services = {
+        item.strip() for item in intent["l2_services"].split(",") if item.strip()
+    }
+    if not parent:
         return None
-    if service_name not in settings.l2_service_names:
+    if service_name not in l2_services:
         return None
 
     binding = next((item for item in bindings if item["service"] == service_name), None)
@@ -665,11 +752,10 @@ def l2_address_for(
         if address:
             return address
 
-    parent = settings.DHCP_PARENT_IFACE.strip()
     iface = next((item for item in interfaces if item["name"] == parent), None)
     if iface is None:
         return None
-    l2_subnet = settings.L2_SUBNET.strip()
+    l2_subnet = intent["l2_subnet"]
     for item in iface.get("ipv4") or []:
         address = str(item.get("address") or "")
         cidr = str(item.get("cidr") or "")

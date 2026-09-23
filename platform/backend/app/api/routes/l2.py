@@ -229,6 +229,7 @@ def _evaluate(
         parent=env_values.get("DHCP_PARENT_IFACE", "").strip(),
         l2_subnet=env_values.get("L2_SUBNET", "").strip(),
         l2_services=services,
+        l2_subnet_v6=env_values.get("L2_SUBNET_V6", "").strip(),
         default_iface=resolved["default_iface"],
     )
 
@@ -298,9 +299,20 @@ def _network_matches(state: l2_network.L2NetworkState, params: dict[str, str]) -
 
 
 def _planned_steps(
-    params: dict[str, str], service_changes: dict[str, Any]
+    params: dict[str, str],
+    service_changes: dict[str, Any],
+    subnet_changed: bool = False,
 ) -> list[str]:
-    """将要执行的步骤（供确认弹窗展示，与实际执行顺序一致）。"""
+    """将要执行的步骤（供确认弹窗展示，与实际执行顺序一致）。
+
+    Args:
+        params: 已归一化的目标 L2 参数。
+        service_changes: 要联动的 dhcp 服务配置差异。
+        subnet_changed: 网段是否变化（变化时会把旧租约归档，BMC 需重新取址）。
+
+    Returns:
+        人可读的步骤列表。
+    """
     steps = [
         f"改写部署目录 .env：parent={params['DHCP_PARENT_IFACE']}、"
         f"{params['L2_SUBNET']}（网关 {params['L2_GATEWAY']}）、{params['L2_SUBNET_V6']}",
@@ -309,6 +321,8 @@ def _planned_steps(
     ]
     if service_changes:
         steps.append(f"同步 dhcp 服务配置：{'、'.join(sorted(service_changes))}")
+    if subnet_changed:
+        steps.append("归档 dnsmasq 旧租约（BMC 需重新取址：等续租失败或拔插一次网线）")
     steps.append("重新校验，要求无 error 级结论")
     return steps
 
@@ -361,7 +375,13 @@ def read_l2_status(session: SessionDep) -> Any:
         ],
         candidates=_candidates(facts["interfaces"], facts["default_iface"], parent),
         nmcli_commands=(
-            l2_config.nmcli_commands(parent, gateway, subnet)
+            l2_config.nmcli_commands(
+                parent,
+                gateway,
+                subnet,
+                env_values.get("L2_GATEWAY_V6", "").strip(),
+                env_values.get("L2_SUBNET_V6", "").strip(),
+            )
             if parent and gateway and subnet
             else []
         ),
@@ -396,6 +416,10 @@ def preflight_l2_config(session: SessionDep, config_in: L2ConfigUpdate) -> Any:
     )
     env_values, _ = _env_values_or_502()
     l2_services = env_values.get("L2_SERVICES", "")
+    subnet_changed = (
+        env_values.get("L2_SUBNET", "").strip() != params["L2_SUBNET"]
+        or env_values.get("L2_SUBNET_V6", "").strip() != params["L2_SUBNET_V6"]
+    )
     blocking = _blocking(
         params,
         dhcp_values,
@@ -411,10 +435,14 @@ def preflight_l2_config(session: SessionDep, config_in: L2ConfigUpdate) -> Any:
         ok=not blocking,
         blocking=[HostNetworkCheck(**item) for item in blocking],
         checks=[HostNetworkCheck(**item) for item in checks],
-        steps=_planned_steps(params, service_changes),
+        steps=_planned_steps(params, service_changes, subnet_changed),
         service_config={key: str(value) for key, value in service_changes.items()},
         nmcli_commands=l2_config.nmcli_commands(
-            params["DHCP_PARENT_IFACE"], params["L2_GATEWAY"], params["L2_SUBNET"]
+            params["DHCP_PARENT_IFACE"],
+            params["L2_GATEWAY"],
+            params["L2_SUBNET"],
+            params["L2_GATEWAY_V6"],
+            params["L2_SUBNET_V6"],
         ),
     )
 
@@ -476,6 +504,10 @@ def apply_l2_config(
                 message="二层夹具已是目标状态。",
             )
 
+    subnet_changed = (
+        env_values.get("L2_SUBNET", "").strip() != params["L2_SUBNET"]
+        or env_values.get("L2_SUBNET_V6", "").strip() != params["L2_SUBNET_V6"]
+    )
     snapshot = _Snapshot(
         env_values=dict(env_values),
         network=_network_state_or_502(),
@@ -497,6 +529,23 @@ def apply_l2_config(
             gateway_v6=params["L2_GATEWAY_V6"],
         )
         steps.extend(net_steps)
+
+        if subnet_changed:
+            # 网段变了：旧租约属于旧网段，BMC 拿着它不会主动放弃（默认 12h），
+            # 归档掉让 dnsmasq 重启后从空租约开始，BMC 续租时会拿到 NAK 并重新取址。
+            # 归档失败不致命（网络切换本身是对的），如实提示即可——不因为一个 mv 失败就把变更回滚掉
+            try:
+                archived = l2_network.archive_leases(l2_network.get_client())
+                steps.append(
+                    f"已归档 dnsmasq 旧租约（{archived}），BMC 需重新取址"
+                    if archived
+                    else "旧租约文件不存在，无需归档"
+                )
+            except l2_network.L2NetworkError as e:
+                logger.warning(f"Failed to archive dnsmasq leases: {e}")
+                steps.append(
+                    f"旧租约归档失败（{e}）：BMC 可能继续用旧网段地址直到续租失败"
+                )
 
         lifecycle.restart(DHCP_CONTAINER)
         steps.append(f"已重启 {DHCP_CONTAINER}，dnsmasq 会重新绑定新接口")

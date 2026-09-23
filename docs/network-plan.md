@@ -128,7 +128,8 @@ L2_GATEWAY=192.168.90.1     # 宿主测试口自己的地址
 # 启用二层（形态甲）：compose.l2.yaml 已随仓库提供，只把 dhcp 挂到 macvlan
 docker compose -f compose.yaml -f compose.l2.yaml up -d dhcp
 # 测试口配址（一次性；**必须 never-default**，否则复现路由事故）
-nmcli con mod <测试口> ipv4.addresses 192.168.90.1/24 ipv4.gateway "" ipv4.never-default yes
+# v4 与 v6 一起给：只改 v4 会让测试口留在旧 v6 前缀上，走宿主地址的 L2 服务在 v6 侧够不到
+nmcli con mod <测试口> ipv4.addresses 192.168.90.1/24 ipv4.gateway "" ipv4.never-default yes   ipv6.method manual ipv6.addresses fd00:90::1/64
 nmcli con up <测试口>
 
 # 停用（回到纯容器网络）
@@ -136,6 +137,13 @@ docker compose -f compose.yaml up -d dhcp
 nmcli con mod <测试口> ipv4.addresses "" ipv4.never-default yes && nmcli con up <测试口>
 ```
 
+> **校验的基准是 `L2_SUBNET`，不是宿主测试口当前的地址**：网段切过去、测试口地址还没搬时
+> （那一步是人工的），容器在 macvlan 上的接口已经在新网段、dnsmasq 正常服务，所以平台只报一条
+> 「测试口不在测试网段」的提示（点名受影响的服务），不会误报「dnsmasq 会拒绝服务」。
+>
+> **网段变更会归档 dnsmasq 旧租约**：BMC 手里那份旧网段租约（默认 12h）不会自己消失，归档后
+> dnsmasq 从空租约开始，BMC 续租时拿到 NAK 并重新取址（否则它会一直停在旧网段地址上）。
+>
 > **页面上的「停用」不会删除 macvlan 网络对象**（只把容器断开、清空 `.env` 的父口）。原因实测过：
 > dhcp 容器是按「双网络」创建的，容器配置里仍引用那个网络名；网络一删，`docker restart` 直接失败
 > （`could not find a network matching network mode ...`），连容器都重启不了。保留网络对象既让容器
