@@ -1,0 +1,25 @@
+{#- clients.conf.j2: RADIUS NAS 客户端定义（渲染到 ${confdir}/bmc/clients.conf） -#}
+{#- 渲染环境要求：Jinja2 需开启 trim_blocks=True + lstrip_blocks=True -#}
+# 本文件由 BMC 服务管理平台自动渲染生成，请勿手工编辑
+# 用途：定义允许发认证请求的 NAS（BMC）及其共享密钥
+{% if fault_mode == 'no_response' %}
+# 故障注入 no_response：只声明一个**与 BMC 无关**的网段，于是 BMC 的请求来自「未知客户端」，
+# radiusd 直接静默丢弃（不回任何报文），BMC 侧的可观测行为就是「认证超时」。
+# 曾经的做法是「换一个密钥」，实测那样服务端仍会用错密钥解密码 → 回 Access-Reject（表现为密码错），
+# 与「无应答」不是一回事。
+client bmc-nas {
+    ipaddr = 192.0.2.0/24
+    secret = {{ nas_clients[0].split(',')[2] }}
+    require_message_authenticator = no
+}
+{% else %}
+{% for entry in nas_clients %}
+{% set parts = entry.split(',') %}
+client {{ parts[0] }} {
+    ipaddr = {{ parts[1] }}
+    secret = {{ parts[2] }}
+    # BMC 常见实现不带 Message-Authenticator，夹具放宽以保证正向用例可通过
+    require_message_authenticator = no
+}
+{% endfor %}
+{% endif %}

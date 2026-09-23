@@ -6,13 +6,15 @@
     python3 verify_bmc_platform_e2e.py --phase nginx # 只跑某个阶段
 
 覆盖范围：
-  - 平台基础：健康检查、JWT 登录、12 服务注册表、容器运行状态
+  - 平台基础：健康检查、JWT 登录、13 服务注册表、容器运行状态
   - AC11 各服务特性配置真实生效：chrony(NTP 应答)/nginx(上传下载+Basic认证)/
     rsyslog(按IP日期归档)/webdav(PUT)/sftp(密码登录)/vsftpd(本地用户上传)/
     tftpd-hpa(文件下载)/samba(共享读写)/nfs-ganesha(NFSv4 挂载)/
-    snmptrapd(Trap 接收落盘)/postfix(SMTP 投递)/dhcp(DHCPv4 取址 + RA/SLAAC + DNS A/AAAA/PTR)
+    snmptrapd(Trap 接收落盘)/postfix(SMTP 投递)/dhcp(DHCPv4 取址 + RA/SLAAC + DNS A/AAAA/PTR)/
+    freeradius(RADIUS 认证 + VLAN 下发)
   - 故障注入真实生效：chrony(stratum_16/fake_offset)、nginx(500/503/限速)、
-    rsyslog(黑洞丢弃)、webdav(423/507)、dhcp(池耗尽/黑洞/错误网关/RA错误前缀/短租约)
+    rsyslog(黑洞丢弃)、webdav(423/507)、dhcp(池耗尽/黑洞/错误网关/错误解析/短租约)、
+    freeradius(全拒/全放行/静默丢弃/属性篡改)
   - AC12 rsyslog 日志浏览接口（/data/tree、/data/content 关键字过滤）
   - AC13 secret 字段脱敏与掩码回填、审计不含明文
   - AC14 nginx HTTPS（自签证书）可访问
@@ -20,6 +22,7 @@
   - AC1–AC4 配置版本历史与一键回滚（列表/详情脱敏/回滚真实生效/超限裁剪）
   - IPv6：容器网络内真实 v6 客户端（scripts/v6_probe.py）
   - DHCP：同网络客户端容器内的真实 DHCP/DHCPv6/RA/DNS 报文（scripts/dhcp_probe.py）
+  - RADIUS：同网络客户端容器内的真实 Access-Request（scripts/auth_probe.py）
 
 凭据不写在脚本里：优先取环境变量 BMC_ADMIN_EMAIL/BMC_ADMIN_PASSWORD，
 其次从平台容器环境变量 FIRST_SUPERUSER/FIRST_SUPERUSER_PASSWORD 读取。
@@ -505,8 +508,24 @@ CFG_POSTFIX_RELAY = {
 
 SERVICES_ALL = {
     "chrony", "nginx", "rsyslog", "webdav", "postfix", "snmptrapd",
-    "sftp", "vsftpd", "tftpd-hpa", "samba", "nfs-ganesha", "dhcp",
+    "sftp", "vsftpd", "tftpd-hpa", "samba", "nfs-ganesha", "dhcp", "freeradius",
 }
+
+# RADIUS 正向配置（与 freeradius schema 默认值一致）
+CFG_RADIUS = {
+    "nas_clients": ["bmc-nas,0.0.0.0/0,bmc-radius-secret"],
+    "users": ["bmcuser,ChangeMe123", "bmcadmin,ChangeMe123"],
+    "reply_attributes": ["Tunnel-Type=VLAN", "Tunnel-Medium-Type=IEEE-802",
+                         "Tunnel-Private-Group-Id=100"],
+    "fault_mode": "none",
+}
+# RADIUS 阶段用的固定值
+RADIUS_CONTAINER = "bmc-freeradius"
+RADIUS_NETWORK = "servicesmgt_freeradius-net"
+RADIUS_SECRET = "bmc-radius-secret"
+RADIUS_USER = "bmcuser"
+RADIUS_PASSWORD = "ChangeMe123"
+RADIUS_VLAN = "100"
 
 # DHCP 阶段用的固定值（与 CFG_DHCP / compose.yaml 的 dhcp-net 网段一致）
 DHCP_CONTAINER = "bmc-dhcp"
@@ -1757,6 +1776,91 @@ def phase_dhcp(token: str) -> None:
            bool(tree), str(tree)[:150])
 
 
+# --------------------------------------------------------------------------- #
+# RADIUS 阶段：认证是「客户端可观测行为」最典型的场景——BMC 拿到的是 Access-Accept/Reject
+# 与其中的属性值（典型是下发 VLAN 的 Tunnel-Private-Group-Id），所以判定必须看真实 RADIUS 报文。
+# 探针见同目录 scripts/auth_probe.py（手写 Access-Request，含 User-Password 的 MD5 加密与
+# 响应 Authenticator 校验——校验通过才说明共享密钥一致）。
+# --------------------------------------------------------------------------- #
+def radius_probe(*args: str, timeout: int = 90) -> str:
+    """在 freeradius 网络的客户端容器里跑一次 RADIUS 探针，返回探针输出行。"""
+    probe = os.path.join(os.path.dirname(os.path.abspath(__file__)), "auth_probe.py")
+    if not os.path.isfile(probe):
+        return f"FAIL 缺少探针脚本 {probe}"
+    image = _v6_client_image()
+    if not image:
+        return "FAIL 没有 bmc-platform 镜像（探针需要 python3）"
+    cmd = (
+        f"docker run --rm --network {RADIUS_NETWORK} "
+        f"-v {probe}:/probe.py:ro {image} python3 /probe.py radius "
+        f"--host freeradius --secret {RADIUS_SECRET} " + " ".join(args)
+    )
+    return sh(cmd, timeout=timeout).strip()
+
+
+def phase_radius(token: str) -> None:
+    """RADIUS 正向认证（含 VLAN 下发）与四种故障注入，全部以真实 RADIUS 报文判定。"""
+    print("")
+    print(">>> 阶段 19: RADIUS 认证（freeradius）")
+    st, applied, resp = put_config(token, "freeradius", CFG_RADIUS)
+    record("19.1 正向配置提交并生效", st == 200 and applied is True, f"status={st} {resp[:140]}")
+
+    out = radius_probe("--user", RADIUS_USER, "--password", RADIUS_PASSWORD,
+                       "--expect", "accept",
+                       "--expect-attr", f"Tunnel-Private-Group-Id={RADIUS_VLAN}")
+    record("19.2 正确凭据认证通过，且下发配置的 VLAN（BMC 视角）",
+           out.startswith("PASS"), out[:150])
+
+    out = radius_probe("--user", RADIUS_USER, "--password", "WrongPass", "--expect", "reject")
+    record("19.3 错误密码被拒（Access-Reject）", out.startswith("PASS"), out[:150])
+
+    out = radius_probe("--user", "nosuchuser", "--password", RADIUS_PASSWORD, "--expect", "reject")
+    record("19.4 用户表外的用户被拒", out.startswith("PASS"), out[:150])
+
+    # 改用户表 + 改下发属性：验证「配置真的生效」而不只是文件被改写
+    st, applied, _ = put_config(token, "freeradius",
+                                {**CFG_RADIUS,
+                                 "users": [*CFG_RADIUS["users"], "bmce2e,ChangeMe123"],
+                                 "reply_attributes": ["Tunnel-Type=VLAN",
+                                                      "Tunnel-Medium-Type=IEEE-802",
+                                                      "Tunnel-Private-Group-Id=200"]})
+    record("19.5 新增用户与改 VLAN 的配置生效", st == 200 and applied is True, f"status={st}")
+    out = radius_probe("--user", "bmce2e", "--password", RADIUS_PASSWORD, "--expect", "accept",
+                       "--expect-attr", "Tunnel-Private-Group-Id=200")
+    record("19.6 新用户可认证且拿到新的 VLAN", out.startswith("PASS"), out[:150])
+
+    # ---- 故障注入 ----
+    st, applied, _ = put_config(token, "freeradius", {**CFG_RADIUS, "fault_mode": "reject_all"})
+    out = radius_probe("--user", RADIUS_USER, "--password", RADIUS_PASSWORD,
+                       "--expect", "reject") if st == 200 and applied         else f"FAIL 配置未生效 status={st}"
+    record("19.7 故障 reject_all：正确凭据也被拒", out.startswith("PASS"), out[:150])
+
+    st, applied, _ = put_config(token, "freeradius", {**CFG_RADIUS, "fault_mode": "accept_all"})
+    out = radius_probe("--user", RADIUS_USER, "--password", "TotallyWrong",
+                       "--expect", "accept") if st == 200 and applied         else f"FAIL 配置未生效 status={st}"
+    record("19.8 故障 accept_all：错误密码也被接受（认证被绕过）",
+           out.startswith("PASS"), out[:150])
+
+    st, applied, _ = put_config(token, "freeradius", {**CFG_RADIUS, "fault_mode": "no_response"})
+    out = radius_probe("--user", RADIUS_USER, "--password", RADIUS_PASSWORD,
+                       "--expect", "timeout", "--timeout", "5") if st == 200 and applied         else f"FAIL 配置未生效 status={st}"
+    record("19.9 故障 no_response：请求被静默丢弃（BMC 侧表现为认证超时）",
+           out.startswith("PASS"), out[:150])
+
+    st, applied, _ = put_config(token, "freeradius",
+                                {**CFG_RADIUS, "fault_mode": "wrong_attributes"})
+    out = radius_probe("--user", RADIUS_USER, "--password", RADIUS_PASSWORD, "--expect", "accept",
+                       "--expect-attr", "Tunnel-Private-Group-Id=999") if st == 200 and applied         else f"FAIL 配置未生效 status={st}"
+    record("19.10 故障 wrong_attributes：下发错误的 VLAN", out.startswith("PASS"), out[:150])
+
+    # ---- 复位 ----
+    st, applied, resp = put_config(token, "freeradius", CFG_RADIUS)
+    record("19.11 复位正向配置生效", st == 200 and applied is True, f"status={st} {resp[:140]}")
+    out = radius_probe("--user", RADIUS_USER, "--password", RADIUS_PASSWORD, "--expect", "accept",
+                       "--expect-attr", f"Tunnel-Private-Group-Id={RADIUS_VLAN}")
+    record("19.12 复位后认证与 VLAN 下发恢复", out.startswith("PASS"), out[:150])
+
+
 def phase_frontend(token: str) -> None:
     """前端 SPA 静态分发。"""
     print("\n>>> 阶段 14: 前端 SPA 分发")
@@ -1785,6 +1889,7 @@ PHASES = {
     "versions": phase_versions,
     "ipv6": phase_ipv6,
     "dhcp": phase_dhcp,
+    "radius": phase_radius,
 }
 
 

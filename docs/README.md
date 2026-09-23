@@ -13,7 +13,7 @@
 | 文档 | 内容 |
 |------|------|
 | [container-runtime-guidelines.md](./container-runtime-guidelines.md) | 11 类「配置写对了但服务没按配置工作」的坑与修法 |
-| [verification-matrix.md](./verification-matrix.md) | 12 服务 × 4 类验证项 × 34 个故障模式的实测结论 |
+| [verification-matrix.md](./verification-matrix.md) | 13 服务 × 4 类验证项 × 38 个故障模式的实测结论 |
 
 ## 快速指引
 
@@ -21,4 +21,4 @@
 - 一键起全部：`docker compose pull && docker compose up -d`
 - 镜像构建：`scripts/build.sh --help` / `make help`（多架构校验用 `make check`）
 - 镜像发布：`REGISTRIES=... bash scripts/publish.sh`（凭据走环境变量）
-- 实机验收套件：`scripts/verify_bmc_platform_e2e.py`（150 条用例，按阶段可单独跑 `--phase <name>`）
+- 实机验收套件：`scripts/verify_bmc_platform_e2e.py`（162 条用例，按阶段可单独跑 `--phase <name>`）

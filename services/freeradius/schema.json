@@ -1,0 +1,55 @@
+{
+  "fields": [
+    {
+      "name": "nas_clients",
+      "type": "list",
+      "label": "NAS 客户端（网段 + 共享密钥）",
+      "default": [
+        "bmc-nas,0.0.0.0/0,bmc-radius-secret"
+      ],
+      "help": "格式「名字,网段,共享密钥」：允许哪些来源用哪个密钥发认证请求。BMC 侧填的共享密钥必须与这里一致，否则请求会被静默丢弃（表现为认证超时）",
+      "item_pattern": "^[A-Za-z0-9._-]{1,32},(([0-9]{1,3}[.]){3}[0-9]{1,3}(/(3[0-2]|[12]?[0-9]))?|[0-9a-fA-F]{0,4}(:[0-9a-fA-F]{0,4}){2,7}(/(12[0-8]|1[01][0-9]|[0-9]{1,2}))?),[^,]{1,64}$",
+      "group": "base"
+    },
+    {
+      "name": "users",
+      "type": "list",
+      "label": "用户表（用户名,密码）",
+      "default": [
+        "bmcuser,ChangeMe123",
+        "bmcadmin,ChangeMe123"
+      ],
+      "help": "格式「用户名,密码」：认证通过的用户；表里没有的用户一律拒绝。密码在容器内以明文比对（夹具场景，与 BMC 实际做法一致）",
+      "item_pattern": "^[A-Za-z0-9._-]{1,32},[^,]{1,64}$",
+      "group": "base"
+    },
+    {
+      "name": "reply_attributes",
+      "type": "list",
+      "label": "认证通过后下发的属性",
+      "default": [
+        "Tunnel-Type=VLAN",
+        "Tunnel-Medium-Type=IEEE-802",
+        "Tunnel-Private-Group-Id=100"
+      ],
+      "help": "格式「属性名=值」：Access-Accept 里回给 BMC 的属性，典型用法是下发 VLAN（BMC 据此把管理口划进指定 VLAN）",
+      "item_pattern": "^[A-Za-z-]{1,64}=[^=]{1,64}$",
+      "group": "base"
+    },
+    {
+      "name": "fault_mode",
+      "type": "enum",
+      "label": "故障注入模式",
+      "default": "none",
+      "options": [
+        "none",
+        "reject_all",
+        "accept_all",
+        "no_response",
+        "wrong_attributes"
+      ],
+      "help": "BMC 健壮性测试用：reject_all=任何用户都拒绝；accept_all=任何用户名/密码都接受（认证被绕过）；no_response=只声明无关网段的客户端，BMC 的请求被静默丢弃（表现为认证超时）；wrong_attributes=下发错误的 VLAN 等属性",
+      "group": "fault"
+    }
+  ]
+}

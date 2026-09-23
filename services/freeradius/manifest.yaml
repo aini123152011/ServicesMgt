@@ -1,0 +1,36 @@
+# 服务元数据：平台 Service Registry 扫描 services/* 时按此识别与展示
+name: freeradius
+display_name: RADIUS 认证服务
+category: network            # 分类枚举: time | file-share | log-monitor | network
+description: 基于 FreeRADIUS 的认证服务：为 BMC 提供 RADIUS 认证/计费应答，可下发 VLAN 等回复属性，并带拒绝/无应答/属性篡改类故障模式
+container_name: bmc-freeradius
+config_dir: /etc/freeradius/3.0/bmc   # 只挂一个子目录：包自带的配置树保持原样，靠 $INCLUDE 接进来
+config_files:
+  - clients.conf
+  - authorize
+ports:
+  - port: 1812
+    protocol: udp
+    description: RADIUS 认证端口（BMC 只能填 IP，端口固定）
+  - port: 1813
+    protocol: udp
+    description: RADIUS 计费端口
+reload_mode: restart         # 客户端密钥与用户表都是启动期读入，改配置需重启 radiusd
+data_dir: /var/log/freeradius
+usage:
+  - target: BMC
+    summary: 在 BMC 的「用户认证 / RADIUS 设置」里填本服务地址、共享密钥与用户，验证认证与 VLAN 下发
+    command: |
+      # BMC Web → 用户/认证设置：
+      认证服务器：{{host}}
+      认证端口：1812（计费端口 1813）
+      共享密钥：与「NAS 客户端」里的密钥一致
+      用户：在「用户表」里配置的用户名/密码
+  - target: Linux
+    summary: 用真实 RADIUS 客户端验证认证（radtest 来自 freeradius-utils）
+    command: |
+      radtest bmcuser ChangeMe123 {{host}} 0 bmc-radius-secret
+      # 期望 Access-Accept；密码错则 Access-Reject
+  - target: Linux
+    summary: 查看服务日志（认证成功/失败逐条可查）
+    command: docker logs bmc-freeradius --tail 50

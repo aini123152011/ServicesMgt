@@ -42,8 +42,9 @@
 | snmptrapd | 6 条全通过 | 3 / **2** / 1 | 12 项全通过 | ❌ 无 Trap 目的配置资源（Redfish） |
 | postfix | 13 条全通过 | 4 / **4** / 0 | 12 项全通过 | ⚠️ SmtpService 可写，真实发信需 BMC 事件触发 |
 | dhcp | 24 条全通过 | 5 / **5** / 0 | 12 项全通过 | ⏳ 待测（需把夹具改挂 macvlan 与 BMC 同二层） |
+| freeradius | 12 条全通过 | 4 / **4** / 0 | 12 项全通过 | ⏳ 待测（容器网络内的真实 RADIUS 客户端已覆盖认证与 VLAN 下发） |
 
-合计：故障模式**声明 34 个，全部已验证**（32 个经 `fault_mode` 或等价覆盖验证；
+合计：故障模式**声明 38 个，全部已验证**（36 个经 `fault_mode` 或等价覆盖验证；
 `tftpd-hpa.timeout_simulate` 与 `snmptrapd.blackhole_drop` 在修复实现后也已验证）。
 
 本矩阵维护的结论：**「声明了但没验证过」在本项目里约等于「可能有缺陷」**——本轮 12 个从未验证的
@@ -163,3 +164,20 @@ snmptrapd 重载不生效导致 blackhole_drop 与 output_file 等参数都改�
   - 「DHCPv6 池耗尽」：池缩成一个地址后，dnsmasq 会把同一地址发给多个客户端（两个 DUID 都拿到 `fd00:30:12::100`），BMC 侧无可观测差异。
   - 另外两个实测坑：`dhcp-boot` 的服务器地址必须写在**第 3 段**才进 `siaddr`（两段式只填 option 66）；dnsmasq 租约下限是 **2 分钟**，写 60 会被静默抬到 120。
 - BMC 侧：⏳ 待测（容器网络里的客户端容器已覆盖协议行为；真机 BMC 取址需把 dhcp 服务改挂 macvlan 与 BMC 同二层）
+
+### freeradius
+
+- 正向协议检查（12 条）：19.1 正向配置提交并生效；19.2 正确凭据 Access-Accept 且下发配置的 VLAN；19.3 错误密码 Access-Reject；19.4 用户表外用户被拒；19.5/19.6 新增用户与改 VLAN 后**配置真的生效**（新用户可认证、拿到新 VLAN）；19.7–19.10 四个故障模式；19.11/19.12 复位后恢复
+- 故障模式声明：reject_all, accept_all, no_response, wrong_attributes
+  - 经 `fault_mode` 验证：全部 4 个（判定口径：Access-Reject / 错密码也 Access-Accept / 无应答超时 / 下发 VLAN=999）
+  - 未验证：无
+- **判定手段**：`scripts/auth_probe.py` 手写 RADIUS Access-Request（User-Password 按 RFC 2865 用 MD5 加密，并校验响应 Authenticator——校验通过才证明共享密钥一致），跑在与 freeradius 同网络的客户端容器里；属性值（Tunnel-Type/Tunnel-Medium-Type/Tunnel-Private-Group-Id）直接从 Access-Accept 里解出来。
+- **实测踩到的三个坑**（都写进了模板/探针注释）：
+  - users 文件**按顺序匹配**，兜底的 `DEFAULT Auth-Type := Reject` 必须放最后——放最前面会把所有用户（含正确密码）都判成 Access-Reject；
+  - `control:Response-Delay` 这类 control 属性**不能**写在 users 文件里（files 模块实例化失败、radiusd 起不来），所以「应答变慢」这类故障没做；
+  - RADIUS 头里 **Id 在第 1 字节**，探针最初把随机 Id 写到第 2 字节上，等于改坏了 Length 的高位，报文非法 → freeradius 连日志都不打就丢弃（表现为认证一直超时）。
+- **IPv6**：`ipaddr = *` 在 3.2 里已是双栈（再加 `ipv6addr` 会报 Address already in use），容器内 `/proc/net/udp6` 能看到 1812/1813。
+- **LDAP（slapd）为什么没有**：slapd 2.5.13 在本平台启动阶段约一半概率崩（`ch_calloc` 断言），
+  与配置/数据卷/后端参数都无关，详见 `container-runtime-guidelines.md` 第 15 条 → 放弃交付，
+  不纳入服务列表（宁可没有，也不要一个只有一半概率能起来的夹具）。
+- BMC 侧：⏳ 待测（真机需在 BMC 的认证设置里指向本夹具）

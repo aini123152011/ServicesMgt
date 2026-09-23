@@ -1,6 +1,6 @@
 # BMC 服务管理平台（ServicesMgt）
 
-把 **12 个 BMC 测试用服务**（NTP / TFTP / SNMP Trap / Syslog / SMTP / HTTP(S) / FTP / SFTP / SMB / NFS / WebDAV / DHCP+DNS）
+把 **13 个 BMC 测试用服务**（NTP / TFTP / SNMP Trap / Syslog / SMTP / HTTP(S) / FTP / SFTP / SMB / NFS / WebDAV / DHCP+DNS / RADIUS）
 容器化，并用一个平台统一管理它们的**配置下发、生命周期与故障注入**。
 
 这组服务的定位是**被测 BMC 的「测试仪器」**：BMC 固件与带外管理在真实服务行为下表现如何、
@@ -17,7 +17,7 @@
 cp .env.example .env          # 填 SECRET_KEY / POSTGRES_PASSWORD / FIRST_SUPERUSER_PASSWORD
                               # 并把 IMAGE_PREFIX 指向你要用的镜像仓库
 docker compose pull           # 拉取 12 个已构建好的镜像（不构建）
-docker compose up -d          # 拉起平台（含 PostgreSQL）与 12 个服务
+docker compose up -d          # 拉起平台（含 PostgreSQL）与 13 个服务
 docker compose ps             # 看健康状态
 ```
 
@@ -29,7 +29,7 @@ docker compose ps             # 看健康状态
 
 只起其中几个：`docker compose up -d chrony nginx sftp`
 
-> 端口方案：每个服务都在**统一范围 18101–18113** 内分配一个宿主端口（便于文档化与防火墙放行），
+> 端口方案：每个服务都在**统一范围 18101–18114** 内分配一个宿主端口（便于文档化与防火墙放行），
 > 同时**保留 BMC 侧必须的标准端口**（123/69/162/514/25/445/2049/21）——被测 BMC 通常只能填 IP，
 > 改不了端口，去掉就失去测试意义。
 >
@@ -43,7 +43,7 @@ docker compose ps             # 看健康状态
 | 能力 | 说明 |
 | --- | --- |
 | 配置下发 | 表单 → Jinja2 渲染 → 写入服务配置卷 → 触发 `/reload.sh`；**以服务真实生效为准**，不是「改了文件就算」 |
-| 故障注入 | 每个服务一组故障模式（共 34 个），全部经真实协议客户端验证，详见 [验证矩阵](docs/verification-matrix.md) |
+| 故障注入 | 每个服务一组故障模式（共 38 个），全部经真实协议客户端验证，详见 [验证矩阵](docs/verification-matrix.md) |
 | 配置版本与回滚 | 每次下发（含回滚）留存版本，可查看内容（secret 脱敏）并一键回滚；回滚走同一条渲染→生效→审计链路 |
 | 生命周期 | 起停重启、状态与健康检查、容器日志、数据卷浏览（日志按 IP/日期归档、支持关键字过滤） |
 | 外部用法提示 | 每个服务详情页给出「BMC / Linux 客户端 / 浏览器怎么连」的命令示例，可直接照抄 |
@@ -68,6 +68,7 @@ docker compose ps             # 看健康状态
 | snmptrapd | SNMP Trap 接收 | 162/udp | 18111、162 | 重启 | ✅ 双栈（`udp6:162`） |
 | postfix | SMTP 邮件中继 | 25 | 18112、25 | 重启 | ✅ 双栈（默认） |
 | dhcp | DHCPv4 / DHCPv6+SLAAC / DNS | 67/udp、547/udp、53/tcp+udp | 18113（仅 DNS） | 重启 | ✅ 双栈（v4 池 + RA/DHCPv6） |
+| freeradius | RADIUS 认证（含 VLAN 下发） | 1812/udp、1813/udp | 18114、1812、1813 | 重启 | ✅ 双栈（默认 `ipaddr = *`） |
 
 每个服务都能**脱离平台单独部署**（`cd services/<name> && docker compose up -d`），
 这时用服务自身的规范端口（nginx 80/443、sftp 22 等）。
@@ -81,9 +82,9 @@ services/<name>/            每个服务一个插件目录：Dockerfile、compos
                             templates/*.j2（配置模板）、defaults/（空卷种子）、entrypoint、reload
 platform/backend/           FastAPI + SQLModel + PostgreSQL + Alembic（配置渲染、生命周期、审计、RBAC）
 platform/frontend/          React 19 + Vite + TanStack + shadcn/ui
-compose.yaml                一键编排：平台 + PostgreSQL + 12 个服务
+compose.yaml                一键编排：平台 + PostgreSQL + 13 个服务
 scripts/build.sh            服务镜像统一构建入口（本地/CI 共用，支持多架构）
-scripts/verify_bmc_platform_e2e.py   实机验收套件（150 条用例，真实协议判定）
+scripts/verify_bmc_platform_e2e.py   实机验收套件（162 条用例，真实协议判定）
 docs/                       部署、服务接入、容器踩坑与验证矩阵
 ```
 
@@ -93,8 +94,8 @@ docs/                       部署、服务接入、容器踩坑与验证矩阵
 
 - [部署指南](docs/deployment.md) —— 一键编排、单服务独立部署、平台更新与排障
 - [如何新增一个服务插件](docs/adding-a-service.md) —— 目录契约、manifest/schema 字段、验收清单
-- [容器运行时踩坑清单](docs/container-runtime-guidelines.md) —— 13 类「配置写对了但服务没按配置工作」的坑与修法
-- [验证矩阵](docs/verification-matrix.md) —— 12 服务 × 4 类验证项 × 34 个故障模式的实测结论
+- [容器运行时踩坑清单](docs/container-runtime-guidelines.md) —— 15 类「配置写对了但服务没按配置工作」的坑与修法
+- [验证矩阵](docs/verification-matrix.md) —— 13 服务 × 4 类验证项 × 38 个故障模式的实测结论
 
 ---
 

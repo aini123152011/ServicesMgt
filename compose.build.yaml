@@ -34,3 +34,5 @@ services:
     build: ./services/postfix
   dhcp:
     build: ./services/dhcp
+  freeradius:
+    build: ./services/freeradius

@@ -1,0 +1,38 @@
+{#- authorize.j2: RADIUS 用户表（渲染到 ${confdir}/bmc/authorize，由 files 模块加载） -#}
+{#- 渲染环境要求：Jinja2 需开启 trim_blocks=True + lstrip_blocks=True -#}
+{#- 顺序很重要：users 文件是**按顺序匹配、第一条命中即生效**，所以兜底的 DEFAULT Auth-Type := Reject
+    必须写在最后。曾经放在最前面，结果所有用户（含正确密码的）都被判成 Access-Reject —— 实测踩到。
+    另外 control:Response-Delay 这类 control 属性**不能**写在 users 文件里（实测 files 模块直接
+    实例化失败、radiusd 起不来），延迟类故障因此不做。 -#}
+# 本文件由 BMC 服务管理平台自动渲染生成，请勿手工编辑
+# 用途：用户名/密码与认证通过后下发的回复属性
+{% if fault_mode == 'reject_all' %}
+# 故障注入 reject_all：任何用户都拒绝（BMC 侧可观测为 Access-Reject）
+DEFAULT Auth-Type := Reject
+{% elif fault_mode == 'accept_all' %}
+# 故障注入 accept_all：任何用户名/密码都接受（认证被绕过；BMC 侧可观测为「错密码也 Access-Accept」）
+DEFAULT Auth-Type := Accept
+{% for attr in reply_attributes %}
+{% set kv = attr.split('=') %}
+    {{ kv[0] }} = {{ kv[1] }}{{ "," if not loop.last else "" }}
+{% endfor %}
+{% else %}
+{% for entry in users %}
+{% set parts = entry.split(',') %}
+{{ parts[0] }} Cleartext-Password := "{{ parts[1] }}"
+{% if fault_mode == 'wrong_attributes' %}
+    # 故障注入 wrong_attributes：故意下发错误的 VLAN
+    Tunnel-Type = VLAN,
+    Tunnel-Medium-Type = IEEE-802,
+    Tunnel-Private-Group-Id = 999
+{% else %}
+{% for attr in reply_attributes %}
+{% set kv = attr.split('=') %}
+    {{ kv[0] }} = {{ kv[1] }}{{ "," if not loop.last else "" }}
+{% endfor %}
+{% endif %}
+
+{% endfor %}
+# 兜底：用户表里没有的用户一律拒绝（必须在最后）
+DEFAULT Auth-Type := Reject
+{% endif %}

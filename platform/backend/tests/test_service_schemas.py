@@ -55,8 +55,8 @@ SCHEMAS = _schemas()
 
 
 def test_schemas_discovered() -> None:
-    """至少要能发现 12 个服务的 schema，避免路径写错导致下面全部空跑。"""
-    assert len(SCHEMAS) == 12, [name for name, _ in SCHEMAS]
+    """至少要能发现 13 个服务的 schema，避免路径写错导致下面全部空跑。"""
+    assert len(SCHEMAS) == 13, [name for name, _ in SCHEMAS]
 
 
 @pytest.mark.parametrize("service,schema", SCHEMAS, ids=[name for name, _ in SCHEMAS])

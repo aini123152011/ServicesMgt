@@ -1,0 +1,27 @@
+# 单服务独立部署：cd services/freeradius && docker compose up -d
+# 平台托管时用仓库根的 compose.yaml（端口与卷布局与这里保持一致）
+#
+# 只挂 bmc/ 子目录：包自带的配置树（radiusd.conf / mods-enabled / sites-enabled）留在镜像里，
+# 镜像构建期用 $INCLUDE 把渲染产物接进配置树，避免「挂空卷把整棵配置树覆盖掉」。
+services:
+  freeradius:
+    image: ${IMAGE_PREFIX:-}bmc-freeradius:${IMAGE_TAG:-latest}
+    build: .
+    container_name: bmc-freeradius
+    restart: unless-stopped
+    ports:
+      - "1812:1812/udp"
+      - "1813:1813/udp"
+    volumes:
+      - ./volumes/freeradius-config:/etc/freeradius/3.0/bmc
+      - ./volumes/freeradius-data:/var/log/freeradius
+    networks: [freeradius-net]
+
+networks:
+  freeradius-net:
+    driver: bridge
+    enable_ipv6: true
+    ipam:
+      config:
+        - subnet: 172.30.13.0/24
+        - subnet: fd00:30:13::/64

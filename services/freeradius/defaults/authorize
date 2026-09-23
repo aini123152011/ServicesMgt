@@ -1,0 +1,14 @@
+# 本文件由 BMC 服务管理平台自动渲染生成，请勿手工编辑
+# 用途：用户名/密码与认证通过后下发的回复属性
+bmcuser Cleartext-Password := "ChangeMe123"
+    Tunnel-Type = VLAN,
+    Tunnel-Medium-Type = IEEE-802,
+    Tunnel-Private-Group-Id = 100
+
+bmcadmin Cleartext-Password := "ChangeMe123"
+    Tunnel-Type = VLAN,
+    Tunnel-Medium-Type = IEEE-802,
+    Tunnel-Private-Group-Id = 100
+
+# 兜底：用户表里没有的用户一律拒绝（必须在最后）
+DEFAULT Auth-Type := Reject
