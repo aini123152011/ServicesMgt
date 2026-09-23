@@ -2,6 +2,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   applyUpdate,
   checkUpdates,
+  getHostNetwork,
+  type HostNetworkInfo,
   getSystemInfo,
   getUpdateStatus,
   uploadUpdatePackage,
@@ -17,6 +19,20 @@ export function useSystemInfoQuery(refetchInterval?: number) {
   return useQuery({
     queryKey: ['system', 'info'],
     queryFn: getSystemInfo,
+    refetchInterval,
+  })
+}
+
+/**
+ * 宿主网口事实与二层绑定：默认 30s 轮询一次。
+ *
+ * 轮询是必要的——网口/接线是物理动作，平台无从感知变化；打开着面板时能自动反映最新 carrier 状态。
+ * 后端侧对 helper 容器结果另有 30s 缓存，两者叠加不会造成额外的容器开销。
+ */
+export function useHostNetworkQuery(refetchInterval: number = 30000) {
+  return useQuery<HostNetworkInfo>({
+    queryKey: ['system', 'host-network'],
+    queryFn: getHostNetwork,
     refetchInterval,
   })
 }

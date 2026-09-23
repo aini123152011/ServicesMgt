@@ -1,0 +1,33 @@
+# 二层测试网段 override（形态甲）：**只把 dhcp 挂到 macvlan**。
+#
+#   docker compose -f compose.yaml -f compose.l2.yaml up -d dhcp
+#
+# 为什么只挂 dhcp：DHCP 客户端从 0.0.0.0 广播到 255.255.255.255，只有与 BMC 同二层才能收到；
+# 而**挂到 macvlan 的容器会失去宿主端口发布**（实测：DNAT 规则被移除，Docker 既定行为）。
+# 所以其余需要在测试网段上被 BMC 访问的夹具（tftpd-hpa/rsyslog/chrony）不挂 macvlan，
+# 改为在宿主机测试口上配一个测试网段地址（**必须 never-default**），BMC 用该地址 + 现有端口访问它们。
+#
+# 前提（都在 .env 里）：
+#   DHCP_PARENT_IFACE  接 BMC 的那块宿主网口（如 enp125s0f1）
+#   L2_SUBNET          测试网段（如 192.168.90.0/24）
+#   L2_GATEWAY         测试网段的网关地址，也就是宿主测试口自己的地址（如 192.168.90.1）。
+#                      **必须显式给**：不给网关时 Docker 的 IPAM 会把 .1 分给 dhcp 容器，
+#                      与宿主测试口地址撞车（同段两个 MAC 抢同一地址），BMC 侧 ARP 会来回跳。
+# 配套的宿主侧一步（见 docs/network-plan.md）：
+#   nmcli con mod <测试口> ipv4.addresses 192.168.90.1/24 ipv4.gateway "" ipv4.never-default yes
+services:
+  dhcp:
+    # 保留 dhcp-net：e2e 的「同网络客户端容器」验证路径继续可用，不必依赖物理接线
+    networks: [dhcp-net, dhcp-l2-net]
+
+networks:
+  dhcp-l2-net:
+    driver: macvlan
+    driver_opts:
+      parent: "${DHCP_PARENT_IFACE:?请在 .env 设置接 BMC 的网口（如 enp125s0f1）}"
+    ipam:
+      config:
+        - subnet: "${L2_SUBNET:?请在 .env 设置测试网段（如 192.168.90.0/24）}"
+          # 网关 = 宿主测试口地址：既让 Docker 保留 .1（容器从 .2 起分配，避免与宿主撞地址），
+          # 也与 dnsmasq 下发给 BMC 的「网关」字段一致
+          gateway: "${L2_GATEWAY:?请在 .env 设置测试网段网关（宿主测试口地址，如 192.168.90.1）}"

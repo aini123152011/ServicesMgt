@@ -279,6 +279,15 @@ def list_services() -> list[ServicePlugin]:
     return plugins
 
 
+def list_service_names() -> list[str]:
+    """已注册服务的名字列表（顺序同 list_services，按目录名排序）。
+
+    宿主网口面板需要「所有服务名」来逐个推导二层绑定；单独提供本函数是为了让调用方不必
+    先拿到完整插件（面板不关心 manifest/schema）。
+    """
+    return [plugin.name for plugin in list_services()]
+
+
 def get_service(name: str) -> ServicePlugin | None:
     """按名取单个服务插件，目录不存在或格式有问题时返回 None。
 

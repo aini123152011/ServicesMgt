@@ -35,6 +35,7 @@ import {
   useServiceQuery,
   useServiceStatusQuery,
 } from '../hooks/use-services'
+import { L2StatusAlert } from './l2-status-alert'
 import { ServiceConfigForm } from './service-config-form'
 import { ServiceConfigHistory } from './service-config-history'
 import { ServiceDataExplorer } from './service-data-explorer'
@@ -189,10 +190,15 @@ export function ServiceDetail({ name }: ServiceDetailProps) {
           })}
         </div>
 
+        {/* 二层网段状态：绑错网口/池不在网段的失败表现是「服务健康但 BMC 拿不到地址」，
+            排查时人就在这个页面，所以放在最前面 */}
+        <L2StatusAlert name={name} />
+
         {/* 外部使用方式：测试人员最先需要「怎么连」，放在配置卡片之前 */}
         <ServiceUsageCard
           entries={manifest.usage}
           port={manifest.ports[0]?.port}
+          l2Address={serviceQuery.data.l2_address}
         />
 
         <Card>

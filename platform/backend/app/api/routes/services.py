@@ -14,7 +14,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlmodel import Session
 
-from app import config_renderer, config_versions, lifecycle, registry
+from app import config_renderer, config_versions, host_network, lifecycle, registry
 from app.api.deps import CurrentUser, RequireOperator, SessionDep, get_current_user
 from app.crud import (
     get_fault_modes,
@@ -90,6 +90,19 @@ def read_services(session: SessionDep) -> Any:
     return ServicesPublic(data=summaries, count=len(summaries))
 
 
+def _l2_address(name: str) -> str | None:
+    """取该服务的二层地址；任何异常都返回 None（详情页不该因为宿主信息读不到而 500）。"""
+    try:
+        facts = host_network.host_facts()
+        bindings = host_network.service_bindings([name])
+        return host_network.l2_address_for(
+            service_name=name, bindings=bindings, interfaces=facts["interfaces"]
+        )
+    except Exception as e:  # noqa: BLE001 - 只影响卡片上的地址，降级为「不显示二层地址」
+        logger.warning(f"failed to resolve l2 address for {name}: {e}")
+        return None
+
+
 @router.get("/{name}")
 def read_service(session: SessionDep, name: str) -> Any:
     """返回服务详情：完整 manifest、schema 字段定义与当前已保存配置。
@@ -121,6 +134,9 @@ def read_service(session: SessionDep, name: str) -> Any:
             applied=config.applied if config else None,
             rendered_at=config.rendered_at if config else None,
         ),
+        # 该服务在二层测试网段上应被 BMC 访问的地址（未启用二层/取不到时为 None）：
+        # 「使用方式」卡片用它替换 {{host}} —— BMC 在测试网段上够不到管理网地址
+        "l2_address": _l2_address(name),
     }
 
 

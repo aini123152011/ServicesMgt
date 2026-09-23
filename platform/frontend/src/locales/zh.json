@@ -208,6 +208,25 @@
         "description": "平台基于以下开源项目构建，许可条款遵循各项目自身声明。",
         "frontend": "前端：shadcn/ui 组件与 Tailwind CSS，构建于 React、Vite 与 TanStack Router / Query 之上。",
         "backend": "后端：FastAPI + SQLModel，数据库 PostgreSQL，容器运行时经 Docker SDK 访问。"
+      },
+      "hostNetwork": {
+        "title": "宿主网口",
+        "description": "平台读到的宿主物理网口、当前二层绑定与一致性校验；carrier=1 才说明插了线。",
+        "ipUnavailable": "读不到宿主各口 IP（helper 容器不可用）：仅显示链路状态与 MAC。",
+        "columnName": "网口",
+        "columnLink": "链路",
+        "columnSpeed": "速率",
+        "columnMac": "MAC",
+        "columnIp": "地址",
+        "linkUp": "已插线",
+        "linkDown": "无链路",
+        "linkUnknown": "未知",
+        "bindingTitle": "二层绑定",
+        "bindingNone": "未绑定二层网口",
+        "bindingPrefix": "parent",
+        "checkTitle": "一致性校验",
+        "enableTitle": "启用二层夹具（形态甲）",
+        "enableHint": "在 .env 里设置接 BMC 的网口与测试网段，然后用 override 文件只把 dhcp 挂到 macvlan；测试口配址必须 never-default。"
       }
     }
   },
@@ -372,6 +391,9 @@
       "rollbackVersion": "回滚到 v{{version}}",
       "stateHint": "该版本下发时的结果；容器当时未运行则记未生效，之后启动也不会回填",
       "detailEmpty": "该版本没有可展示的配置值。"
+    },
+    "l2Status": {
+      "title": "二层测试网段状态"
     }
   },
   "users": {

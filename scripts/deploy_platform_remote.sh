@@ -35,6 +35,35 @@ cp -f scripts/verify_bmc_platform_e2e.py "$DEPLOY_DIR/verify_bmc_platform_e2e.py
 cp -f scripts/v6_probe.py "$DEPLOY_DIR/v6_probe.py"
 cp -f scripts/dhcp_probe.py "$DEPLOY_DIR/dhcp_probe.py"
 
+# 二层夹具的网口提示（只读、只打印）：carrier=1 才是插了线的口。
+# 不代写 .env、不代改宿主机网络——部署脚本是 `ssh 'bash -s' < script` 跑的，stdin 被脚本占用，
+# 交互提问会卡死；改配置的事交给人。
+echo "==> 宿主网口（carrier=1 才是插了线的）"
+for d in /sys/class/net/*; do
+  iface=$(basename "$d")
+  case "$iface" in lo|docker*|br-*|veth*|virbr*|tun*|tap*) continue ;; esac
+  carrier=$(cat "$d/carrier" 2>/dev/null || echo "?")
+  speed=$(cat "$d/speed" 2>/dev/null || echo "-")
+  addr=$(ip -4 -o addr show dev "$iface" 2>/dev/null | awk '{print $4}' | head -1)
+  printf "    %-16s carrier=%-3s speed=%-7s %s
+" "$iface" "$carrier" "$speed" "${addr:--}"
+done
+candidates=$(for d in /sys/class/net/*; do
+  iface=$(basename "$d")
+  case "$iface" in lo|docker*|br-*|veth*|virbr*|tun*|tap*) continue ;; esac
+  carrier=$(cat "$d/carrier" 2>/dev/null || echo 0)
+  addr=$(ip -4 -o addr show dev "$iface" 2>/dev/null | awk '{print $4}' | head -1)
+  # 候选：插了线、且当前没有地址（说明还没被管理/业务网占用）
+  if [ "$carrier" = "1" ] && [ -z "$addr" ]; then echo "$iface"; fi
+done | tr '
+' ' ')
+if [ -n "$candidates" ]; then
+  echo "    二层夹具候选（插了线且无地址）：$candidates"
+fi
+echo "    提示：要让 BMC 取址，请在 .env 设置 DHCP_PARENT_IFACE / L2_SUBNET，然后："
+echo "          docker compose -f compose.yaml -f compose.l2.yaml up -d dhcp"
+echo "          并给测试口配址（必须 never-default，否则会抢走宿主默认路由）"
+
 echo "==> 读回现有容器的运行参数"
 if ! docker inspect "$CONTAINER" >/dev/null 2>&1; then
   echo "ERROR: 容器 $CONTAINER 不存在，首次部署请手工 docker run 后再用本脚本增量更新" >&2

@@ -90,3 +90,36 @@ describe('ServiceUsageCard', () => {
     )
   })
 })
+
+it('绑定了二层网段时用测试网段地址替换 {{host}}，而不是访问地址', async () => {
+  const entries: ServiceUsageEntry[] = [
+    { target: 'BMC', summary: '取址', command: 'dig @{{host}} bmc-01.bmc.lab' },
+  ]
+  const screen = await render(
+    <ServiceUsageCard entries={entries} port={53} l2Address='192.168.90.1' />
+  )
+
+  // 被测 BMC 在测试网段上够不到管理网地址，卡片必须显示二层地址
+  await expect
+    .element(screen.getByText('dig @192.168.90.1 bmc-01.bmc.lab'))
+    .toBeVisible()
+})
+
+it('未绑定二层时仍用访问地址替换 {{host}}', async () => {
+  const entries: ServiceUsageEntry[] = [
+    {
+      target: 'Linux',
+      summary: '直连',
+      command: 'dig @{{host}} bmc-01.bmc.lab',
+    },
+  ]
+  const screen = await render(
+    <ServiceUsageCard entries={entries} port={53} l2Address={null} />
+  )
+
+  await expect
+    .element(
+      screen.getByText(`dig @${window.location.hostname} bmc-01.bmc.lab`)
+    )
+    .toBeVisible()
+})

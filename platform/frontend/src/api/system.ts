@@ -82,3 +82,66 @@ export async function getUpdateStatus(): Promise<UpdateTaskState> {
   )
   return data
 }
+
+/** 宿主网口的 IPv4 地址（cidr 已归一，便于展示与网段比对） */
+export interface HostIPv4Address {
+  address: string
+  netmask: string
+  cidr: string
+}
+
+/** 宿主网口的 IPv6 地址（链路本地已过滤） */
+export interface HostIPv6Address {
+  address: string
+  prefix: number
+  cidr: string
+}
+
+/** 宿主物理网口：carrier=1 才说明插了线（UP 不等于插了线） */
+export interface HostInterface {
+  name: string
+  carrier: number | null
+  speed_mbps: number | null
+  mac: string | null
+  ipv4: HostIPv4Address[]
+  ipv6: HostIPv6Address[]
+}
+
+/** 服务当前挂的二层绑定（macvlan 网络与它的 parent 网口） */
+export interface HostServiceBinding {
+  service: string
+  container: string
+  network: string | null
+  parent: string | null
+  attached: boolean
+  /** 容器在该 macvlan 网络上的地址 */
+  address: string | null
+}
+
+/** 一条一致性校验结论：level 为 ok/info/warn/error */
+export interface HostNetworkCheck {
+  level: 'ok' | 'info' | 'warn' | 'error'
+  code: string
+  service: string | null
+  message: string
+}
+
+export interface HostNetworkInfo {
+  /** ok=已读到宿主各口 IP；unavailable=helper 容器不可用（IP 留空，不算失败） */
+  ip_source: string
+  parent_iface: string
+  l2_subnet: string
+  l2_services: string[]
+  /** 宿主默认路由出口网口：与 parent_iface 相同说明测试口承载了默认路由 */
+  default_iface: string
+  interfaces: HostInterface[]
+  bindings: HostServiceBinding[]
+  checks: HostNetworkCheck[]
+}
+
+export async function getHostNetwork(): Promise<HostNetworkInfo> {
+  const { data } = await apiClient.get<HostNetworkInfo>(
+    '/api/v1/system/host-network'
+  )
+  return data
+}

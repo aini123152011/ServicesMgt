@@ -71,6 +71,11 @@ services:
       VOLUMES_MOUNT_ROOT: /var/lib/platform
       UPDATE_REGISTRY: ${UPDATE_REGISTRY:-}
       PLATFORM_CONTAINER_NAME: bmc-platform-backend
+      # 二层测试网段（宿主网口面板与一致性校验用）：接 BMC 的网口、测试网段、
+      # 需要在测试网段上被 BMC 访问的服务。留空 = 未启用二层夹具（面板会提示如何启用）
+      DHCP_PARENT_IFACE: ${DHCP_PARENT_IFACE:-}
+      L2_SUBNET: ${L2_SUBNET:-}
+      L2_SERVICES: ${L2_SERVICES:-dhcp,tftpd-hpa,rsyslog,chrony}
     ports:
       - "18080:8000"
     volumes:
@@ -80,6 +85,9 @@ services:
       - ./volumes:/var/lib/platform
       # 平台要用 Docker API 管理 13 个服务容器（起停、日志、镜像更新、重建）
       - /var/run/docker.sock:/var/run/docker.sock
+      # 宿主网口的物理事实（名字/carrier/速率/MAC）读这里——平台容器自己的 /sys 只含本容器网口。
+      # 只读挂载：平台只读不写；IP/掩码另由 --network host 的一次性 helper 容器取（见 app/host_network.py）
+      - /sys:/host-sys:ro
     networks: [bmc-platform-isolated-net]
 
   # ---------------------------------------------------------------- 13 个服务

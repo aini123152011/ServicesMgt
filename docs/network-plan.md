@@ -105,9 +105,21 @@
 
 ## 5. 启用/停用
 
+`.env` 需要三项（`L2_GATEWAY` 必须显式给，见下）：
+
 ```bash
-# 启用二层（形态甲）
-docker compose -f compose.yaml -f compose.l2.yaml up -d dhcp      # 只把 dhcp 挂 macvlan
+DHCP_PARENT_IFACE=enp125s0f1
+L2_SUBNET=192.168.90.0/24
+L2_GATEWAY=192.168.90.1     # 宿主测试口自己的地址
+```
+
+> **为什么 `L2_GATEWAY` 必须显式给**：macvlan 网络不配 gateway 时，Docker 的 IPAM 会把 `.1` 分给
+> dhcp 容器——正好撞上宿主测试口的地址（同段两个 MAC 抢同一地址，BMC 侧 ARP 会来回跳）。实测踩到过，
+> 平台侧也加了 `address_conflict` 校验把这类冲突直接报出来。
+
+```bash
+# 启用二层（形态甲）：compose.l2.yaml 已随仓库提供，只把 dhcp 挂到 macvlan
+docker compose -f compose.yaml -f compose.l2.yaml up -d dhcp
 # 测试口配址（一次性；**必须 never-default**，否则复现路由事故）
 nmcli con mod <测试口> ipv4.addresses 192.168.90.1/24 ipv4.gateway "" ipv4.never-default yes
 nmcli con up <测试口>
@@ -117,5 +129,15 @@ docker compose -f compose.yaml up -d dhcp
 nmcli con mod <测试口> ipv4.addresses "" ipv4.never-default yes && nmcli con up <测试口>
 ```
 
-平台侧可在「关于 → 宿主网口」看到网口清单、当前绑定与一致性校验结果（地址池是否落在绑定口网段、
-测试口是否承载默认路由等），详见 `.trellis/tasks/09-23-host-nic-selection/`。
+## 6. 平台侧能看到什么
+
+- **设置 → 关于 → 宿主网口**：物理网口清单（名字 / carrier / 速率 / MAC / 地址）、当前二层绑定
+  （服务 → macvlan 网络 → parent 网口）、一致性校验结论、以及可直接复制的启用命令。
+- **服务详情页顶部**：与该服务相关的二层告警（绑定口无链路 / 地址池不在该网段 / 绑定口不存在 /
+  测试口承载默认路由 / 走宿主地址的服务缺测试口地址）。正常时不占版面。
+- **「外部使用方式」卡片**：属于 `L2_SERVICES` 的服务，`{{host}}` 会替换成**测试网段上的地址**
+  （dhcp 用容器在 macvlan 上的地址，其余用宿主测试口地址）——BMC 在测试网段上够不到管理网地址，
+  照抄管理网地址会连不上。
+- 数据来源：`GET /api/v1/system/host-network`（登录可读）。网口物理事实读宿主 `/sys` 的只读挂载，
+  IP/掩码由 `--network host` 的一次性 helper 容器取（宿主地址在 netns 里，只读挂载读不到），
+  结果 30 秒缓存；helper 不可用时 IP 留空并提示，不影响其余内容。

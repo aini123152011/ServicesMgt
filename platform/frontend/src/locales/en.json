@@ -208,6 +208,25 @@
         "description": "The platform is built on the following open-source projects; their own licences apply.",
         "frontend": "Frontend: shadcn/ui components and Tailwind CSS, built on React, Vite and TanStack Router / Query.",
         "backend": "Backend: FastAPI + SQLModel with PostgreSQL, container runtime accessed through the Docker SDK."
+      },
+      "hostNetwork": {
+        "title": "Host NICs",
+        "description": "Physical NICs as seen by the platform, the current L2 binding, and consistency checks; carrier=1 means a cable is connected.",
+        "ipUnavailable": "Host IPs unavailable (helper container failed): showing link state and MAC only.",
+        "columnName": "NIC",
+        "columnLink": "Link",
+        "columnSpeed": "Speed",
+        "columnMac": "MAC",
+        "columnIp": "Address",
+        "linkUp": "Connected",
+        "linkDown": "No link",
+        "linkUnknown": "Unknown",
+        "bindingTitle": "L2 binding",
+        "bindingNone": "No L2 interface bound",
+        "bindingPrefix": "parent",
+        "checkTitle": "Consistency checks",
+        "enableTitle": "Enable the L2 fixture (form A)",
+        "enableHint": "Set the BMC-facing NIC and test subnet in .env, then use the override file to attach only dhcp to macvlan; the test port must be never-default."
       }
     }
   },
@@ -372,6 +391,9 @@
       "rollbackVersion": "Roll back to v{{version}}",
       "stateHint": "Result at the time this version was applied; if the container was not running it stays \"not applied\" even after it starts",
       "detailEmpty": "This version has no config values to show."
+    },
+    "l2Status": {
+      "title": "L2 test segment status"
     }
   },
   "users": {

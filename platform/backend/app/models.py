@@ -336,6 +336,71 @@ class SystemInfo(SQLModel):
     targets: list[UpdateTarget]
 
 
+# --------------------------------------------------------------------------- #
+# 宿主网口与二层绑定（GET /system/host-network）
+#
+# 数据全部来自运行态：网口物理事实读宿主 /sys 的只读挂载，IP/掩码与默认路由出口由
+# `--network host` 的一次性 helper 容器读出，绑定从 docker network inspect 的 Options.parent 推导。
+# 校验结论（checks）只做展示，不阻断任何下发——见 app/host_network.py 的模块说明。
+# --------------------------------------------------------------------------- #
+class HostIPv4Address(SQLModel):
+    address: str
+    netmask: str
+    # 归一后的网段写法（如 192.168.90.0/24），供前端展示与「地址池是否在网段内」的判断
+    cidr: str = ""
+
+
+class HostIPv6Address(SQLModel):
+    address: str
+    prefix: int
+    # 归一后的网段写法（如 fd00:30:12::/64）
+    cidr: str = ""
+
+
+class HostInterface(SQLModel):
+    name: str
+    # 1=有链路；0=没插线/对端未上电；None=读不到（/sys 未挂载或该网口不支持）
+    carrier: int | None = None
+    speed_mbps: int | None = None
+    mac: str | None = None
+    ipv4: list[HostIPv4Address] = Field(default_factory=list)
+    # 非链路本地的 IPv6 地址（链路本地与 ::1 已过滤）：用于 RA 前缀一致性校验
+    ipv6: list[HostIPv6Address] = Field(default_factory=list)
+
+
+class HostServiceBinding(SQLModel):
+    service: str
+    container: str
+    # 挂到的 macvlan 网络名与它的 parent 网口；未绑定时三者分别为 None/None/False
+    network: str | None = None
+    parent: str | None = None
+    attached: bool = False
+    # 容器在该 macvlan 网络上的地址（用于「使用方式」卡片与地址冲突校验）
+    address: str | None = None
+
+
+class HostNetworkCheck(SQLModel):
+    # ok / info / warn / error：前端按级别配色，warn 与 error 才显著提示
+    level: str
+    code: str
+    service: str | None = None
+    message: str
+
+
+class HostNetworkInfo(SQLModel):
+    # ok=已读到宿主各口 IP；unavailable=helper 容器不可用（IP 留空，前端提示即可，不当失败）
+    ip_source: str = "ok"
+    # 意图侧（来自 .env）：接 BMC 的网口、测试网段、需要在测试网段上被访问的服务
+    parent_iface: str = ""
+    l2_subnet: str = ""
+    l2_services: list[str] = Field(default_factory=list)
+    # 宿主默认路由出口网口：若与 parent_iface 相同，说明测试口承载默认路由（危险配置）
+    default_iface: str = ""
+    interfaces: list[HostInterface] = Field(default_factory=list)
+    bindings: list[HostServiceBinding] = Field(default_factory=list)
+    checks: list[HostNetworkCheck] = Field(default_factory=list)
+
+
 # POST /system/updates/check 与 /package 响应
 class UpdateCheckResult(SQLModel):
     registry: str

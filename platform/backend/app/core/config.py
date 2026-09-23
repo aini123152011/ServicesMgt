@@ -56,6 +56,23 @@ class Settings(BaseSettings):
     # 配置卷在宿主机上的根路径，每个服务的卷按 {VOLUMES_MOUNT_ROOT}/{name}-config 挂载
     VOLUMES_MOUNT_ROOT: str = "/var/lib/platform"
 
+    # 二层（L2）测试网段相关：由 .env 注入，供「宿主网口」面板与一致性校验使用。
+    # 宿主网口的**物理事实**来自只读挂载 /sys（HOST_SYS_DIR），IP/掩码来自 --network host 的
+    # 一次性 helper 容器；下面三个变量只表达「我们的意图」，与实测事实比对后才产生校验结论。
+    # 接 BMC 的那块网口名（macvlan 的 parent）；留空表示未启用二层夹具
+    DHCP_PARENT_IFACE: str = ""
+    # 测试网段（如 192.168.90.0/24）；用于判定 dhcp 地址池是否落在该网段内
+    L2_SUBNET: str = ""
+    # 需要在测试网段上被 BMC 访问的服务（逗号分隔）；决定哪些服务的「使用方式」卡片改用二层地址
+    L2_SERVICES: str = "dhcp,tftpd-hpa,rsyslog,chrony"
+    # 宿主机 /sys 的只读挂载点：网口名/carrier/速率/MAC 从这里读（容器自己的 /sys 只含本容器网口）
+    HOST_SYS_DIR: str = "/host-sys"
+
+    @property
+    def l2_service_names(self) -> set[str]:
+        """解析 L2_SERVICES：去空白、忽略空项，便于与注册表里的服务名比对。"""
+        return {item.strip() for item in self.L2_SERVICES.split(",") if item.strip()}
+
     @field_validator("SERVICES_DIR", mode="after")
     @classmethod
     def _resolve_services_dir(cls, value: str) -> str:

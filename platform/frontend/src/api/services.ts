@@ -77,6 +77,11 @@ interface ServiceDetailResponse {
   manifest: ServiceManifest
   schema: ServiceSchema
   config: ServiceConfig
+  /**
+   * 该服务在二层测试网段上应被 BMC 访问的地址（未启用二层或取不到时为 null）。
+   * 「使用方式」卡片用它替换 {{host}}：BMC 在测试网段上够不到管理网地址。
+   */
+  l2_address?: string | null
 }
 
 interface UpdateConfigResponse {

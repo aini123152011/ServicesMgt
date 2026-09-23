@@ -11,10 +11,16 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 
-from app import container_rebuild, registry, system_update
+from app import container_rebuild, host_network, registry, system_update
 from app.api.deps import CurrentUser, RequireAdmin, SessionDep, get_current_user
-from app.crud import record_audit_log
-from app.models import Message, SystemInfo, UpdateApplyRequest, UpdateCheckResult
+from app.crud import get_service_config, record_audit_log
+from app.models import (
+    HostNetworkInfo,
+    Message,
+    SystemInfo,
+    UpdateApplyRequest,
+    UpdateCheckResult,
+)
 from app.system_update import UpdateBusyError, UpdateError
 
 router = APIRouter(
@@ -45,6 +51,29 @@ def read_system_info() -> Any:
         targets = []
         docker_available = False
     return SystemInfo(**info, docker_available=docker_available, targets=targets)
+
+
+@router.get("/host-network", response_model=HostNetworkInfo)
+def read_host_network(session: SessionDep) -> Any:
+    """宿主网口事实 + 二层绑定 + 一致性校验（只读，登录即可访问）。
+
+    为什么放在 system 下：它是**宿主级事实**（与 /system/info 同性质），不属于任何单个服务；
+    服务详情里只借用其中的 `l2_address`（见 read_service）。
+
+    Args:
+        session: 数据库会话（读 dhcp 当前配置，用于判断地址池是否落在绑定网口网段内）。
+
+    Returns:
+        HostNetworkInfo：网口清单、当前绑定、校验结论。helper 容器不可用时 `ip_source=unavailable`
+        （IP 留空但其余字段照常返回），不让面板整体失败。
+    """
+    dhcp_config = get_service_config(session=session, service_name="dhcp")
+    dhcp_values = (
+        dict(dhcp_config.values) if dhcp_config and dhcp_config.values else None
+    )
+    return HostNetworkInfo.model_validate(
+        host_network.snapshot(registry.list_service_names(), dhcp_values)
+    )
 
 
 @router.post(
