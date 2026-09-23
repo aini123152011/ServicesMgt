@@ -343,6 +343,7 @@ def test_checks_pool_outside_subnet(monkeypatch: Any) -> None:
             "parent": "enp125s0f1",
             "attached": True,
             "address": "192.168.90.2",
+            "address_v6": "fd00:90::2",
         }
     ]
     checks_all_good = host_network.build_checks(
@@ -419,6 +420,7 @@ def test_checks_address_conflict(monkeypatch: Any) -> None:
                 "parent": "enp125s0f1",
                 "attached": True,
                 "address": "192.168.90.2",
+                "address_v6": "fd00:90::2",
             }
         ],
         dhcp_values=None,
@@ -444,6 +446,7 @@ def test_checks_dhcp_not_attached(monkeypatch: Any) -> None:
                 "parent": None,
                 "attached": False,
                 "address": None,
+                "address_v6": None,
             }
         ],
         dhcp_values={"pool_start": "192.168.90.100", "pool_end": "192.168.90.200"},
@@ -470,6 +473,7 @@ def test_checks_ra_prefix_outside_parent_subnet(monkeypatch: Any) -> None:
                 "parent": "enp125s0f1",
                 "attached": True,
                 "address": "192.168.90.2",
+                "address_v6": "fd00:90::2",
             }
         ],
         dhcp_values={"ipv6_prefix": "fd00:30:12::/64"},
@@ -487,6 +491,7 @@ def test_checks_ra_prefix_outside_parent_subnet(monkeypatch: Any) -> None:
                 "parent": "enp125s0f1",
                 "attached": True,
                 "address": "192.168.90.2",
+                "address_v6": "fd00:90::2",
             }
         ],
         dhcp_values={"ipv6_prefix": "fd00:90::/64"},
@@ -513,3 +518,32 @@ def test_is_physical_keeps_lom_like_names() -> None:
     assert host_network._is_physical("lo") is False
     assert host_network._is_physical("docker0") is False
     assert host_network._is_physical("veth1234") is False
+
+
+def test_checks_address_conflict_ipv6(monkeypatch: Any) -> None:
+    """v6 侧同样要报地址冲突：macvlan 的 v6 子网不给 gateway 时 Docker 会把 ::1 分给容器。
+
+    实测踩到两次（先 v4 的 .1，再 v6 的 ::1），所以冲突校验必须同时比两个协议族。
+    """
+    monkeypatch.setattr(settings, "DHCP_PARENT_IFACE", "enp125s0f1")
+    monkeypatch.setattr(settings, "L2_SUBNET", "")
+    iface = _iface("enp125s0f1", cidr="192.168.90.0/24")
+    iface["ipv6"] = [{"address": "fd00:90::1", "prefix": 64, "cidr": "fd00:90::/64"}]
+    checks = host_network.build_checks(
+        interfaces=[iface],
+        bindings=[
+            {
+                "service": "dhcp",
+                "container": "bmc-dhcp",
+                "network": "servicesmgt_dhcp-l2-net",
+                "parent": "enp125s0f1",
+                "attached": True,
+                "address": "192.168.90.2",
+                "address_v6": "fd00:90::1",
+            }
+        ],
+        dhcp_values=None,
+    )
+    conflict = [c for c in checks if c["code"] == "address_conflict"]
+    assert len(conflict) == 1 and conflict[0]["level"] == "error"
+    assert "fd00:90::1" in conflict[0]["message"]

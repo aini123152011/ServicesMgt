@@ -311,6 +311,7 @@ def service_bindings(service_names: list[str]) -> list[dict[str, Any]]:
             "attached": False,
             # 容器在该 macvlan 网络上的地址：既给「使用方式」卡片用，也用于地址冲突校验
             "address": None,
+            "address_v6": None,
         }
         try:
             container = client.containers.get(container_name)
@@ -330,7 +331,9 @@ def service_bindings(service_names: list[str]) -> list[dict[str, Any]]:
             entry["network"] = network_name
             entry["parent"] = options.get("parent")
             entry["attached"] = True
-            entry["address"] = (networks.get(network_name) or {}).get("IPAddress")
+            network_info = networks.get(network_name) or {}
+            entry["address"] = network_info.get("IPAddress")
+            entry["address_v6"] = network_info.get("GlobalIPv6Address")
             break
         bindings.append(entry)
     return bindings

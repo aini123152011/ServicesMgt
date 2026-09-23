@@ -10,6 +10,8 @@
 # 前提（都在 .env 里）：
 #   DHCP_PARENT_IFACE  接 BMC 的那块宿主网口（如 enp125s0f1）
 #   L2_SUBNET          测试网段（如 192.168.90.0/24）
+#   L2_SUBNET_V6       测试网段的 IPv6 前缀（如 fd00:90::/64）：不给的话容器在测试段上没有 v6 地址，
+#                      BMC 即使收到 RA 也无法与本服务用 v6 通信
 #   L2_GATEWAY         测试网段的网关地址，也就是宿主测试口自己的地址（如 192.168.90.1）。
 #                      **必须显式给**：不给网关时 Docker 的 IPAM 会把 .1 分给 dhcp 容器，
 #                      与宿主测试口地址撞车（同段两个 MAC 抢同一地址），BMC 侧 ARP 会来回跳。
@@ -25,9 +27,15 @@ networks:
     driver: macvlan
     driver_opts:
       parent: "${DHCP_PARENT_IFACE:?请在 .env 设置接 BMC 的网口（如 enp125s0f1）}"
+    enable_ipv6: true
     ipam:
       config:
         - subnet: "${L2_SUBNET:?请在 .env 设置测试网段（如 192.168.90.0/24）}"
           # 网关 = 宿主测试口地址：既让 Docker 保留 .1（容器从 .2 起分配，避免与宿主撞地址），
           # 也与 dnsmasq 下发给 BMC 的「网关」字段一致
           gateway: "${L2_GATEWAY:?请在 .env 设置测试网段网关（宿主测试口地址，如 192.168.90.1）}"
+        # IPv6 段：BMC 走 SLAAC/DHCPv6 取址时，容器得有同网段的 v6 地址才能互通。
+        # 同样必须给 gateway：不给的话 Docker 会把 ::1 分给容器，与宿主测试口的 v6 地址撞车
+        # （v4 侧踩过一次，v6 侧一模一样）。
+        - subnet: "${L2_SUBNET_V6:-fd00:90::/64}"
+          gateway: "${L2_GATEWAY_V6:-fd00:90::1}"

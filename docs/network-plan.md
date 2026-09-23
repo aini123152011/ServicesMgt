@@ -110,6 +110,8 @@
 ```bash
 DHCP_PARENT_IFACE=enp125s0f1
 L2_SUBNET=192.168.90.0/24
+L2_SUBNET_V6=fd00:90::/64   # 测 BMC 的 v6 取址时需要
+L2_GATEWAY_V6=fd00:90::1    # 宿主测试口自己的 v6 地址（必须给，否则容器抢到 ::1）
 L2_GATEWAY=192.168.90.1     # 宿主测试口自己的地址
 ```
 

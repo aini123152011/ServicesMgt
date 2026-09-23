@@ -375,8 +375,9 @@ class HostServiceBinding(SQLModel):
     network: str | None = None
     parent: str | None = None
     attached: bool = False
-    # 容器在该 macvlan 网络上的地址（用于「使用方式」卡片与地址冲突校验）
+    # 容器在该 macvlan 网络上的地址（用于「使用方式」卡片与地址冲突校验）；v6 供冲突校验用
     address: str | None = None
+    address_v6: str | None = None
 
 
 class HostNetworkCheck(SQLModel):

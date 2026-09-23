@@ -114,8 +114,9 @@ export interface HostServiceBinding {
   network: string | null
   parent: string | null
   attached: boolean
-  /** 容器在该 macvlan 网络上的地址 */
+  /** 容器在该 macvlan 网络上的地址（v4）；v6 供地址冲突校验用 */
   address: string | null
+  address_v6: string | null
 }
 
 /** 一条一致性校验结论：level 为 ok/info/warn/error */
