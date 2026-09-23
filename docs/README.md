@@ -6,6 +6,7 @@
 |------|------|
 | [../README.md](../README.md) | 项目总览：能力、服务一览、快速开始、构建与 CI |
 | [deployment.md](./deployment.md) | 一键编排 / 单服务独立部署 / 平台更新与排障 |
+| [network-plan.md](./network-plan.md) | 网络规划：宿主网口、14 张 Docker 网络、13 服务端口映射、BMC 侧地址对照 |
 | [adding-a-service.md](./adding-a-service.md) | 如何新增一个服务插件（目录契约、manifest/schema 字段、验收清单） |
 
 容器踩坑与验证结论（改服务前值得先读）：

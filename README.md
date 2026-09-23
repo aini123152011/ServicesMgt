@@ -93,6 +93,7 @@ docs/                       部署、服务接入、容器踩坑与验证矩阵
 ## 文档
 
 - [部署指南](docs/deployment.md) —— 一键编排、单服务独立部署、平台更新与排障
+- [网络规划](docs/network-plan.md) —— 宿主网口、Docker 网络、13 服务端口映射与 BMC 侧地址对照
 - [如何新增一个服务插件](docs/adding-a-service.md) —— 目录契约、manifest/schema 字段、验收清单
 - [容器运行时踩坑清单](docs/container-runtime-guidelines.md) —— 15 类「配置写对了但服务没按配置工作」的坑与修法
 - [验证矩阵](docs/verification-matrix.md) —— 13 服务 × 4 类验证项 × 38 个故障模式的实测结论
