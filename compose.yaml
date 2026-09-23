@@ -88,6 +88,10 @@ services:
       # 宿主网口的物理事实（名字/carrier/速率/MAC）读这里——平台容器自己的 /sys 只含本容器网口。
       # 只读挂载：平台只读不写；IP/掩码另由 --network host 的一次性 helper 容器取（见 app/host_network.py）
       - /sys:/host-sys:ro
+      # 部署目录（compose.yaml / compose.l2.yaml / .env）读写挂载：页面上启用/停用/切换二层夹具时，
+      # 平台要改写 .env 里的 L2 参数——那是这些参数的**权威副本**，compose 也从它取值。
+      # 平台只写白名单里的那几个键，且绝不把文件内容回显给任何接口（见 app/l2_config.py 模块说明）。
+      - .:/host-deploy
     networks: [bmc-platform-isolated-net]
 
   # ---------------------------------------------------------------- 13 个服务

@@ -547,3 +547,63 @@ def test_checks_address_conflict_ipv6(monkeypatch: Any) -> None:
     conflict = [c for c in checks if c["code"] == "address_conflict"]
     assert len(conflict) == 1 and conflict[0]["level"] == "error"
     assert "fd00:90::1" in conflict[0]["message"]
+
+
+def test_evaluate_checks_ignores_settings(monkeypatch: Any) -> None:
+    """纯函数只认入参：settings 配的是 A，传 B 时结论按 B 走（变更前预检就靠这个）。
+
+    若它偷偷读 settings，预检就永远只能校验「当前」配置，无法校验「将要切过去」的那套。
+    """
+    monkeypatch.setattr(settings, "DHCP_PARENT_IFACE", "enp125s0f1")
+    monkeypatch.setattr(settings, "L2_SUBNET", "192.168.90.0/24")
+    monkeypatch.setattr(settings, "L2_SERVICES", "dhcp")
+
+    checks = host_network.evaluate_checks(
+        interfaces=[_iface("enp125s0f3", cidr="192.168.95.0/24")],
+        bindings=[
+            {
+                "service": "dhcp",
+                "container": "bmc-dhcp",
+                "network": "servicesmgt_dhcp-l2-net",
+                "parent": "enp125s0f3",
+                "attached": True,
+                "address": "192.168.95.2",
+                "address_v6": None,
+            }
+        ],
+        dhcp_values={
+            "pool_start": "192.168.95.100",
+            "pool_end": "192.168.95.200",
+            "ipv6_prefix": "fd00:95::/64",
+        },
+        parent="enp125s0f3",
+        l2_subnet="192.168.95.0/24",
+        l2_services={"dhcp"},
+        default_iface="enp125s0f0",
+    )
+
+    assert [c["code"] for c in checks] == ["l2_ok"]
+    assert "enp125s0f3" in checks[0]["message"]
+
+
+def test_evaluate_checks_blocks_default_route_parent_for_preflight() -> None:
+    """预检场景：把承载默认路由的口当父口必须报出来（页面在变更路径上据此拦截）。
+
+    同一份规则在「当前状态」展示里只是 warn（配置已存在，先提示），
+    但在变更路径上会升级为阻断——结论本身带级别，由调用方决定怎么用。
+    """
+    checks = host_network.evaluate_checks(
+        interfaces=[_iface("enp125s0f0", cidr="198.51.100.0/24")],
+        bindings=[],
+        dhcp_values=None,
+        parent="enp125s0f0",
+        l2_subnet="198.51.100.0/24",
+        l2_services={"dhcp"},
+        default_iface="enp125s0f0",
+    )
+
+    codes = [c["code"] for c in checks]
+    assert "parent_has_default_route" in codes
+    assert "dhcp_not_attached" in codes
+    level = next(c["level"] for c in checks if c["code"] == "parent_has_default_route")
+    assert level == "warn"

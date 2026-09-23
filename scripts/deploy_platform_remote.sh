@@ -60,9 +60,10 @@ done | tr '
 if [ -n "$candidates" ]; then
   echo "    二层夹具候选（插了线且无地址）：$candidates"
 fi
-echo "    提示：要让 BMC 取址，请在 .env 设置 DHCP_PARENT_IFACE / L2_SUBNET，然后："
-echo "          docker compose -f compose.yaml -f compose.l2.yaml up -d dhcp"
-echo "          并给测试口配址（必须 never-default，否则会抢走宿主默认路由）"
+echo "    提示：二层夹具（启用 / 切换 / 停用）现在可以在平台页面上做："
+echo "          设置 → 宿主网口面板 → 选父口与网段 → 应用（平台会改写 .env 并重建 macvlan 网络）"
+echo "          只有一步仍要人工：给宿主测试口配址（必须 never-default，否则会抢走宿主默认路由）"
+echo "          nmcli con mod <测试口> ipv4.addresses <L2_GATEWAY>/<前缀> ipv4.gateway \"\" ipv4.never-default yes"
 
 echo "==> 读回现有容器的运行参数"
 if ! docker inspect "$CONTAINER" >/dev/null 2>&1; then
@@ -76,6 +77,12 @@ mapfile -t envs < <(docker inspect "$CONTAINER" --format '{{range .Config.Env}}{
   | grep -v '^$' \
   | grep -vE '^(PLATFORM_VERSION|PLATFORM_BUILD)=')
 binds=$(docker inspect "$CONTAINER" --format '{{range .HostConfig.Binds}}-v {{.}} {{end}}')
+# 部署目录挂载（平台用它读写 .env 里的二层夹具参数）：老容器没有这一项，缺了就补上，
+# 否则每次部署都会把「页面上启用/切换二层夹具」的能力丢掉（挂载无法后加，只能重建时带上）
+case "$binds" in
+  *":/host-deploy"*) ;;
+  *) binds="${binds}-v ${DEPLOY_DIR}:/host-deploy " ;;
+esac
 port=$(docker inspect "$CONTAINER" --format '{{range $p, $conf := .HostConfig.PortBindings}}{{range $conf}}{{.HostPort}}:{{$p}}{{end}}{{end}}')
 network=$(docker inspect "$CONTAINER" --format '{{.HostConfig.NetworkMode}}')
 restart=$(docker inspect "$CONTAINER" --format '{{.HostConfig.RestartPolicy.Name}}')

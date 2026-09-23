@@ -105,7 +105,12 @@
 
 ## 5. 启用/停用
 
-`.env` 需要三项（`L2_GATEWAY` 必须显式给，见下）：
+> **推荐做法：在页面上做**（设置 → 关于 → 二层夹具绑定）——启用 / 切换 / 停用都是点一下的事，
+> 平台会改写部署目录 `.env`、重建 macvlan 网络、重启 dhcp，改网段时还会把 dhcp 的地址池与 RA 前缀
+> 一起改成匹配值。**唯一仍需人工的一步是宿主测试口配址**（下面那条 `nmcli`，页面会把命令直接给你复制）。
+> 本节剩下的手工步骤只在平台不可用时才需要。
+
+`.env` 需要这几项（`L2_GATEWAY` / `L2_GATEWAY_V6` 必须显式给，见下）：
 
 ```bash
 DHCP_PARENT_IFACE=enp125s0f1
@@ -130,6 +135,12 @@ nmcli con up <测试口>
 docker compose -f compose.yaml up -d dhcp
 nmcli con mod <测试口> ipv4.addresses "" ipv4.never-default yes && nmcli con up <测试口>
 ```
+
+> **页面上的「停用」不会删除 macvlan 网络对象**（只把容器断开、清空 `.env` 的父口）。原因实测过：
+> dhcp 容器是按「双网络」创建的，容器配置里仍引用那个网络名；网络一删，`docker restart` 直接失败
+> （`could not find a network matching network mode ...`），连容器都重启不了。保留网络对象既让容器
+> 保持可重启，也让下次启用只需重连。要彻底删掉网络，得用上面那条 `docker compose -f compose.yaml up -d dhcp`
+> （不带 override）让 compose 重建容器。
 
 ## 6. 平台侧能看到什么
 

@@ -303,8 +303,8 @@ def mask_secret_values(
     return mask_values(values, secret_fields)
 
 
-def _atomic_write(target: Path, content: str) -> None:
-    """原子写入单个配置文件：同目录写临时文件后 os.replace 覆盖。
+def atomic_write(target: Path, content: str, mode: int = 0o644) -> None:
+    """原子写入单个文件：同目录写临时文件后 os.replace 覆盖。
 
     同目录临时文件保证与目标同一文件系统，os.replace 才是原子操作；
     读取方要么看到旧文件、要么看到完整新文件，不会读到半成品。
@@ -312,6 +312,12 @@ def _atomic_write(target: Path, content: str) -> None:
     权限：mkstemp 建出的临时文件是 0600，而服务容器里的守护进程常以非 root 用户
     运行（如 nginx worker 是 www-data），读不到配置文件会直接 500。因此渲染产物
     统一按普通配置文件口径写 0644（每次写入都重设，已存在的 0600 文件也会被修正）。
+    含机密的文件（如部署目录的 .env）由调用方显式传 0600，不能用默认值。
+
+    Args:
+        target: 目标文件路径，父目录不存在时逐级创建。
+        content: 要写入的完整内容（统一按 LF 写入）。
+        mode: 写入后的权限位，默认 0644。
 
     Raises:
         TemplateRenderError: 目录创建或文件写入失败时。
@@ -325,7 +331,7 @@ def _atomic_write(target: Path, content: str) -> None:
         try:
             with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as tmp_file:
                 tmp_file.write(content)
-            os.chmod(tmp_name, 0o644)
+            os.chmod(tmp_name, mode)
             os.replace(tmp_name, target)
         except BaseException:
             # 清理残留临时文件后原样上抛，卷内不留垃圾
@@ -381,7 +387,7 @@ def render_config(plugin: ServicePlugin, values: dict[str, Any]) -> list[Path]:
                 f"Failed to render template '{template_name}' for service '{plugin.name}': {e}"
             ) from e
         target = volume_dir / relative
-        _atomic_write(target, content)
+        atomic_write(target, content)
         written.append(target)
         logger.info(f"Rendered config file for service '{plugin.name}': {target}")
     return written

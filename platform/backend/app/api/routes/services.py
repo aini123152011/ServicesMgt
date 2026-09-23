@@ -140,7 +140,7 @@ def read_service(session: SessionDep, name: str) -> Any:
     }
 
 
-def _apply_config_values(
+def apply_config_values(
     *,
     session: Session,
     plugin: ServicePlugin,
@@ -153,7 +153,7 @@ def _apply_config_values(
 ) -> bool:
     """渲染 → 写卷 → 落库 → reload → 记一条配置版本与审计，返回 applied。
 
-    PUT /config 与回滚共用这一段：两条路径对「生效」的定义必须完全一致，否则回滚会出现
+    PUT /config、回滚与二层联动（/l2/config 的服务配置同步）共用这一段：两条路径对「生效」的定义必须完全一致，否则回滚会出现
     「界面说成功、服务其实没生效」。
 
     版本与审计**在 reload 失败时也要写**：渲染产物此时已经落盘，服务下次启动就会读到它
@@ -386,7 +386,7 @@ def rollback_config_version(
         values = config_renderer.validate_values(plugin.schema, row.values)
     except config_renderer.ConfigValidationError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
-    applied = _apply_config_values(
+    applied = apply_config_values(
         session=session,
         plugin=plugin,
         name=name,
@@ -446,7 +446,7 @@ def update_service_config(
         )
     except config_renderer.ConfigValidationError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
-    applied = _apply_config_values(
+    applied = apply_config_values(
         session=session,
         plugin=plugin,
         name=name,

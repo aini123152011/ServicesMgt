@@ -402,6 +402,92 @@ class HostNetworkInfo(SQLModel):
     checks: list[HostNetworkCheck] = Field(default_factory=list)
 
 
+# --------------------------------------------------------------------------- #
+# 二层夹具的启用 / 停用 / 切换（/l2/*）
+#
+# 与上面 HostNetworkInfo 的分工：那边只读呈现，这里的写操作会改三处状态——
+# 部署目录 .env（权威）、Docker macvlan 网络（它的投影）、可选的 dhcp 服务配置联动。
+# --------------------------------------------------------------------------- #
+class L2CandidateInterface(SQLModel):
+    name: str
+    carrier: int | None = None
+    speed_mbps: int | None = None
+    mac: str | None = None
+    addresses: list[str] = Field(default_factory=list)
+    # 是否是当前绑定的父口
+    is_parent: bool = False
+    # 能否选作父口：有链路，且不承载宿主默认路由
+    selectable: bool = False
+    # 不可选的原因（可直接展示给用户）
+    reason: str = ""
+
+
+class L2State(SQLModel):
+    enabled: bool = False
+    # .env 侧（权威值）
+    env_path: str = ""
+    env_available: bool = True
+    env_error: str = ""
+    parent_iface: str = ""
+    l2_subnet: str = ""
+    l2_gateway: str = ""
+    l2_subnet_v6: str = ""
+    l2_gateway_v6: str = ""
+    l2_services: list[str] = Field(default_factory=list)
+    duplicate_keys: list[str] = Field(default_factory=list)
+    # Docker 侧（投影）
+    network: str | None = None
+    network_exists: bool = False
+    network_parent: str | None = None
+    attached: bool = False
+    address: str | None = None
+    address_v6: str | None = None
+    # 两侧不一致的说明（例如 .env 写了 A、实际网络还挂在 B）
+    drift: list[str] = Field(default_factory=list)
+    checks: list[HostNetworkCheck] = Field(default_factory=list)
+    candidates: list[L2CandidateInterface] = Field(default_factory=list)
+    nmcli_commands: list[str] = Field(default_factory=list)
+    default_iface: str = ""
+
+
+class L2ConfigUpdate(SQLModel):
+    parent_iface: str
+    l2_subnet: str
+    l2_gateway: str
+    l2_subnet_v6: str = ""
+    l2_gateway_v6: str = ""
+    # 是否把 dhcp 服务配置（网关 / RA 前缀 / 地址池）一并同步：
+    # 不同步的话改完网段 BMC 取不到地址，所以默认同步
+    sync_service_config: bool = True
+
+
+class L2ServiceConfigChange(SQLModel):
+    changed: dict[str, str] = Field(default_factory=dict)
+    applied: bool = False
+    version: int | None = None
+
+
+class L2PreflightResult(SQLModel):
+    # 是否可以执行：存在 blocking 即不可执行
+    ok: bool = False
+    blocking: list[HostNetworkCheck] = Field(default_factory=list)
+    checks: list[HostNetworkCheck] = Field(default_factory=list)
+    # 将要执行的步骤（人可读，供确认弹窗展示）
+    steps: list[str] = Field(default_factory=list)
+    # 将要改动的 dhcp 服务配置字段
+    service_config: dict[str, str] = Field(default_factory=dict)
+    nmcli_commands: list[str] = Field(default_factory=list)
+
+
+class L2ApplyResult(SQLModel):
+    applied: bool = False
+    # 执行失败时是否已成功回滚到变更前状态
+    rolled_back: bool = False
+    steps: list[str] = Field(default_factory=list)
+    service_config: L2ServiceConfigChange | None = None
+    message: str = ""
+
+
 # POST /system/updates/check 与 /package 响应
 class UpdateCheckResult(SQLModel):
     registry: str

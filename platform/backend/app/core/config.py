@@ -67,11 +67,22 @@ class Settings(BaseSettings):
     L2_SERVICES: str = "dhcp,tftpd-hpa,rsyslog,chrony"
     # 宿主机 /sys 的只读挂载点：网口名/carrier/速率/MAC 从这里读（容器自己的 /sys 只含本容器网口）
     HOST_SYS_DIR: str = "/host-sys"
+    # 部署目录（含 compose.yaml / compose.l2.yaml / .env）的挂载点，读写挂载。
+    # 平台改写 L2 参数时写其中的 .env——那是这些参数的权威副本，compose 也从它取值；
+    # 上面的 DHCP_PARENT_IFACE / L2_SUBNET / L2_SERVICES 只作读不到文件时的降级兜底。
+    HOST_DEPLOY_DIR: str = "/host-deploy"
+    # 部署目录里 env 文件名（compose 的变量替换只认这个文件名）
+    ENV_FILE_NAME: str = ".env"
 
     @property
     def l2_service_names(self) -> set[str]:
         """解析 L2_SERVICES：去空白、忽略空项，便于与注册表里的服务名比对。"""
         return {item.strip() for item in self.L2_SERVICES.split(",") if item.strip()}
+
+    @property
+    def env_file_path(self) -> Path:
+        """部署目录里 .env 的完整路径（L2 参数的权威副本）。"""
+        return Path(self.HOST_DEPLOY_DIR) / self.ENV_FILE_NAME
 
     @field_validator("SERVICES_DIR", mode="after")
     @classmethod

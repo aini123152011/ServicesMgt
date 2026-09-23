@@ -20,6 +20,7 @@ import {
 import { taskStatusKey } from '../data/update-status'
 import { useSystemInfoQuery } from '../hooks/use-system'
 import { HostNetworkPanel } from './host-network-panel'
+import { L2BindingPanel } from './l2-binding-panel'
 
 /** 更新目标里的平台自身条目，不计入「纳管服务」清单 */
 const PLATFORM_TARGET = 'platform'
@@ -129,6 +130,7 @@ export function AboutPanel() {
       </Card>
 
       <HostNetworkPanel />
+      <L2BindingPanel />
       <Card>
         <CardHeader>
           <CardTitle>{t('settings.about.services.title')}</CardTitle>

@@ -2,6 +2,7 @@ from fastapi import APIRouter
 
 from app.api.routes import (
     audit,
+    l2,
     login,
     service_data,
     services,
@@ -18,4 +19,5 @@ api_router.include_router(services.router)
 api_router.include_router(service_data.router)
 api_router.include_router(audit.router)
 api_router.include_router(system.router)
+api_router.include_router(l2.router)
 api_router.include_router(audit.roles_router)

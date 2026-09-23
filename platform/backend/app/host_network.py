@@ -356,24 +356,47 @@ def _ipv4_networks(iface: dict[str, Any]) -> list[ipaddress.IPv4Network]:
     return out
 
 
-def build_checks(
+def _normalize_ip(value: str) -> str:
+    """把地址归一成标准写法（IPv6 压缩形式），解析不了就原样返回。
+
+    两侧来源不同：宿主侧来自 helper 容器的 ioctl 读数，容器侧来自 Docker 的
+    `GlobalIPv6Address`。同一地址可能一个压缩一个不压缩（`fd00:90::1` 与
+    `fd00:90:0:0:0:0:0:1`），直接比字符串会漏判冲突。
+    """
+    try:
+        return str(ipaddress.ip_address(value))
+    except ValueError:
+        return value
+
+
+def evaluate_checks(
     *,
     interfaces: list[dict[str, Any]],
     bindings: list[dict[str, Any]],
     dhcp_values: dict[str, Any] | None,
+    parent: str,
+    l2_subnet: str,
+    l2_services: set[str],
     default_iface: str = "",
 ) -> list[dict[str, Any]]:
-    """按 PRD R3 产出校验结论（只告警，不阻断）。
+    """按 PRD R3 产出校验结论（纯函数：不读 settings、不连 Docker）。
+
+    抽成纯函数是为了让「当前状态」与「变更前预检」共用同一套规则——两处各写一份必然漂移。
 
     Args:
         interfaces: `host_interfaces()` 的结果。
         bindings: `service_bindings()` 的结果。
-        dhcp_values: dhcp 服务当前配置值（取 pool_start/pool_end）；None 表示取不到。
+        dhcp_values: dhcp 服务当前配置值（用 pool_start/pool_end 与 ipv6_prefix）；None 表示取不到。
+        parent: 期望的 macvlan 父口名（空串表示未启用二层夹具）。
+        l2_subnet: 期望的测试网段（空串表示未配置）。
+        l2_services: 需要在测试网段上被 BMC 访问的服务名集合。
         default_iface: 宿主默认路由出口网口（空串表示未知，相关校验跳过）。
+
+    Returns:
+        校验结论列表；全部通过时只有一条 `ok: l2_ok`。
     """
     checks: list[dict[str, Any]] = []
     by_name = {iface["name"]: iface for iface in interfaces}
-    parent = settings.DHCP_PARENT_IFACE.strip()
 
     def add(level: str, code: str, service: str | None, message: str) -> None:
         checks.append(
@@ -449,16 +472,16 @@ def build_checks(
             "（若网段配在交换机侧，可忽略此项）。",
         )
 
-    if settings.L2_SUBNET.strip() and networks:
+    if l2_subnet and networks:
         try:
-            l2_network = ipaddress.ip_network(settings.L2_SUBNET.strip(), strict=False)
+            l2_network = ipaddress.ip_network(l2_subnet, strict=False)
         except ValueError:
             # 写错的网段被静默吞掉会让「网段比对」整条消失、卡片地址也悄悄回落，必须提示
             add(
                 "warn",
                 "l2_subnet_invalid",
                 None,
-                f"L2_SUBNET 无法解析为网段（当前值：{settings.L2_SUBNET.strip()}），"
+                f"L2_SUBNET 无法解析为网段（当前值：{l2_subnet}），"
                 "网段一致性与二层地址判定已跳过。",
             )
             l2_network = None
@@ -474,11 +497,17 @@ def build_checks(
             )
 
     # 地址冲突：dhcp 容器在 macvlan 上的地址与绑定口自己的地址相同。
-    # 成因：macvlan 网络没配 gateway 时，Docker 的 IPAM 会把 .1 分给容器，正好撞上宿主测试口的地址
-    # （同段两个 MAC 抢同一地址，BMC 侧 ARP 会来回跳）。compose.l2.yaml 已要求显式给 L2_GATEWAY。
+    # 成因：macvlan 网络没配 gateway 时，Docker 的 IPAM 会把 .1（v6 是 ::1）分给容器，正好撞上
+    # 宿主测试口的地址（同段两个 MAC 抢同一地址，BMC 侧 ARP/邻居表会来回跳）。
+    # compose.l2.yaml 已要求 v4/v6 两个子网都显式给 gateway——两个协议族都实测踩过，都要报。
     own_addresses = {
-        str(item.get("address"))
+        _normalize_ip(str(item.get("address")))
         for item in iface.get("ipv4") or []
+        if item.get("address")
+    }
+    own_addresses_v6 = {
+        _normalize_ip(str(item.get("address")))
+        for item in iface.get("ipv6") or []
         if item.get("address")
     }
     for binding in bindings:
@@ -487,7 +516,7 @@ def build_checks(
         if (
             binding.get("attached")
             and binding_address
-            and binding_address in own_addresses
+            and _normalize_ip(binding_address) in own_addresses
         ):
             add(
                 "error",
@@ -496,6 +525,20 @@ def build_checks(
                 f"{binding['service']} 在 macvlan 上的地址 {binding_address} 与绑定网口 {parent} 自身的地址相同"
                 "（地址冲突：BMC 侧 ARP 会来回跳）。给 macvlan 网络配 gateway（L2_GATEWAY）后重建，"
                 "容器会从 .2 起分配。",
+            )
+        binding_address_v6 = str(binding.get("address_v6") or "")
+        if (
+            binding.get("attached")
+            and binding_address_v6
+            and _normalize_ip(binding_address_v6) in own_addresses_v6
+        ):
+            add(
+                "error",
+                "address_conflict",
+                str(binding["service"]),
+                f"{binding['service']} 在 macvlan 上的 IPv6 地址 {binding_address_v6} 与绑定网口 {parent} "
+                "自身的地址相同（地址冲突：BMC 侧邻居表会来回跳）。给 macvlan 的 IPv6 子网配 gateway"
+                "（L2_GATEWAY_V6）后重建，容器会从 ::2 起分配。",
             )
 
     # RA 前缀（IPv6）是否落在绑定口的 v6 网段内：只有 ipv6_prefix 写错时 BMC 拿不到 RA，
@@ -541,7 +584,7 @@ def build_checks(
         )
 
     # L2 服务集合里走宿主地址的服务（非 macvlan 绑定）：需要测试口本身有测试网段地址
-    host_served = sorted(settings.l2_service_names - bound_services - {"dhcp"})
+    host_served = sorted(l2_services - bound_services - {"dhcp"})
     if host_served and not networks:
         add(
             "warn",
@@ -554,6 +597,25 @@ def build_checks(
     if not checks:
         add("ok", "l2_ok", None, f"二层夹具绑定正常：{parent}，地址池与网段一致。")
     return checks
+
+
+def build_checks(
+    *,
+    interfaces: list[dict[str, Any]],
+    bindings: list[dict[str, Any]],
+    dhcp_values: dict[str, Any] | None,
+    default_iface: str = "",
+) -> list[dict[str, Any]]:
+    """用当前 settings 里的 L2 意图调 `evaluate_checks`（保持既有调用方式）。"""
+    return evaluate_checks(
+        interfaces=interfaces,
+        bindings=bindings,
+        dhcp_values=dhcp_values,
+        parent=settings.DHCP_PARENT_IFACE.strip(),
+        l2_subnet=settings.L2_SUBNET.strip(),
+        l2_services=settings.l2_service_names,
+        default_iface=default_iface,
+    )
 
 
 def snapshot(

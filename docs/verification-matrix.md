@@ -41,7 +41,7 @@
 | nfs-ganesha | 9 条全通过 | 2 / **1** + 1 等价 / 0 | 12 项全通过 | ✅ 已验证（BMC 把夹具导出挂成虚拟介质） |
 | snmptrapd | 6 条全通过 | 3 / **2** / 1 | 12 项全通过 | ❌ 无 Trap 目的配置资源（Redfish） |
 | postfix | 13 条全通过 | 4 / **4** / 0 | 12 项全通过 | ⚠️ SmtpService 可写，真实发信需 BMC 事件触发 |
-| dhcp | 24 条全通过 | 5 / **5** / 0 | 12 项全通过 | ⏳ 待测（需把夹具改挂 macvlan 与 BMC 同二层） |
+| dhcp | 24 条全通过 | 5 / **5** / 0 | 12 项全通过 | ✅ v4 + v6 真机都已验证（BMC 取到 192.168.90.135 与 fd00:90::10d） |
 | freeradius | 12 条全通过 | 4 / **4** / 0 | 12 项全通过 | ⏳ 待测（容器网络内的真实 RADIUS 客户端已覆盖认证与 VLAN 下发） |
 
 合计：故障模式**声明 38 个，全部已验证**（36 个经 `fault_mode` 或等价覆盖验证；
@@ -163,7 +163,14 @@ snmptrapd 重载不生效导致 blackhole_drop 与 output_file 等参数都改�
   - 「RA 通告错误前缀」：把 ra-only 的 range 换成接口子网外的前缀后，dnsmasq 启动正常但**一个 RA 都不发**（被动监听 25 秒 0 包）。
   - 「DHCPv6 池耗尽」：池缩成一个地址后，dnsmasq 会把同一地址发给多个客户端（两个 DUID 都拿到 `fd00:30:12::100`），BMC 侧无可观测差异。
   - 另外两个实测坑：`dhcp-boot` 的服务器地址必须写在**第 3 段**才进 `siaddr`（两段式只填 option 66）；dnsmasq 租约下限是 **2 分钟**，写 60 会被静默抬到 120。
-- BMC 侧：⏳ 待测（容器网络里的客户端容器已覆盖协议行为；真机 BMC 取址需把 dhcp 服务改挂 macvlan 与 BMC 同二层）
+- BMC 侧：✅ **v4 与 v6 真机都取到了**（对端 BMC <被测服务器管理地址>，夹具 `enp125s0f1` 经 macvlan 与 BMC 管理口同二层）
+  - v4：夹具日志完整走完 `DHCPDISCOVER → DHCPOFFER → DHCPREQUEST → DHCPACK 192.168.90.135`，BMC 带内 `ipmitool lan print 1` 读到 `IP Address Source: DHCP Address`、地址 `192.168.90.135`、网关 `192.168.90.1`；夹具反向 `ping` 3/3 通（~1 ms）。
+  - v6：夹具日志 `DHCPSOLICIT → DHCPADVERTISE → DHCPREQUEST → DHCPREPLY fd00:90::10d`（DUID `00:03:00:01:94:a4:f9:fa:98:21`），BMC 带内 `lan6 print 1` 的 `IPv6 Dynamic Address 0` 显示 `Source/Type: DHCPv6 / fd00:90::10d/64 / Status: active`；夹具 `ping6 fd00:90::10d` 3/3 通，v6 邻居表里该地址的 lladdr 正是 BMC 的 `94:a4:f9:fa:98:21`（REACHABLE）。
+  - 一个绕不过的坑：v6 最初起不来，根因是**取址方式不匹配**而非链路——BMC 设的是 DHCPv6，而夹具当时渲染的是 `dhcp-range=fd00:90::,ra-only`（只发 RA、不做 DHCPv6 分配）。夹具侧把 `ra_mode` 从 `slaac` 切成 `stateful`（`dhcp-range=fd00:90::100,fd00:90::200,64,12h`）后立刻取到。
+  - **一次误判复盘（值得记住）**：BMC 的 IPv6 方式在 SLAAC 与 DHCPv6 之间被切换过。夹具 `ra_mode=slaac` 期间，BMC **其实已经通过 SLAAC 取到过地址**——带内 `lan6 print 1` 的动态地址槽里出现过 `fd00:90::96a4:f9ff:fefa:9821/64`（正是它 MAC `94:a4:f9:fa:98:21` 的 EUI-64）。我最初只 `grep` 了 `Address:` 行、丢掉了槽头与 `Status`，把这条真地址当成了「占位值」，又因为「夹具侧收不到对端的 v6 报文」而判定它没启用——**这两条推理都是错的**。
+  - 正确的判据：①带内动态地址槽要**连槽头与 `Status` 一起看**（`IPv6 Dynamic Address 0: Source/Type: DHCPv6 / <地址>/64 / Status: active` 才是完整证据）；②`Addressing Enables: both` 单独不能证明已启用；③**「段上收不到对端的 v6 报文」也不能作为否定证据**——SLAAC 客户端接受非请求 RA 时本来就不发包，收包计数为 0 是正常的。最终要靠「带内槽位 + 从夹具侧 ping 实测」两条一起判。
+  - 后来 BMC 被改成 DHCPv6，SLAAC 地址随之消失，而夹具当时只发 RA、不做 DHCPv6 分配 → 夹具侧把 `ra_mode` 切成 `stateful` 后立即取到 `fd00:90::10d`。所以「取址方式不匹配」是**后一阶段**的真实根因，但当时我给出的理由是错的。
+  - 遗留：BMC 的 `IPv6 Dynamic Router 0` 仍是 `::`（没把夹具记为 v6 路由器）。同一 `/64` 内互访（如 BMC → 夹具 `fd00:90::2`）是 on-link、不受影响；若要测 BMC 经 v6 访问网段外目标，需另配 v6 网关。
 
 ### freeradius
 
