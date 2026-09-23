@@ -271,7 +271,8 @@
     "category": {
       "time": "时间同步",
       "fileShare": "文件共享",
-      "logMonitor": "日志监控"
+      "logMonitor": "日志监控",
+      "network": "网络服务"
     },
     "reloadMode": {
       "hot": "热重载生效",
@@ -464,7 +465,7 @@
     },
     "targets": {
       "title": "更新目标",
-      "description": "平台自身与 11 个服务容器；「有新版本」表示容器所用镜像与同名 tag 当前指向不一致。"
+      "description": "平台自身与 12 个服务容器；「有新版本」表示容器所用镜像与同名 tag 当前指向不一致。"
     },
     "table": {
       "target": "目标",

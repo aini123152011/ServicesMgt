@@ -1,0 +1,85 @@
+{#- dnsmasq.conf.j2: dnsmasq（DHCPv4 + DHCPv6/RA + DNS）配置模板 -#}
+{#- 渲染环境要求：Jinja2 需开启 trim_blocks=True + lstrip_blocks=True -#}
+{#- 短租约故障用 120 秒而不是 60：dnsmasq 的租约下限是 2 分钟，写 60 会被静默抬到 120（实测日志
+    "IP range ..., lease time 2m"），e2e 按 60 断言会一直失败——按可实现的下限来注入。 -#}
+{% set effective_lease = '120' if fault_mode == 'short_lease' else lease_time %}
+{% set ra_prefix = ipv6_prefix.split('/')[0].rstrip(':') + '::' %}
+# 本文件由 BMC 服务管理平台自动渲染生成，请勿手工编辑
+# 用途：BMC 管理口取址（DHCPv4 / DHCPv6 / SLAAC）与域名解析（A/AAAA/PTR），并支持 PXE 引导参数
+
+# ---- 基础 ----
+domain={{ domain }}
+local=/{{ domain }}/
+expand-hosts
+# 不写 listen-address：dnsmasq 默认在所有接口上监听（v4 与 v6 通配），BMC 只配了一种协议也能解析
+# 未命中本域名的查询转发给上游（容器内嵌 DNS），与真实内网 DNS 行为一致
+
+# ---- DHCPv4 ----
+dhcp-authoritative
+{% if fault_mode == 'pool_exhausted' %}
+# 故障注入：地址池只剩一个地址，第二个客户端拿不到地址
+dhcp-range={{ pool_start }},{{ pool_start }},{{ effective_lease }}
+{% else %}
+dhcp-range={{ pool_start }},{{ pool_end }},{{ effective_lease }}
+{% endif %}
+{% if fault_mode == 'wrong_gateway' %}
+# 故障注入：下发一个不存在的网关（BMC 能取到地址但出不了网）
+dhcp-option=option:router,192.0.2.1
+{% else %}
+dhcp-option=option:router,{{ gateway }}
+{% endif %}
+{% if dns_servers %}
+dhcp-option=option:dns-server,{{ dns_servers | join(',') }}
+{% endif %}
+{% for host in static_hosts %}
+dhcp-host={{ host }}
+{% endfor %}
+{#- 三段式 dhcp-boot=<文件名>,<服务器名>,<服务器地址>：**服务器地址必须写在第 3 段**才会进
+    siaddr（BMC/PXE 客户端取的就是 siaddr）。两段式 dhcp-boot=file,addr 只会把地址塞进
+    option 66 的「服务器名」，siaddr 仍是 DHCP 服务器自己的地址——实测踩过，e2e 18.8 抓出来的。 -#}
+{% if boot_file and next_server %}
+# PXE 引导参数（配合 tftpd-hpa 夹具使用）
+dhcp-boot={{ boot_file }},,{{ next_server }}
+{% elif boot_file %}
+dhcp-boot={{ boot_file }}
+{% endif %}
+{% if fault_mode == 'blackhole' %}
+# 故障注入：本接口不应答 DHCP（BMC 取不到地址）；DNS 仍正常，便于区分「取址失败」与「服务已挂」
+no-dhcp-interface=eth0
+{% endif %}
+
+# ---- 静态解析记录（A / AAAA / PTR）----
+# 名字没写域名后缀时**同时**注册短名与 FQDN（bmc-01 与 bmc-01.bmc.lab 都能解析）：
+# BMC 从 DHCP 拿到 domain 后会按 FQDN 查，而人工排障时常用短名；dnsmasq 的 host-record
+# 支持「多个名字 + 多个地址」写在一行（实测短名与 FQDN 同时可解析、v4/v6 双向 PTR 都有）
+{% if fault_mode == 'dns_wrong_answer' %}
+# 故障注入：域内名字一律解析到一个不可达地址（BMC 解析「成功」但连不上；短名会走上游转发）
+address=/{{ domain }}/192.0.2.99
+{% else %}
+{% for record in dns_records %}
+{% set parts = record.split(',') %}
+{% set raw_name = parts[0] %}
+{% set names = [raw_name, raw_name + '.' + domain] if '.' not in raw_name else [raw_name] %}
+host-record={{ names | join(',') }},{{ parts[1:] | join(',') }}
+{% endfor %}
+{% endif %}
+{% if ra_mode != 'off' %}
+
+# ---- IPv6：RA（SLAAC）或有状态 DHCPv6 ----
+{% if ra_mode == 'slaac' %}
+# 只发 RA（无状态自动配置）；dnsmasq 通告的 RA 前缀固定按 /64 处理
+dhcp-range={{ ra_prefix }},ra-only
+{% elif ra_mode == 'stateful' %}
+# 有状态 DHCPv6：BMC 通过 DHCPv6 领取地址，同时发 RA 告知默认路由
+enable-ra
+dhcp-range={{ ipv6_pool_start }},{{ ipv6_pool_end }},64,{{ effective_lease }}
+{% endif %}
+{% endif %}
+{#- IPv6 侧的两个故障候选都被实测否掉了（所以故障集合里没有 v6 项，别照抄文档里的设想）：
+    1. 「RA 通告错误前缀」：把 ra-only 的 range 换成接口子网之外的前缀（fd00:bad:1::）后，dnsmasq
+       启动正常、日志也打 "router advertisement on fd00:bad:1::"，但**一个 RA 都不发**（被动监听
+       25 秒 0 个包）——它只给挂在接口子网上的前缀发 RA。要造「前缀配错导致 BMC 不通」只能在
+       宿主机/交换机侧配错，不在本服务能力范围内。
+    2. 「DHCPv6 有状态池耗尽」：把池缩成一个地址后，dnsmasq 会把**同一个地址发给多个客户端**
+       （实测两个不同 DUID 都拿到 fd00:30:12::100），BMC 侧看不到「拿不到地址」这个可观测差异。
+    v6 的覆盖因此落在正向能力上：SLAAC 前缀通告、有状态取址、ra_mode=off 关闭下发（e2e 18.3/18.9/18.10）。 -#}

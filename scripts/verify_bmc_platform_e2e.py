@@ -6,18 +6,20 @@
     python3 verify_bmc_platform_e2e.py --phase nginx # 只跑某个阶段
 
 覆盖范围：
-  - 平台基础：健康检查、JWT 登录、11 服务注册表、容器运行状态
+  - 平台基础：健康检查、JWT 登录、12 服务注册表、容器运行状态
   - AC11 各服务特性配置真实生效：chrony(NTP 应答)/nginx(上传下载+Basic认证)/
     rsyslog(按IP日期归档)/webdav(PUT)/sftp(密码登录)/vsftpd(本地用户上传)/
     tftpd-hpa(文件下载)/samba(共享读写)/nfs-ganesha(NFSv4 挂载)/
-    snmptrapd(Trap 接收落盘)/postfix(SMTP 投递)
+    snmptrapd(Trap 接收落盘)/postfix(SMTP 投递)/dhcp(DHCPv4 取址 + RA/SLAAC + DNS A/AAAA/PTR)
   - 故障注入真实生效：chrony(stratum_16/fake_offset)、nginx(500/503/限速)、
-    rsyslog(黑洞丢弃)、webdav(423/507)
+    rsyslog(黑洞丢弃)、webdav(423/507)、dhcp(池耗尽/黑洞/错误网关/RA错误前缀/短租约)
   - AC12 rsyslog 日志浏览接口（/data/tree、/data/content 关键字过滤）
   - AC13 secret 字段脱敏与掩码回填、审计不含明文
   - AC14 nginx HTTPS（自签证书）可访问
   - 前端 SPA 静态分发
   - AC1–AC4 配置版本历史与一键回滚（列表/详情脱敏/回滚真实生效/超限裁剪）
+  - IPv6：容器网络内真实 v6 客户端（scripts/v6_probe.py）
+  - DHCP：同网络客户端容器内的真实 DHCP/DHCPv6/RA/DNS 报文（scripts/dhcp_probe.py）
 
 凭据不写在脚本里：优先取环境变量 BMC_ADMIN_EMAIL/BMC_ADMIN_PASSWORD，
 其次从平台容器环境变量 FIRST_SUPERUSER/FIRST_SUPERUSER_PASSWORD 读取。
@@ -479,6 +481,19 @@ CFG_POSTFIX = {
     "message_size_limit_mb": 10, "mailbox_size_limit_mb": 512,
     "fault_mode": "none", "tarpit_delay_seconds": 20,
 }
+# DHCP 正向配置：地址池/网关/前缀必须落在 dhcp-net 的网段里（compose.yaml 的 172.30.12.0/24 +
+# fd00:30:12::/64），否则 dnsmasq 会因为池不在接口子网内而拒绝服务
+CFG_DHCP = {
+    "domain": "bmc.lab",
+    "pool_start": "172.30.12.100", "pool_end": "172.30.12.200",
+    "lease_time": "12h", "gateway": "172.30.12.1",
+    "dns_servers": [], "dns_records": ["bmc-01,172.30.12.10,fd00:30:12::10"],
+    "static_hosts": [],
+    "ra_mode": "slaac", "ipv6_prefix": "fd00:30:12::/64",
+    "ipv6_pool_start": "fd00:30:12::100", "ipv6_pool_end": "fd00:30:12::200",
+    "next_server": "", "boot_file": "",
+    "fault_mode": "none",
+}
 # 宿主机经 docker 网桥访问容器，postfix 看到的源地址是网桥网关。默认 bridge 是 172.17.0.1，
 # 而 compose 编排（compose.yaml）给每张网络显式分配 172.30.x/24，网关是 172.30.x.1——
 # 两个网段都放进白名单，两种部署方式都能跑。
@@ -488,10 +503,20 @@ CFG_POSTFIX_RELAY = {
     "mynetworks": ["127.0.0.0/8", "192.168.0.0/16", "172.17.0.0/16", "172.30.0.0/16"],
 }
 
-SERVICES_11 = {
+SERVICES_ALL = {
     "chrony", "nginx", "rsyslog", "webdav", "postfix", "snmptrapd",
-    "sftp", "vsftpd", "tftpd-hpa", "samba", "nfs-ganesha",
+    "sftp", "vsftpd", "tftpd-hpa", "samba", "nfs-ganesha", "dhcp",
 }
+
+# DHCP 阶段用的固定值（与 CFG_DHCP / compose.yaml 的 dhcp-net 网段一致）
+DHCP_CONTAINER = "bmc-dhcp"
+DHCP_NETWORK = "servicesmgt_dhcp-net"
+DHCP_POOL_PREFIX = "172.30.12."
+DHCP_PREFIX_V6 = "fd00:30:12::/64"
+DHCP_RESERVED_MAC = "02:42:ac:1e:0c:aa"
+DHCP_RESERVED_ADDR = "172.30.12.50"
+DHCP_OTHER_MAC = "02:42:ac:1e:0c:99"
+DHCP_LEASE_SECONDS = 12 * 3600
 
 
 # --------------------------------------------------------------------------- #
@@ -505,12 +530,12 @@ def phase_platform(token: str) -> None:
 
     st, resp = api("GET", "/api/v1/services/", token=token)
     names = {s["name"] for s in json.loads(resp).get("data", [])} if st == 200 else set()
-    record("1.2 11 种 BMC 支撑服务全部注册", st == 200 and SERVICES_11.issubset(names),
+    record("1.2 12 种 BMC 支撑服务全部注册", st == 200 and SERVICES_ALL.issubset(names),
            f"found {len(names)}: {sorted(names)}")
 
-    not_running = [n for n in sorted(SERVICES_11) if not container_running(f"bmc-{n}") and not (
+    not_running = [n for n in sorted(SERVICES_ALL) if not container_running(f"bmc-{n}") and not (
         n == "nfs-ganesha" and container_running("bmc-nfs"))]
-    record("1.3 11 个服务容器均处于运行状态", not not_running, f"未运行: {not_running}")
+    record("1.3 12 个服务容器均处于运行状态", not not_running, f"未运行: {not_running}")
 
     st, resp = api("GET", "/api/v1/services/chrony", token=token)
     doc = json.loads(resp) if st == 200 else {}
@@ -1566,6 +1591,172 @@ def phase_ipv6(token: str) -> None:
         record(f"17.{index} {svc}: IPv6 客户端可观测（{kind}）", ok, detail)
 
 
+# --------------------------------------------------------------------------- #
+# DHCP 阶段：DHCP 走二层广播，宿主机经 NAT 端口映射根本收不到（见 compose.yaml 文件头），
+# 所以探针必须跑在「与 dhcp 容器同一网络（servicesmgt_dhcp-net）的客户端容器」里，用真实报文取址。
+# 探针实现见同目录 scripts/dhcp_probe.py：自建 DHCPv4 帧（源地址 0.0.0.0 + 广播标志，与真实
+# 「无地址客户端」一致）、DHCPv6 SOLICIT、ICMPv6 Router Solicitation、最小 DNS 查询。
+# --------------------------------------------------------------------------- #
+def dhcp_probe(*args: str, timeout: int = 120) -> str:
+    """在 dhcp 网络的客户端容器里跑一次 DHCP/RA/DNS 探针，返回探针输出行。"""
+    probe = os.path.join(os.path.dirname(os.path.abspath(__file__)), "dhcp_probe.py")
+    if not os.path.isfile(probe):
+        return f"FAIL 缺少探针脚本 {probe}"
+    image = _v6_client_image()
+    if not image:
+        return "FAIL 没有 bmc-platform 镜像（探针需要 python3）"
+    # NET_ADMIN：让探针能把网卡置为混杂模式，静态绑定用例里服务端可能按 chaddr 单播到别的 MAC
+    cmd = (
+        f"docker run --rm --network {DHCP_NETWORK} --cap-add NET_ADMIN "
+        f"-v {probe}:/probe.py:ro {image} python3 /probe.py " + " ".join(args)
+    )
+    return sh(cmd, timeout=timeout).strip()
+
+
+def clear_dhcp_leases() -> None:
+    """清空租约库，让 dnsmasq 重启后从空开始。
+
+    只删文件不够：dnsmasq 的租约在内存里，必须重启一次才会按空文件重新开始。不清的话，
+    上一次运行留下的 12 小时租约会污染「地址池耗尽」「取到的地址在池内」这类用例。
+    """
+    exec_in(DHCP_CONTAINER, "rm -f /var/lib/dnsmasq/dnsmasq.leases")
+    exec_in(DHCP_CONTAINER, "/reload.sh")
+
+
+def dhcp_container_ipv6() -> str:
+    """dhcp 容器在 dhcp-net 上的全局 IPv6 地址（用于验证 DNS 的 v6 监听）。"""
+    return sh(
+        f"docker inspect {DHCP_CONTAINER} --format "
+        "'{{range .NetworkSettings.Networks}}{{.GlobalIPv6Address}} {{end}}'"
+    ).strip().split(" ")[0]
+
+
+def phase_dhcp(token: str) -> None:
+    """DHCPv4 / DHCPv6 / SLAAC / DNS 正向能力与 5 种故障注入，全部以真实报文判定。"""
+    print("\n>>> 阶段 18: DHCP/DNS (dnsmasq) 取址、解析与故障注入")
+    st, applied, resp = put_config(token, "dhcp", CFG_DHCP)
+    record("18.1 正向配置提交并生效", st == 200 and applied is True, f"status={st} {resp[:140]}")
+    clear_dhcp_leases()
+
+    out = dhcp_probe("v4", "--expect-addr-prefix", DHCP_POOL_PREFIX,
+                     "--expect-router", CFG_DHCP["gateway"],
+                     "--expect-lease", str(DHCP_LEASE_SECONDS))
+    record("18.2 DHCPv4 取址：地址在池内、网关与租约时长正确（BMC 视角）",
+           out.startswith("PASS"), out[:150])
+
+    out = dhcp_probe("ra", "--expect-prefix", DHCP_PREFIX_V6)
+    record("18.3 SLAAC：RA 通告出配置的 IPv6 前缀", out.startswith("PASS"), out[:150])
+
+    out = dhcp_probe("dns", "--server", "dhcp", "--name", "bmc-01.bmc.lab", "--type", "A",
+                     "--expect", "172.30.12.10")
+    record("18.4 DNS 正向解析 A 记录（v4 查询，地址即 DHCP 下发的 DNS）",
+           out.startswith("PASS"), out[:150])
+
+    out = dhcp_probe("dns", "--server", "dhcp", "--name", "bmc-01.bmc.lab", "--type", "AAAA",
+                     "--expect", "fd00:30:12::10")
+    record("18.5 DNS 正向解析 AAAA 记录（同名的 v6 地址）", out.startswith("PASS"), out[:150])
+
+    v6_addr = dhcp_container_ipv6()
+    out = dhcp_probe("dns", "--server", v6_addr, "--addr", "172.30.12.10") if v6_addr \
+        else "FAIL 取不到 dhcp 容器的 IPv6 地址"
+    record("18.6 DNS 反向解析 PTR，且走 IPv6 访问 53 端口（双栈监听）",
+           out.startswith("PASS") and "bmc-01" in out, out[:150])
+
+    # 静态绑定（BMC 侧「按 MAC 保留地址」的等价能力）
+    st, applied, resp = put_config(token, "dhcp",
+                                   {**CFG_DHCP, "static_hosts": [
+                                       f"{DHCP_RESERVED_MAC},{DHCP_RESERVED_ADDR},bmc-09"]})
+    out = dhcp_probe("v4", "--mac", DHCP_RESERVED_MAC, "--expect-addr", DHCP_RESERVED_ADDR) \
+        if st == 200 and applied else f"FAIL 配置未生效 status={st}"
+    record("18.7 静态绑定：按 MAC 下发固定地址 dhcp-host",
+           out.startswith("PASS"), out[:150])
+
+    # PXE 引导参数（与 tftpd-hpa 夹具联动的入口）
+    st, applied, _ = put_config(token, "dhcp",
+                                {**CFG_DHCP, "next_server": "192.168.1.50",
+                                 "boot_file": "ipxe.efi"})
+    out = dhcp_probe("v4") if st == 200 and applied else f"FAIL 配置未生效 status={st}"
+    record("18.8 PXE 引导参数下发：bootfile + next-server",
+           "boot=ipxe.efi@192.168.1.50" in out, out[:150])
+
+    # 有状态 DHCPv6
+    st, applied, _ = put_config(token, "dhcp", {**CFG_DHCP, "ra_mode": "stateful"})
+    out = dhcp_probe("v6", "--expect-addr-prefix", "fd00:30:12::") \
+        if st == 200 and applied else f"FAIL 配置未生效 status={st}"
+    record("18.9 DHCPv6 有状态取址：SOLICIT 拿到池内 v6 地址",
+           out.startswith("PASS"), out[:150])
+
+    # ra_mode=off：完全不下发 IPv6 参数
+    st, applied, _ = put_config(token, "dhcp", {**CFG_DHCP, "ra_mode": "off"})
+    out = dhcp_probe("ra", "--expect-absent") if st == 200 and applied \
+        else f"FAIL 配置未生效 status={st}"
+    record("18.10 ra_mode=off：不再发 RA（IPv6 下发可关闭）", out.startswith("PASS"), out[:150])
+
+    # ---- 故障注入 ----
+    st, applied, _ = put_config(token, "dhcp", {**CFG_DHCP, "fault_mode": "pool_exhausted"})
+    record("18.11 故障注入 pool_exhausted 配置生效",
+           st == 200 and applied is True and container_running(DHCP_CONTAINER), f"status={st}")
+    clear_dhcp_leases()
+    out = dhcp_probe("v4", "--expect-addr", CFG_DHCP["pool_start"])
+    record("18.12 pool_exhausted：第一个客户端仍能拿到那唯一一个地址",
+           out.startswith("PASS"), out[:150])
+    out = dhcp_probe("v4", "--mac", DHCP_OTHER_MAC, "--expect-absent", "--timeout", "8")
+    record("18.13 pool_exhausted：第二个客户端拿不到地址（池已耗尽）",
+           out.startswith("PASS"), out[:150])
+
+    st, applied, _ = put_config(token, "dhcp", {**CFG_DHCP, "fault_mode": "blackhole"})
+    record("18.14 故障注入 blackhole 配置生效", st == 200 and applied is True, f"status={st}")
+    out = dhcp_probe("v4", "--expect-absent", "--timeout", "8")
+    record("18.15 blackhole：DHCP 完全无应答（BMC 取不到地址）", out.startswith("PASS"), out[:150])
+    out = dhcp_probe("dns", "--server", "dhcp", "--name", "bmc-01.bmc.lab", "--type", "A",
+                     "--expect", "172.30.12.10")
+    record("18.16 blackhole 下 DNS 仍正常（能区分「取址失败」与「服务已挂」）",
+           out.startswith("PASS"), out[:150])
+
+    st, applied, _ = put_config(token, "dhcp", {**CFG_DHCP, "fault_mode": "wrong_gateway"})
+    out = dhcp_probe("v4", "--expect-router", "192.0.2.1") if st == 200 and applied \
+        else f"FAIL 配置未生效 status={st}"
+    record("18.17 故障注入 wrong_gateway：下发一个不存在的网关", out.startswith("PASS"), out[:150])
+
+    # IPv6 侧的两个故障候选都被实测否掉了（细节见 services/dhcp/templates/dnsmasq.conf.j2 末尾注释）：
+    # 「RA 错误前缀」dnsmasq 对不在接口子网内的前缀一个 RA 都不发；「DHCPv6 池耗尽」dnsmasq 会把
+    # 同一个地址发给多个客户端（两个 DUID 都拿到 fd00:30:12::100），BMC 侧没有可观测差异。
+    # 因此第 5 个故障换成同样有价值且可观测的「DNS 解析到错误地址」。
+    st, applied, _ = put_config(token, "dhcp", {**CFG_DHCP, "fault_mode": "dns_wrong_answer"})
+    record("18.18 故障注入 dns_wrong_answer 配置生效", st == 200 and applied is True, f"status={st}")
+    out = dhcp_probe("dns", "--server", "dhcp", "--name", "bmc-01.bmc.lab", "--type", "A",
+                     "--expect", "192.0.2.99")
+    record("18.19 dns_wrong_answer：域内名字解析到不可达地址（BMC 解析成功但连不上）",
+           out.startswith("PASS"), out[:150])
+    out = dhcp_probe("v4", "--expect-addr-prefix", DHCP_POOL_PREFIX)
+    record("18.20 dns_wrong_answer 下 DHCP 取址仍正常（故障只影响解析）",
+           out.startswith("PASS"), out[:150])
+
+    st, applied, _ = put_config(token, "dhcp", {**CFG_DHCP, "fault_mode": "short_lease"})
+    # dnsmasq 的租约下限是 2 分钟：写 60 会被静默抬到 120（实测日志 lease time 2m），
+    # 所以按「可实现的下限」注入与断言，而不是按理想值 60
+    out = dhcp_probe("v4", "--expect-lease", "120") if st == 200 and applied \
+        else f"FAIL 配置未生效 status={st}"
+    record("18.21 故障注入 short_lease：租约压到 dnsmasq 下限 120 秒（观察 BMC 反复续租）",
+           out.startswith("PASS"), out[:150])
+
+    # ---- 复位 ----
+    st, applied, resp = put_config(token, "dhcp", CFG_DHCP)
+    record("18.22 复位正向配置生效", st == 200 and applied is True, f"status={st} {resp[:140]}")
+    clear_dhcp_leases()
+    out = dhcp_probe("v4", "--expect-addr-prefix", DHCP_POOL_PREFIX,
+                     "--expect-router", CFG_DHCP["gateway"])
+    record("18.23 复位后取址恢复：地址、网关回到正向配置",
+           out.startswith("PASS"), out[:150])
+
+    # 数据卷可浏览（租约文件就是「谁拿了哪个地址」的证据）
+    tree = wait_for(lambda: json.loads(
+        api("GET", "/api/v1/services/dhcp/data/tree", token=token)[1] or "{}"), timeout=25,
+        label="dhcp data/tree")
+    record("18.24 数据浏览接口能列出租约目录（data_dir=/var/lib/dnsmasq）",
+           bool(tree), str(tree)[:150])
+
+
 def phase_frontend(token: str) -> None:
     """前端 SPA 静态分发。"""
     print("\n>>> 阶段 14: 前端 SPA 分发")
@@ -1593,6 +1784,7 @@ PHASES = {
     "audit": phase_audit,
     "versions": phase_versions,
     "ipv6": phase_ipv6,
+    "dhcp": phase_dhcp,
 }
 
 

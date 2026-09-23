@@ -1,7 +1,7 @@
 import { apiClient } from './client'
 
 /** 服务分类，与 manifest.yaml 的 category 枚举一致 */
-export type ServiceCategory = 'time' | 'file-share' | 'log-monitor'
+export type ServiceCategory = 'time' | 'file-share' | 'log-monitor' | 'network'
 
 /** 配置生效方式：hot = 执行 /reload.sh 热重载；restart = 重启容器生效 */
 export type ReloadMode = 'hot' | 'restart'

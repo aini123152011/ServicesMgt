@@ -19,7 +19,7 @@ from app.core.config import settings
 logger = logging.getLogger(__name__)
 
 # 插件契约约定的取值枚举，与 services/*/manifest.yaml、schema.json 的注释保持一致
-ALLOWED_CATEGORIES = {"time", "file-share", "log-monitor"}
+ALLOWED_CATEGORIES = {"time", "file-share", "log-monitor", "network"}
 ALLOWED_RELOAD_MODES = {"hot", "restart"}
 ALLOWED_FIELD_TYPES = {"string", "integer", "boolean", "enum", "list", "text"}
 ALLOWED_GROUPS = {"base", "fault"}

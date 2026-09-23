@@ -29,7 +29,11 @@ cd "$DEPLOY_DIR"
 
 echo "==> 解包 $PACKAGE"
 tar xzf "$PACKAGE"
+# 验收套件与探针脚本都放到部署根：套件按**自身所在目录**找探针（v6_probe.py / dhcp_probe.py），
+# 少拷一个就会出现「套件在跑但整段探针用例 FAIL 缺脚本」——实测踩过（dhcp 阶段 18.2–18.21 全挂）
 cp -f scripts/verify_bmc_platform_e2e.py "$DEPLOY_DIR/verify_bmc_platform_e2e.py"
+cp -f scripts/v6_probe.py "$DEPLOY_DIR/v6_probe.py"
+cp -f scripts/dhcp_probe.py "$DEPLOY_DIR/dhcp_probe.py"
 
 echo "==> 读回现有容器的运行参数"
 if ! docker inspect "$CONTAINER" >/dev/null 2>&1; then

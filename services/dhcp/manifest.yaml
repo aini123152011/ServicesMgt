@@ -1,0 +1,42 @@
+# 服务元数据：平台 Service Registry 扫描 services/* 时按此识别与展示
+name: dhcp
+display_name: DHCP / DNS 服务
+category: network            # 分类枚举: time | file-share | log-monitor | network
+description: 基于 dnsmasq 的 DHCPv4 + DHCPv6/SLAAC + DNS 服务：为 BMC 管理口下发地址、网关、DNS 与域名，并支持 PXE 引导参数（与 tftpd-hpa 夹具联动）
+container_name: bmc-dhcp
+config_dir: /etc/dnsmasq
+config_files:
+  - dnsmasq.conf
+ports:
+  - port: 67
+    protocol: udp
+    description: DHCPv4 服务端口（BMC 只能填 IP，需保留标准端口）
+  - port: 547
+    protocol: udp
+    description: DHCPv6 服务端口
+  - port: 53
+    protocol: udp
+    description: DNS 服务端口（UDP，v4/v6 双栈）
+  - port: 53
+    protocol: tcp
+    description: DNS 服务端口（TCP，大响应与区域传送）
+reload_mode: restart         # 地址池/RA 前缀等是启动期参数，改配置需重启 dnsmasq 进程
+data_dir: /var/lib/dnsmasq   # 租约文件所在的数据卷
+usage:
+  - target: BMC
+    summary: 把 BMC 管理口设为自动获取，或把 BMC 的 DNS 指向本服务，形成「取址 → 解析 → 访问」闭环
+    command: |
+      # BMC Web → 网络设置：
+      管理口 IPv4：DHCP（自动获取，地址来自本服务的 IPv4 地址池）
+      管理口 IPv6：自动 / DHCPv6（按 IPv6 取址方式配置：SLAAC 或 DHCPv6 有状态）
+      首选 DNS：{{host}}（本服务同时应答 A / AAAA / PTR）
+  - target: Linux
+    summary: 用真实 DHCP 客户端取址，并验证域名解析（A / AAAA / PTR 三向）
+    command: |
+      dhclient -4 -v eth0 && ip -4 addr show eth0
+      dig +short @{{host}} bmc-01.bmc.lab A
+      dig +short @{{host}} bmc-01.bmc.lab AAAA
+      dig +short @{{host}} -x 172.30.12.10 PTR
+  - target: Linux
+    summary: 查看租约文件（谁拿了哪个地址、租约何时到期）
+    command: docker exec bmc-dhcp cat /var/lib/dnsmasq/dnsmasq.leases

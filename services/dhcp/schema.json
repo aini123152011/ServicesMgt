@@ -1,0 +1,156 @@
+{
+  "fields": [
+    {
+      "name": "domain",
+      "type": "string",
+      "label": "域名后缀",
+      "default": "bmc.lab",
+      "required": true,
+      "help": "DHCP 下发给 BMC 的域名后缀，也是 DNS 解析的相对域名（查 bmc-01 会自动补成 bmc-01.bmc.lab）",
+      "pattern": "^[a-z0-9][a-z0-9.-]{0,62}$",
+      "group": "base"
+    },
+    {
+      "name": "pool_start",
+      "type": "string",
+      "label": "IPv4 地址池起始",
+      "default": "172.30.12.100",
+      "required": true,
+      "help": "DHCPv4 动态地址池起始地址，必须与容器所在网段一致（默认网络是 172.30.12.0/24）",
+      "pattern": "^([0-9]{1,3}[.]){3}[0-9]{1,3}$",
+      "group": "base"
+    },
+    {
+      "name": "pool_end",
+      "type": "string",
+      "label": "IPv4 地址池结束",
+      "default": "172.30.12.200",
+      "required": true,
+      "help": "DHCPv4 动态地址池结束地址",
+      "pattern": "^([0-9]{1,3}[.]){3}[0-9]{1,3}$",
+      "group": "base"
+    },
+    {
+      "name": "lease_time",
+      "type": "string",
+      "label": "租约时长",
+      "default": "12h",
+      "help": "地址租约时长，如 12h / 3600 / infinite；改小可观察 BMC 反复续租",
+      "pattern": "^([0-9]+[smhd]?|infinite)$",
+      "group": "base"
+    },
+    {
+      "name": "gateway",
+      "type": "string",
+      "label": "下发的默认网关",
+      "default": "172.30.12.1",
+      "help": "DHCPv4 下发的默认网关（BMC 据此配默认路由；默认值即容器网络的网关）",
+      "pattern": "^([0-9]{1,3}[.]){3}[0-9]{1,3}$",
+      "group": "base"
+    },
+    {
+      "name": "dns_servers",
+      "type": "list",
+      "label": "下发的 DNS 服务器",
+      "default": [],
+      "help": "DHCP 下发给 BMC 的 DNS 服务器地址（v4 或 v6）。留空则下发本服务自身，形成「取址→解析」闭环",
+      "item_pattern": "^([0-9]{1,3}[.]){3}[0-9]{1,3}$|^[0-9a-fA-F]{0,4}(:[0-9a-fA-F]{0,4}){2,7}$",
+      "group": "base"
+    },
+    {
+      "name": "dns_records",
+      "type": "list",
+      "label": "静态解析记录（A / AAAA / PTR）",
+      "default": [
+        "bmc-01,172.30.12.10,fd00:30:12::10",
+        "bmc-02,172.30.12.11,fd00:30:12::11"
+      ],
+      "help": "格式「名字,地址[,地址…]」：一个名字可同时给 IPv4（A）与 IPv6（AAAA），反向解析（PTR）自动生成；不写域名后缀时会同时注册短名与 <名字>.<域名后缀>，两种查法都能解析",
+      "item_pattern": "^[a-zA-Z0-9][a-zA-Z0-9.-]{0,62}(,(([0-9]{1,3}[.]){3}[0-9]{1,3}|[0-9a-fA-F]{0,4}(:[0-9a-fA-F]{0,4}){2,7}))+$",
+      "group": "base"
+    },
+    {
+      "name": "static_hosts",
+      "type": "list",
+      "label": "静态地址绑定（按 MAC）",
+      "default": [],
+      "help": "格式「MAC,地址[,名字]」：给指定 BMC 网卡固定发同一个地址（BMC 侧「按 MAC 保留地址」的等价能力）",
+      "item_pattern": "^([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2},(([0-9]{1,3}[.]){3}[0-9]{1,3}|[0-9a-fA-F]{0,4}(:[0-9a-fA-F]{0,4}){2,7})(,[a-zA-Z0-9][a-zA-Z0-9.-]{0,62})?$",
+      "group": "base"
+    },
+    {
+      "name": "ra_mode",
+      "type": "enum",
+      "label": "IPv6 取址方式",
+      "default": "slaac",
+      "options": [
+        "off",
+        "slaac",
+        "stateful"
+      ],
+      "help": "off=不下发任何 IPv6 参数；slaac=只发 RA，BMC 无状态自动配置（现场最常见）；stateful=DHCPv6 有状态下发地址（BMC 需支持 DHCPv6 客户端）",
+      "group": "base"
+    },
+    {
+      "name": "ipv6_prefix",
+      "type": "string",
+      "label": "RA 通告的 IPv6 前缀",
+      "default": "fd00:30:12::/64",
+      "help": "RA 里通告的前缀（ULA 或全局前缀均可）；dnsmasq 的 RA 通告固定按 /64 处理，故只接受 /64",
+      "pattern": "^[0-9a-fA-F:]{2,}/64$",
+      "group": "base"
+    },
+    {
+      "name": "ipv6_pool_start",
+      "type": "string",
+      "label": "IPv6 地址池起始",
+      "default": "fd00:30:12::100",
+      "help": "仅 ra_mode=stateful 时使用：DHCPv6 下发的地址池起始",
+      "pattern": "^[0-9a-fA-F]{0,4}(:[0-9a-fA-F]{0,4}){2,7}$",
+      "group": "base"
+    },
+    {
+      "name": "ipv6_pool_end",
+      "type": "string",
+      "label": "IPv6 地址池结束",
+      "default": "fd00:30:12::200",
+      "help": "仅 ra_mode=stateful 时使用：DHCPv6 下发的地址池结束",
+      "pattern": "^[0-9a-fA-F]{0,4}(:[0-9a-fA-F]{0,4}){2,7}$",
+      "group": "base"
+    },
+    {
+      "name": "next_server",
+      "type": "string",
+      "label": "PXE 引导服务器（next-server）",
+      "default": "",
+      "help": "PXE 引导的 TFTP 服务器地址（一般填 tftpd-hpa 夹具所在宿主地址）：填了会进 DHCP 的 siaddr 字段，PXE 客户端据此去找 TFTP；留空则不下发引导参数",
+      "pattern": "^$|^([0-9]{1,3}[.]){3}[0-9]{1,3}$|^[0-9a-fA-F]{0,4}(:[0-9a-fA-F]{0,4}){2,7}$",
+      "group": "base"
+    },
+    {
+      "name": "boot_file",
+      "type": "string",
+      "label": "PXE 引导文件名",
+      "default": "",
+      "help": "PXE 引导文件名，由 next-server 上的 TFTP 提供（如 ipxe.efi / undionly.kpxe）；留空则不下发",
+      "pattern": "^$|^[A-Za-z0-9._/-]{1,128}$",
+      "group": "base"
+    },
+    {
+      "name": "fault_mode",
+      "type": "enum",
+      "label": "故障注入模式",
+      "default": "none",
+      "options": [
+        "none",
+        "pool_exhausted",
+        "blackhole",
+        "wrong_gateway",
+        "dns_wrong_answer",
+        "short_lease"
+      ],
+      "help": "BMC 健壮性测试用：pool_exhausted=DHCPv4 池里只剩一个地址；blackhole=不应答 DHCP（DNS 仍正常）；wrong_gateway=下发不存在的网关；dns_wrong_answer=域内名字一律解析到不可达地址；short_lease=租约只给 120 秒（dnsmasq 的租约下限是 2 分钟，写更小会被抬到 120）",
+      "group": "fault"
+    }
+  ]
+}

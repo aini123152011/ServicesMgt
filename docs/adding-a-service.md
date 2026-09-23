@@ -22,7 +22,7 @@ services/<name>/
 |------|------|
 | `name` | 服务名 = 目录名，平台主键 |
 | `display_name` | 中文显示名 |
-| `category` | `time` \| `file-share` \| `log-monitor` |
+| `category` | `time` \| `file-share` \| `log-monitor` \| `network` |
 | `description` | 一句话说明 |
 | `container_name` | 容器名，约定 `bmc-<name>` |
 | `config_dir` | 配置卷在容器内的挂载点（如 `/etc/chrony`） |

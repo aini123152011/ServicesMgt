@@ -32,3 +32,5 @@ services:
     build: ./services/snmptrapd
   postfix:
     build: ./services/postfix
+  dhcp:
+    build: ./services/dhcp

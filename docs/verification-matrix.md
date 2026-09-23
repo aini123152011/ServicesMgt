@@ -1,4 +1,4 @@
-## IPv6 支持（11 服务）
+## IPv6 支持（12 服务）
 
 每个服务一条「IPv6 客户端可观测行为」用例，跑在启用 IPv6 的容器网络内（宿主无全局 IPv6）：
 
@@ -15,10 +15,12 @@
 | nfs-ganesha | TCP/2049 over v6 | 可连接（连接级探针） | ✅ |
 | snmptrapd | SNMPv2c Trap over v6 | 已发送（落盘由宿主侧核对） | ✅ |
 | postfix | SMTP 横幅 over v6 | `220` 问候语 | ✅ |
+| dhcp | RA 通告前缀 / DHCPv6 SOLICIT / DNS over v6 | RA 前缀正确、拿到 v6 地址、AAAA 与 PTR 可解析 | ✅ |
 
 > samba/nfs 用连接级探针：探针容器里没有 smbclient 与挂载能力；协议级验证仍由 IPv4 阶段覆盖。
+> dhcp 的 v6 用例在 DHCP 阶段内（RA/SLAAC、DHCPv6 有状态、DNS over v6），不在 `V6_CASES` 里。
 
-# 服务验证矩阵（2026-09-22）
+# 服务验证矩阵（2026-09-23）
 
 > 逐服务的四类验证结论：**正向协议** / **故障注入** / **页面** / **BMC 侧**。
 > 数据来源：`scripts/verify_bmc_platform_e2e.py` 实际存在的检查项与 `fault_mode` 取值、各服务 `schema.json`、
@@ -39,8 +41,9 @@
 | nfs-ganesha | 9 条全通过 | 2 / **1** + 1 等价 / 0 | 12 项全通过 | ✅ 已验证（BMC 把夹具导出挂成虚拟介质） |
 | snmptrapd | 6 条全通过 | 3 / **2** / 1 | 12 项全通过 | ❌ 无 Trap 目的配置资源（Redfish） |
 | postfix | 13 条全通过 | 4 / **4** / 0 | 12 项全通过 | ⚠️ SmtpService 可写，真实发信需 BMC 事件触发 |
+| dhcp | 24 条全通过 | 5 / **5** / 0 | 12 项全通过 | ⏳ 待测（需把夹具改挂 macvlan 与 BMC 同二层） |
 
-合计：故障模式**声明 29 个，全部已验证**（27 个经 `fault_mode` 或等价覆盖验证；
+合计：故障模式**声明 34 个，全部已验证**（32 个经 `fault_mode` 或等价覆盖验证；
 `tftpd-hpa.timeout_simulate` 与 `snmptrapd.blackhole_drop` 在修复实现后也已验证）。
 
 本矩阵维护的结论：**「声明了但没验证过」在本项目里约等于「可能有缺陷」**——本轮 12 个从未验证的
@@ -147,3 +150,16 @@ snmptrapd 重载不生效导致 blackhole_drop 与 output_file 等参数都改�
   - 未验证：无
 - BMC 侧：⚠️ SmtpService 可写，真实发信需 BMC 事件触发
 
+
+### dhcp
+
+- 正向协议检查（24 条）：18.1 正向配置提交并生效；18.2 DHCPv4 取址（地址在池内、网关与租约时长正确）；18.3 SLAAC 的 RA 前缀；18.4/18.5 DNS 正向解析 A/AAAA；18.6 DNS 反向解析 PTR 且经 IPv6 访问 53；18.7 按 MAC 静态绑定；18.8 PXE 引导参数（bootfile + next-server）；18.9 DHCPv6 有状态取址；18.10 ra_mode=off 关闭 v6 下发；18.11–18.21 五个故障模式；18.22/18.23 复位后恢复；18.24 租约目录可浏览
+- 故障模式声明：pool_exhausted, blackhole, wrong_gateway, dns_wrong_answer, short_lease
+  - 经 `fault_mode` 验证：全部 5 个（每条都以客户端可观测行为判定：无 OFFER / 无应答 / 错误网关 / 错误解析结果 / 120 秒租约）
+  - 未验证：无
+- **判定手段**：`scripts/dhcp_probe.py` 手写协议报文（DHCPv4 用 AF_PACKET 自建帧、DHCPv6 SOLICIT、ICMPv6 RS/RA、最小 DNS 查询），跑在与 dhcp 同网络的客户端容器里——DHCP 走二层广播，宿主经 NAT 端口映射收不到，也没有现成客户端能回显原始选项。
+- **实测否掉的两个故障候选**（写进模板注释，避免后人重复踩）：
+  - 「RA 通告错误前缀」：把 ra-only 的 range 换成接口子网外的前缀后，dnsmasq 启动正常但**一个 RA 都不发**（被动监听 25 秒 0 包）。
+  - 「DHCPv6 池耗尽」：池缩成一个地址后，dnsmasq 会把同一地址发给多个客户端（两个 DUID 都拿到 `fd00:30:12::100`），BMC 侧无可观测差异。
+  - 另外两个实测坑：`dhcp-boot` 的服务器地址必须写在**第 3 段**才进 `siaddr`（两段式只填 option 66）；dnsmasq 租约下限是 **2 分钟**，写 60 会被静默抬到 120。
+- BMC 侧：⏳ 待测（容器网络里的客户端容器已覆盖协议行为；真机 BMC 取址需把 dhcp 服务改挂 macvlan 与 BMC 同二层）

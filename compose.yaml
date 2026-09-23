@@ -1,14 +1,21 @@
-# 一键编排：一次性拉起平台（含 PostgreSQL）与 11 个 BMC 测试服务。
+# 一键编排：一次性拉起平台（含 PostgreSQL）与 12 个 BMC 测试服务。
 #
 #   docker compose up -d                       # 全部
 #   docker compose up -d chrony nginx          # 只起某几个
 #   docker compose ps                          # 看健康状态
 #
-# 端口方案：**每个服务都在统一范围 18101–18112 内分配一个宿主端口**（便于文档化与防火墙放行），
+# 端口方案：**每个服务都在统一范围 18101–18113 内分配一个宿主端口**（便于文档化与防火墙放行），
 # 同时**保留 BMC 侧必须的标准端口**——NTP 123、TFTP 69、SNMP Trap 162、Syslog 514、SMTP 25、
-# SMB 445、NFS 2049、FTP 21 这些，被测 BMC 通常只能填 IP（改不了端口），去掉就失去「BMC 测试仪器」的意义。
-# 所以 chrony/tftpd/rsyslog/snmptrapd/postfix/samba/nfs/vsftpd 是「标准端口 + 范围内端口」双发布，
-# nginx/sftp/webdav 没有标准端口需求，只发布范围内端口。
+# SMB 445、NFS 2049、FTP 21 这些，被测 BMC 通常只能填 IP（改不了端口），去掉就失去
+# 「BMC 测试仪器」的意义。所以 chrony/tftpd/rsyslog/snmptrapd/postfix/samba/nfs/vsftpd 是
+# 「标准端口 + 范围内端口」双发布，nginx/sftp/webdav 没有标准端口需求，只发布范围内端口。
+#
+# DHCP 是唯一「不发布任何标准端口」的服务，两个原因：
+#   1. **DHCP 不能靠端口映射工作**：客户端从 0.0.0.0 广播到 255.255.255.255，Docker 的 NAT 端口
+#      发布只处理单播，且 BMC 必须与 DHCP 服务在同一二层广播域，所以 67/547 发布了也不通；
+#   2. **53 在本机被占**：宿主机 libvirt 的 dnsmasq 已监听 192.168.122.1:53，Docker 再绑
+#      0.0.0.0:53 会 EADDRINUSE（实测），发布 53 会让 docker compose up 直接失败。
+# 因此 dhcp 只发布统一范围内的 18113（DNS）。要给现场 BMC 下发地址/DNS，见下面 macvlan 说明。
 #
 # 与「单服务独立部署」的区别（services/<name>/docker-compose.yml）：
 #   - 独立部署用**服务自身的规范端口**（nginx 80/443、sftp 22），适合在别的机器上单独跑；
@@ -21,6 +28,7 @@
 # 密钥不写进本文件：从同目录 .env 读取（`VOLUMES_MOUNT_ROOT` 等见 .env.example）。
 # nfs-ganesha 必须 privileged（VFS FSAL 在 ext4 绑定挂载上需要完整能力与未受限的 seccomp/SELinux，
 # 见 .trellis/spec/services/container-runtime-guidelines.md 第 5 条）。
+# dhcp 需要 NET_ADMIN/NET_RAW：dnsmasq 的 DHCP 要开原始套接字、读写接口状态。
 
 # 项目名会加在网络/卷名前（如 servicesmgt_chrony-net）；取短名，避免 bmc-servicesmgt_xxx 这种冗长前缀
 name: servicesmgt
@@ -70,11 +78,11 @@ services:
       - ./services:/app/services:ro
       # 数据卷根：各服务的 config/data 目录都在其下（与「单服务独立部署」共用同一布局）
       - ./volumes:/var/lib/platform
-      # 平台要用 Docker API 管理 11 个服务容器（起停、日志、镜像更新、重建）
+      # 平台要用 Docker API 管理 12 个服务容器（起停、日志、镜像更新、重建）
       - /var/run/docker.sock:/var/run/docker.sock
     networks: [bmc-platform-isolated-net]
 
-  # ---------------------------------------------------------------- 11 个服务
+  # ---------------------------------------------------------------- 12 个服务
   chrony:
     image: ${IMAGE_PREFIX:-}bmc-chrony:${IMAGE_TAG:-latest}
     container_name: bmc-chrony
@@ -192,7 +200,21 @@ services:
       - ./volumes/postfix-data:/var/spool/postfix
     networks: [postfix-net]
 
-# 说明：11 个服务的健康检查由各服务镜像自带的 HEALTHCHECK 提供（看守护进程是否在跑），
+  dhcp:
+    image: ${IMAGE_PREFIX:-}bmc-dhcp:${IMAGE_TAG:-latest}
+    container_name: bmc-dhcp
+    restart: unless-stopped
+    # DHCP 要开原始套接字（NET_RAW）并读写接口状态（NET_ADMIN）
+    cap_add: [NET_ADMIN, NET_RAW]
+    # 只发布 DNS 的统一范围端口：67/547 走 NAT 不通，53 在宿主机被 libvirt dnsmasq 占用
+    # （原因见文件头）。需要给 BMC 用标准 53 时，把本行换成 "192.168.x.y:53:53/udp" 显式绑网卡地址。
+    ports: ["18113:53/udp", "18113:53/tcp"]
+    volumes:
+      - ./volumes/dhcp-config:/etc/dnsmasq
+      - ./volumes/dhcp-data:/var/lib/dnsmasq
+    networks: [dhcp-net]
+
+# 说明：12 个服务的健康检查由各服务镜像自带的 HEALTHCHECK 提供（看守护进程是否在跑），
 # 这里不重复定义，避免两处维护；平台镜像也自带 HEALTHCHECK（探 /api/v1/utils/health-check/）。
 
 # 每个服务一张独立网络（隔离性可验证：跨服务网络互不可见）；
@@ -202,6 +224,8 @@ networks:
   # 不指定会报 "all predefined address pools have been fully subnetted"。172.30.0.0/16 在本机未被占用。
   # 每张网络同时启用 IPv6（fd00:30:<n>::/64，ULA）：宿主机无全局 IPv6，容器网络内用 ULA 验证
   # IPv6 客户端行为；enable_ipv6 是网络级开关，不需要改 Docker daemon。
+  # dhcp-net 的网段同时是 dnsmasq 默认配置里的地址池所在网段（172.30.12.0/24 / fd00:30:12::/64），
+  # 这样「客户端容器在同一网络里取址」才是真的能取到。
   bmc-platform-isolated-net: { driver: bridge, enable_ipv6: true, ipam: { config: [{ subnet: 172.30.0.0/24 }, { subnet: fd00:30:0::/64 }] } }
   chrony-net: { driver: bridge, enable_ipv6: true, ipam: { config: [{ subnet: 172.30.1.0/24 }, { subnet: fd00:30:1::/64 }] } }
   nginx-net: { driver: bridge, enable_ipv6: true, ipam: { config: [{ subnet: 172.30.2.0/24 }, { subnet: fd00:30:2::/64 }] } }
@@ -214,6 +238,7 @@ networks:
   nfs-net: { driver: bridge, enable_ipv6: true, ipam: { config: [{ subnet: 172.30.9.0/24 }, { subnet: fd00:30:9::/64 }] } }
   snmptrapd-net: { driver: bridge, enable_ipv6: true, ipam: { config: [{ subnet: 172.30.10.0/24 }, { subnet: fd00:30:10::/64 }] } }
   postfix-net: { driver: bridge, enable_ipv6: true, ipam: { config: [{ subnet: 172.30.11.0/24 }, { subnet: fd00:30:11::/64 }] } }
+  dhcp-net: { driver: bridge, enable_ipv6: true, ipam: { config: [{ subnet: 172.30.12.0/24 }, { subnet: fd00:30:12::/64 }] } }
 
 volumes:
   # 数据库用命名卷（平台自带）；服务用绑定挂载，与「单服务独立部署」的卷布局一致。

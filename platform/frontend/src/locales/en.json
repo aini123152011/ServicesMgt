@@ -271,7 +271,8 @@
     "category": {
       "time": "Time sync",
       "fileShare": "File sharing",
-      "logMonitor": "Log monitoring"
+      "logMonitor": "Log monitoring",
+      "network": "Network"
     },
     "reloadMode": {
       "hot": "Applied by hot reload",
@@ -464,7 +465,7 @@
     },
     "targets": {
       "title": "Update targets",
-      "description": "The platform itself plus 11 service containers; \"update available\" means the running image differs from what the tag now points to."
+      "description": "The platform itself plus 12 service containers; \"update available\" means the running image differs from what the tag now points to."
     },
     "table": {
       "target": "Target",

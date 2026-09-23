@@ -1,0 +1,43 @@
+# 单服务独立部署：cd services/dhcp && docker compose up -d
+# 平台托管时用仓库根的 compose.yaml（卷布局与端口与这里保持一致）
+#
+# 二层要求（重要）：DHCP 客户端从 0.0.0.0 广播到 255.255.255.255，Docker 的 NAT 端口发布只处理
+# 单播，因此**发布 67/547 是不通的**——这里只发布 DNS 的 53。要让真实 BMC 从这个服务取址，
+# 必须让它与 BMC 处在同一二层广播域，把下面的 dhcp-net 换成 macvlan（parent 填接 BMC 的物理网卡）：
+#
+#   networks:
+#     dhcp-net:
+#       driver: macvlan
+#       driver_opts: { parent: eth0 }        # 换成宿主上接 BMC 的那块网卡
+#       ipam:
+#         config:
+#           - { subnet: 192.168.1.0/24, gateway: 192.168.1.1 }
+#
+# 并把默认配置里的地址池/网关/前缀改成该网段的（否则 dnsmasq 会因为池不在接口子网内而拒绝服务）。
+services:
+  dhcp:
+    image: ${IMAGE_PREFIX:-}bmc-dhcp:${IMAGE_TAG:-latest}
+    build: .
+    container_name: bmc-dhcp
+    restart: unless-stopped
+    # dnsmasq 的 DHCP 要开原始套接字（NET_RAW）并读写接口状态（NET_ADMIN）
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    ports:
+      - "53:53/udp"
+      - "53:53/tcp"
+    volumes:
+      - ./volumes/dhcp-config:/etc/dnsmasq
+      - ./volumes/dhcp-data:/var/lib/dnsmasq
+    networks: [dhcp-net]
+
+networks:
+  dhcp-net:
+    driver: bridge
+    enable_ipv6: true
+    ipam:
+      config:
+        # 网段必须覆盖 dnsmasq 默认配置里的地址池（172.30.12.100-200 / fd00:30.12::）
+        - subnet: 172.30.12.0/24
+        - subnet: fd00:30:12::/64

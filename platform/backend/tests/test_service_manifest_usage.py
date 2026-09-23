@@ -1,6 +1,6 @@
 """manifest.usage 契约测试：形状不对的服务不注册，形状对了页面还得真的拿到。
 
-两段：① `registry._check_manifest` 对 usage 形状的接受/拒绝；② 仓库里 11 个服务的
+两段：① `registry._check_manifest` 对 usage 形状的接受/拒绝；② 仓库里 12 个服务的
 真实 usage 内容（占位符、端口）。第 ② 段存在的理由：usage 是手写 YAML，
 端口写错、占位符拼错都不会让任何东西报错，只会在测试人员照抄命令时失败。
 """
@@ -93,8 +93,8 @@ def test_invalid_usage_is_rejected(usage: Any) -> None:
 
 
 def test_manifests_discovered() -> None:
-    """至少要能发现 11 个服务的 manifest，避免路径写错导致下面全部空跑。"""
-    assert len(MANIFESTS) == 11, [name for name, _ in MANIFESTS]
+    """至少要能发现 12 个服务的 manifest，避免路径写错导致下面全部空跑。"""
+    assert len(MANIFESTS) == 12, [name for name, _ in MANIFESTS]
 
 
 @pytest.mark.parametrize(
@@ -103,7 +103,7 @@ def test_manifests_discovered() -> None:
 def test_every_service_declares_valid_usage(
     service: str, manifest: dict[str, Any]
 ) -> None:
-    """11 个服务的 manifest 必须整体合法，且 usage 条目数落在 2–3 条（AC1）。"""
+    """12 个服务的 manifest 必须整体合法，且 usage 条目数落在 2–3 条（AC1）。"""
     usage = manifest.get("usage")
     assert usage, f"{service} 未声明 usage"
     assert 2 <= len(usage) <= 3, (
