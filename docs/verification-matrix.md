@@ -1,4 +1,4 @@
-## IPv6 支持（12 服务）
+## IPv6 支持（13 服务中 12 个已覆盖）
 
 每个服务一条「IPv6 客户端可观测行为」用例，跑在启用 IPv6 的容器网络内（宿主无全局 IPv6）：
 
@@ -16,6 +16,7 @@
 | snmptrapd | SNMPv2c Trap over v6 | 已发送（落盘由宿主侧核对） | ✅ |
 | postfix | SMTP 横幅 over v6 | `220` 问候语 | ✅ |
 | dhcp | RA 通告前缀 / DHCPv6 SOLICIT / DNS over v6 | RA 前缀正确、拿到 v6 地址、AAAA 与 PTR 可解析 | ✅ |
+| freeradius | RADIUS over v6 | — | ❌ 未做用例（RADIUS 的 v6 路径未覆盖） |
 
 > samba/nfs 用连接级探针：探针容器里没有 smbclient 与挂载能力；协议级验证仍由 IPv4 阶段覆盖。
 > dhcp 的 v6 用例在 DHCP 阶段内（RA/SLAAC、DHCPv6 有状态、DNS over v6），不在 `V6_CASES` 里。
