@@ -89,8 +89,11 @@ def run(client: paramiko.SSHClient, script: str, label: str, sudo_pw: str = "") 
 
 
 def main() -> int:
-    if not HOST or not PASSWORD:
-        print("缺少 BMC_HOST / BMC_SSH_PASSWORD", file=sys.stderr)
+    if not HOST or not USER or not PASSWORD:
+        print(
+            "缺少 BMC_HOST / BMC_SSH_USER / BMC_SSH_PASSWORD（地址与账号都不写死）",
+            file=sys.stderr,
+        )
         return 2
     client = paramiko.SSHClient()
     client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
