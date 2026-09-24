@@ -358,3 +358,129 @@ def test_pull_refs_skips_targets_without_image(monkeypatch: pytest.MonkeyPatch) 
     )
 
     assert system_update.pull_refs([]) == ["ghcr.io/org/fx-nginx:latest"]
+
+
+# --------------------------------------------------------------------------- #
+# 一键更新（批次）
+# --------------------------------------------------------------------------- #
+def _target_rows(entries: list[tuple[str, bool]]) -> Any:
+    """替身 collect_targets：按 (目标, 是否有新版本) 造结果。"""
+    return lambda plugins: [
+        {
+            "target": name,
+            "container_name": f"fx-{name}",
+            "image": f"ghcr.io/org/fx-{name}:latest",
+            "update_available": available,
+        }
+        for name, available in entries
+    ]
+
+
+def test_plan_batch_skips_up_to_date_and_puts_platform_last(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """批次只含真正有新版本的目标，且平台排最后（它会重启平台进程）。"""
+    monkeypatch.setattr(
+        system_update,
+        "collect_targets",
+        _target_rows(
+            [("chrony", True), ("nginx", False), ("platform", True), ("dhcp", True)]
+        ),
+    )
+
+    assert [item["target"] for item in system_update.plan_batch([])] == [
+        "chrony",
+        "dhcp",
+        "platform",
+    ]
+
+
+@pytest.mark.usefixtures("status_file")
+def test_run_batch_rebuilds_serially_and_reports_progress(
+    status_file: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """按顺序逐个重建，结束后状态文件里能读到「共几个、成功哪几个」。"""
+    calls: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        container_rebuild,
+        "rebuild_container",
+        lambda name, image: calls.append((name, image)),
+    )
+    monkeypatch.setattr(system_update, "_worker_running", True)
+
+    system_update._run_batch(
+        [
+            {"target": "chrony", "container_name": "fx-chrony", "image": "img-chrony"},
+            {"target": "dhcp", "container_name": "fx-dhcp", "image": "img-dhcp"},
+        ]
+    )
+
+    assert calls == [("fx-chrony", "img-chrony"), ("fx-dhcp", "img-dhcp")]
+    payload = json.loads(status_file.read_text(encoding="utf-8"))
+    assert payload["status"] == "succeeded"
+    assert payload["batch_total"] == 2
+    assert payload["updated_targets"] == ["chrony", "dhcp"]
+    assert payload["failed_targets"] == []
+    assert system_update._worker_running is False
+
+
+@pytest.mark.usefixtures("status_file")
+def test_run_batch_stops_on_failure_and_lists_remaining(
+    status_file: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """中途失败即停：记录失败目标与「未执行」的剩余目标，不再继续重建。"""
+    calls: list[str] = []
+
+    def _rebuild(name: str, _image: str) -> None:
+        calls.append(name)
+        if name == "fx-dhcp":
+            raise container_rebuild.RebuildError("boom")
+
+    monkeypatch.setattr(container_rebuild, "rebuild_container", _rebuild)
+    monkeypatch.setattr(system_update, "_worker_running", True)
+
+    system_update._run_batch(
+        [
+            {"target": "chrony", "container_name": "fx-chrony", "image": "img1"},
+            {"target": "dhcp", "container_name": "fx-dhcp", "image": "img2"},
+            {"target": "nginx", "container_name": "fx-nginx", "image": "img3"},
+        ]
+    )
+
+    assert calls == ["fx-chrony", "fx-dhcp"]
+    payload = json.loads(status_file.read_text(encoding="utf-8"))
+    assert payload["status"] == "failed"
+    assert payload["failed_targets"] == ["dhcp"]
+    assert payload["updated_targets"] == ["chrony"]
+    assert "nginx" in payload["message"]
+
+
+@pytest.mark.usefixtures("status_file")
+def test_run_batch_schedules_platform_self_update_last(
+    status_file: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """平台自身不在这里重建，而是排程 helper 容器，并如实报告「服务更新了几个」。"""
+    calls: list[tuple[str, str]] = []
+    spawned: list[str] = []
+    monkeypatch.setattr(
+        container_rebuild,
+        "rebuild_container",
+        lambda name, image: calls.append((name, image)),
+    )
+    monkeypatch.setattr(
+        system_update, "_spawn_self_update", lambda image: spawned.append(image)
+    )
+    monkeypatch.setattr(system_update, "_worker_running", True)
+
+    system_update._run_batch(
+        [
+            {"target": "chrony", "container_name": "fx-chrony", "image": "img1"},
+            {"target": "platform", "container_name": "fx-platform", "image": "img-p"},
+        ]
+    )
+
+    assert calls == [("fx-chrony", "img1")]
+    assert spawned == ["img-p"]
+    payload = json.loads(status_file.read_text(encoding="utf-8"))
+    assert payload["status"] == "succeeded"
+    assert "平台自更新已排程" in payload["message"]

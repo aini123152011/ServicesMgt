@@ -22,6 +22,11 @@ export interface UpdateTaskState {
   message?: string | null
   updated_at?: string | null
   finished_at?: string | null
+  /** 「一键更新」批次进度：单目标更新时为 null */
+  batch_total?: number | null
+  batch_index?: number | null
+  updated_targets?: string[] | null
+  failed_targets?: string[] | null
 }
 
 export interface SystemInfo {
@@ -72,6 +77,17 @@ export async function applyUpdate(
   const { data } = await apiClient.post<{ message: string }>(
     '/api/v1/system/updates/apply',
     { target, image }
+  )
+  return data
+}
+
+/**
+ * 一键更新：把所有有新版本的目标串行重建（平台排最后）。
+ * 失败即停并如实报告，逐个目标的进度从 /system/updates/status 轮询。
+ */
+export async function applyAllUpdates(): Promise<{ message: string }> {
+  const { data } = await apiClient.post<{ message: string }>(
+    '/api/v1/system/updates/apply-all'
   )
   return data
 }

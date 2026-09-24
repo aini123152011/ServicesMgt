@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
+  applyAllUpdates,
   applyUpdate,
   checkUpdates,
   getHostNetwork,
@@ -79,6 +80,17 @@ export function useApplyUpdateMutation() {
   return useMutation({
     mutationFn: ({ target, image }: { target: string; image: string }) =>
       applyUpdate(target, image),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['system', 'update-status'] })
+    },
+  })
+}
+
+/** 一键更新：串行重建全部有新版本的目标；进度由 update-status 轮询呈现 */
+export function useApplyAllUpdatesMutation() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: () => applyAllUpdates(),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['system', 'update-status'] })
     },

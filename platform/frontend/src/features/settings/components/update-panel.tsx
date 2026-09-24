@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { LoaderCircle, RefreshCw, Upload } from 'lucide-react'
+import { Download, LoaderCircle, RefreshCw, Upload } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { type UpdateTarget } from '@/api/system'
 import { Badge } from '@/components/ui/badge'
@@ -15,6 +15,7 @@ import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { taskStatusKey } from '../data/update-status'
 import {
+  useApplyAllUpdatesMutation,
   useApplyUpdateMutation,
   useCheckUpdatesMutation,
   useSystemInfoQuery,
@@ -38,11 +39,15 @@ export function UpdatePanel() {
   const checkMutation = useCheckUpdatesMutation()
   const uploadMutation = useUploadPackageMutation()
   const applyMutation = useApplyUpdateMutation()
+  const applyAllMutation = useApplyAllUpdatesMutation()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [pendingTarget, setPendingTarget] = useState<string | null>(null)
 
   const status = statusQuery.data ?? data?.status ?? null
   const running = status?.status === 'running'
+  const availableCount = (data?.targets ?? []).filter(
+    (target) => target.update_available
+  ).length
 
   const handleUpload = () => {
     const file = fileInputRef.current?.files?.[0]
@@ -64,7 +69,7 @@ export function UpdatePanel() {
 
   return (
     <div className='flex flex-col gap-4'>
-      <div className='flex justify-end'>
+      <div className='flex flex-wrap items-center justify-end gap-2'>
         <Button
           variant='outline'
           onClick={() => checkMutation.mutate()}
@@ -77,7 +82,53 @@ export function UpdatePanel() {
           )}
           {t('system.check')}
         </Button>
+        {/* 一键更新：串行重建全部有新版本的目标；没有可更新目标时不显示 */}
+        {availableCount > 0 && (
+          <Button
+            onClick={() => applyAllMutation.mutate()}
+            disabled={
+              running || applyAllMutation.isPending || pendingTarget !== null
+            }
+          >
+            {applyAllMutation.isPending || running ? (
+              <LoaderCircle className='animate-spin' />
+            ) : (
+              <Download />
+            )}
+            {t('system.applyAll', { count: availableCount })}
+          </Button>
+        )}
       </div>
+
+      {/* 一键更新的批次进度：共几个、做到第几个、失败停在哪一步 */}
+      {status?.batch_total ? (
+        <div className='flex flex-col gap-1 text-sm'>
+          <div className='flex flex-wrap items-center gap-2'>
+            <Badge
+              variant={status.status === 'failed' ? 'destructive' : 'secondary'}
+            >
+              {t('system.batchProgress', {
+                index: status.batch_index ?? 0,
+                total: status.batch_total,
+              })}
+            </Badge>
+            {status.updated_targets && status.updated_targets.length > 0 && (
+              <span className='text-muted-foreground'>
+                {t('system.batchUpdated', {
+                  targets: status.updated_targets.join('、'),
+                })}
+              </span>
+            )}
+          </div>
+          {status.failed_targets && status.failed_targets.length > 0 && (
+            <span className='text-destructive'>
+              {t('system.batchFailed', {
+                targets: status.failed_targets.join('、'),
+              })}
+            </span>
+          )}
+        </div>
+      ) : null}
 
       <Card>
         <CardHeader>

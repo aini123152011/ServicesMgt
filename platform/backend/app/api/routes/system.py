@@ -166,6 +166,38 @@ def apply_update(
     return Message(message=result["message"])
 
 
+@router.post(
+    "/updates/apply-all",
+    dependencies=[Depends(RequireAdmin)],
+    response_model=Message,
+)
+def apply_all_updates(session: SessionDep, current_user: CurrentUser) -> Any:
+    """一键更新：把所有有新版本的目标串行重建（平台排最后，由 helper 容器排程）。
+
+    串行 + 失败即停：每个目标都要停旧起新，并发会互相抢端口；单步失败时容器已自动回滚，
+    继续往下只会把更多服务换成半成品。
+
+    Raises:
+        HTTPException: 409 已有任务在执行；502 没有可更新的目标或镜像缺失。
+    """
+    try:
+        result = system_update.start_update_all(registry.list_services())
+    except UpdateBusyError as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
+    except (UpdateError, container_rebuild.RebuildError) as e:
+        raise HTTPException(status_code=502, detail=str(e)) from e
+
+    record_audit_log(
+        session=session,
+        user_id=current_user.id,
+        user_email=current_user.email,
+        action="system.update_all",
+        service_name=None,
+        detail="targets=" + "、".join(result["targets"]),
+    )
+    return Message(message=result["message"])
+
+
 @router.get("/updates/status")
 def read_update_status() -> Any:
     """当前/最近一次更新任务状态（平台自更新重启后仍可查，前端据此轮询）。"""

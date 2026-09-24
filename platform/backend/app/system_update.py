@@ -345,6 +345,152 @@ def start_update(plugins: list[Any], target: str, image: str) -> dict[str, Any]:
     }
 
 
+def plan_batch(plugins: list[Any]) -> list[dict[str, str]]:
+    """列出「一键更新」要处理的目标：只含真正有新版本的，且**平台排最后**。
+
+    平台自身必须排最后：它会重启平台进程，排在中间会让后续步骤随进程一起消失。
+
+    Args:
+        plugins: 已加载的服务插件列表。
+
+    Returns:
+        待重建目标列表（每项含 target / container_name / image），顺序即执行顺序。
+    """
+    targets = collect_targets(plugins)
+    pending = [t for t in targets if t.get("update_available") and t.get("image")]
+    services = [t for t in pending if t["target"] != "platform"]
+    platform = [t for t in pending if t["target"] == "platform"]
+    return [
+        {
+            "target": str(t["target"]),
+            "container_name": str(t["container_name"]),
+            "image": str(t["image"]),
+        }
+        for t in services + platform
+    ]
+
+
+def _run_batch(batch: list[dict[str, str]]) -> None:
+    """串行重建一批目标并逐步落状态文件（供一键更新使用）。
+
+    为什么串行：每个目标都要停旧起新，并发会互相抢宿主端口与网络，而且状态文件只有一份，
+    串行才能给出准确的「做到第几个」。**任一步失败即停**并如实记录：连续失败通常意味着环境
+    问题（镜像仓库不可达等），继续只会把更多服务换成半成品；单步失败时容器已自动回滚。
+
+    平台自身（最后一个）不在这里重建——改由一次性 helper 容器排程，函数随即返回。
+
+    Args:
+        batch: `plan_batch()` 的结果。
+    """
+    global _worker_running
+    total = len(batch)
+    updated: list[str] = []
+    failed: list[str] = []
+    try:
+        for index, item in enumerate(batch, start=1):
+            target = item["target"]
+            image = item["image"]
+            if target == "platform":
+                _spawn_self_update(image)
+                write_status(
+                    status="succeeded",
+                    phase="done",
+                    message=f"服务已更新 {len(updated)}/{total}；平台自更新已排程，稍后会自动重启",
+                    batch_total=total,
+                    batch_index=index,
+                    updated_targets=updated,
+                    failed_targets=failed,
+                    finished_at=update_status.now_iso(),
+                )
+                return
+            write_status(
+                id=str(uuid.uuid4()),
+                target=target,
+                image=image,
+                phase="running",
+                status="running",
+                message=f"[{index}/{total}] 正在重建 {item['container_name']}",
+                batch_total=total,
+                batch_index=index,
+                updated_targets=updated,
+                failed_targets=failed,
+                started_at=update_status.now_iso(),
+            )
+            try:
+                container_rebuild.rebuild_container(item["container_name"], image)
+            except Exception as e:  # noqa: BLE001 - 任何异常都必须落状态，否则永远卡在 running
+                logger.exception(f"Batch update failed at '{target}'")
+                failed.append(target)
+                remaining = [b["target"] for b in batch[index:]]
+                write_status(
+                    status="failed",
+                    phase="failed",
+                    message=(
+                        f"[{index}/{total}] {target} 更新失败：{e}；"
+                        f"已停在此步，未执行：{'、'.join(remaining) or '无'}"
+                    ),
+                    batch_total=total,
+                    batch_index=index,
+                    updated_targets=updated,
+                    failed_targets=failed,
+                    finished_at=update_status.now_iso(),
+                )
+                return
+            updated.append(target)
+        write_status(
+            status="succeeded",
+            phase="done",
+            message=f"全部 {total} 个目标已更新：{'、'.join(updated)}",
+            batch_total=total,
+            batch_index=total,
+            updated_targets=updated,
+            failed_targets=failed,
+            finished_at=update_status.now_iso(),
+        )
+    finally:
+        _worker_running = False
+
+
+def start_update_all(plugins: list[Any]) -> dict[str, Any]:
+    """一键更新：把所有有新版本的目标串行重建（平台排最后）。
+
+    Args:
+        plugins: 已加载的服务插件列表。
+
+    Returns:
+        任务摘要（targets 为执行顺序）。
+
+    Raises:
+        UpdateBusyError: 已有任务在执行。
+        UpdateError: 没有可更新的目标。
+    """
+    global _worker_running
+    current = current_status()
+    if current and current.get("status") == "running":
+        raise UpdateBusyError("Another update task is still running")
+
+    batch = plan_batch(plugins)
+    if not batch:
+        raise UpdateError("No update available for any target")
+
+    with _worker_lock:
+        if _worker_running:
+            raise UpdateBusyError("Another update task is still running")
+        _worker_running = True
+    threading.Thread(
+        target=_run_batch,
+        args=(batch,),
+        name="update-all",
+        daemon=True,
+    ).start()
+    return {
+        "target": "all",
+        "status": "running",
+        "targets": [item["target"] for item in batch],
+        "message": f"Batch update started for {len(batch)} targets; poll /system/updates/status",
+    }
+
+
 def _service_container(plugins: list[Any], target: str) -> str | None:
     for plugin in plugins:
         if plugin.name == target:

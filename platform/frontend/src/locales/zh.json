@@ -532,7 +532,11 @@
       "upToDate": "已是最新",
       "updateAvailable": "有新版本",
       "empty": "没有可显示的更新目标"
-    }
+    },
+    "applyAll": "全部更新（{{count}}）",
+    "batchProgress": "批次进度 {{index}}/{{total}}",
+    "batchUpdated": "已更新：{{targets}}",
+    "batchFailed": "失败：{{targets}}（已停在此步，容器已自动回滚）"
   },
   "errors": {
     "back": "返回上一页",

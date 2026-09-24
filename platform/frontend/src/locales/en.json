@@ -532,7 +532,11 @@
       "upToDate": "Up to date",
       "updateAvailable": "Update available",
       "empty": "No update targets to show"
-    }
+    },
+    "applyAll": "Update all ({{count}})",
+    "batchProgress": "Batch {{index}}/{{total}}",
+    "batchUpdated": "Updated: {{targets}}",
+    "batchFailed": "Failed: {{targets}} (stopped here; the container was rolled back)"
   },
   "errors": {
     "back": "Go back",

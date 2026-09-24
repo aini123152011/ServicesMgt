@@ -326,6 +326,11 @@ class UpdateTaskState(SQLModel):
     message: str | None = None
     updated_at: str | None = None
     finished_at: str | None = None
+    # 「一键更新」批次进度：单目标更新时这三个字段为 None
+    batch_total: int | None = None
+    batch_index: int | None = None
+    updated_targets: list[str] | None = None
+    failed_targets: list[str] | None = None
 
 
 # GET /system/info 响应：平台版本/构建 + 最近任务状态 + 各更新目标镜像现状
