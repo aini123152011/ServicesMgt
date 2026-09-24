@@ -1,6 +1,7 @@
 import uuid
 from unittest.mock import patch
 
+import pytest
 from fastapi.testclient import TestClient
 from sqlmodel import Session, select
 
@@ -8,8 +9,8 @@ from app import crud
 from app.core.config import settings
 from app.core.security import verify_password
 from app.models import User, UserCreate
-from tests.utils.user import create_random_user
-from tests.utils.utils import random_email, random_lower_string
+from tests.utils.user import create_random_user, create_user_token_headers
+from tests.utils.utils import login_form, random_email, random_lower_string
 
 
 def test_get_users_superuser_me(
@@ -94,10 +95,7 @@ def test_get_existing_user_current_user(client: TestClient, db: Session) -> None
     user = crud.create_user(session=db, user_create=user_in)
     user_id = user.id
 
-    login_data = {
-        "username": username,
-        "password": password,
-    }
+    login_data = login_form(db, email=username, password=password)
     r = client.post(f"{settings.API_V1_STR}/login/access-token", data=login_data)
     tokens = r.json()
     a_token = tokens["access_token"]
@@ -198,27 +196,35 @@ def test_retrieve_users(
         assert "email" in item
 
 
-def test_update_user_me(
-    client: TestClient, normal_user_token_headers: dict[str, str], db: Session
-) -> None:
+@pytest.mark.usefixtures("smtp_configured")
+def test_update_user_me(client: TestClient, db: Session) -> None:
+    """改邮箱成功后会清掉验证状态并重发验证码，因此随后必须重新验证才能登录。
+
+    刻意**不用共享的 `normal_user_token_headers`**：改邮箱会把该账号置为未验证 + 停用，
+    共享 fixture 的用户一旦被改，同模块后续用例会全部挂在「Inactive user」上（实测踩过）。
+    """
     full_name = "Updated Name"
     email = random_email()
+    headers = create_user_token_headers(client=client, db=db, roles=["readonly"])
+
     data = {"full_name": full_name, "email": email}
     r = client.patch(
         f"{settings.API_V1_STR}/users/me",
-        headers=normal_user_token_headers,
+        headers=headers,
         json=data,
     )
     assert r.status_code == 200
     updated_user = r.json()
     assert updated_user["email"] == email
     assert updated_user["full_name"] == full_name
+    assert updated_user["email_verified_at"] is None, "改邮箱必须重新验证"
 
     user_query = select(User).where(User.email == email)
     user_db = db.exec(user_query).first()
     assert user_db
     assert user_db.email == email
     assert user_db.full_name == full_name
+    assert user_db.is_active is False, "未验证期间不得保持可登录"
 
 
 def test_update_password_me(
@@ -385,10 +391,7 @@ def test_delete_user_me(client: TestClient, db: Session) -> None:
     user = crud.create_user(session=db, user_create=user_in)
     user_id = user.id
 
-    login_data = {
-        "username": username,
-        "password": password,
-    }
+    login_data = login_form(db, email=username, password=password)
     r = client.post(f"{settings.API_V1_STR}/login/access-token", data=login_data)
     tokens = r.json()
     a_token = tokens["access_token"]

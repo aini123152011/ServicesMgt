@@ -4,14 +4,14 @@ from sqlmodel import Session
 from app import crud
 from app.core.config import settings
 from app.models import RoleName, User, UserCreate, UserUpdate
-from tests.utils.utils import random_email, random_lower_string
+from tests.utils.utils import login_form, random_email, random_lower_string
 
 
 def user_authentication_headers(
-    *, client: TestClient, email: str, password: str
+    *, client: TestClient, db: Session, email: str, password: str
 ) -> dict[str, str]:
-    data = {"username": email, "password": password}
-
+    """走真实登录接口换取 Bearer 头（含一次性图片验证码）。"""
+    data = login_form(db, email=email, password=password)
     r = client.post(f"{settings.API_V1_STR}/login/access-token", data=data)
     response = r.json()
     auth_token = response["access_token"]
@@ -23,6 +23,9 @@ def create_user_token_headers(
     *, client: TestClient, db: Session, roles: list[RoleName]
 ) -> dict[str, str]:
     """创建带指定角色的随机用户并返回其 Bearer 认证头。
+
+    测试里直接建的用户一律视为**邮箱已验证**（等价于管理员建号）：未验证账号按设计登不进去，
+    这里若留空，所有依赖登录的用例都会挂在「Email is not verified」上——而那并不是它们要测的东西。
 
     Args:
         client: TestClient，用于走真实登录接口换取 token。
@@ -36,15 +39,16 @@ def create_user_token_headers(
     password = random_lower_string()
     user_in = UserCreate(email=email, password=password, roles=roles)
     crud.create_user(session=db, user_create=user_in)
-    return user_authentication_headers(client=client, email=email, password=password)
+    return user_authentication_headers(
+        client=client, db=db, email=email, password=password
+    )
 
 
 def create_random_user(db: Session) -> User:
     email = random_email()
     password = random_lower_string()
     user_in = UserCreate(email=email, password=password)
-    user = crud.create_user(session=db, user_create=user_in)
-    return user
+    return crud.create_user(session=db, user_create=user_in)
 
 
 def authentication_token_from_email(
@@ -66,4 +70,6 @@ def authentication_token_from_email(
             raise Exception("User id not set")
         user = crud.update_user(session=db, db_user=user, user_in=user_in_update)
 
-    return user_authentication_headers(client=client, email=email, password=password)
+    return user_authentication_headers(
+        client=client, db=db, email=email, password=password
+    )

@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { DataTableColumnHeader } from '@/components/data-table'
 import { LongText } from '@/components/long-text'
-import { roleMeta, userStatusMeta } from '../data/data'
+import { roleMeta, userEmailVerifiedMeta, userStatusMeta } from '../data/data'
 import { DataTableRowActions } from './data-table-row-actions'
 
 /**
@@ -72,6 +72,30 @@ export function buildUsersColumns(t: TFunction): ColumnDef<UserPublic>[] {
       },
       enableSorting: false,
       enableHiding: false,
+    },
+    {
+      id: 'emailVerified',
+      // 归一化为 'verified' | 'unverified'，与路由 search 的筛选枚举对应
+      accessorFn: (row) => (row.email_verified_at ? 'verified' : 'unverified'),
+      header: ({ column }) => (
+        <DataTableColumnHeader
+          column={column}
+          title={t('users.field.emailVerified')}
+        />
+      ),
+      cell: ({ row }) => {
+        const meta = userEmailVerifiedMeta.get(
+          row.original.email_verified_at !== null
+        )
+        if (!meta) return null
+        return (
+          <Badge variant='outline' className={cn(meta.className)}>
+            {t(meta.labelKey)}
+          </Badge>
+        )
+      },
+      filterFn: (row, id, value) => value.includes(row.getValue(id)),
+      enableSorting: false,
     },
     {
       id: 'roles',

@@ -1,6 +1,6 @@
 import uuid
 from collections.abc import Sequence
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from sqlmodel import Session, col, delete, select
@@ -20,9 +20,28 @@ from app.models import (
 )
 
 
-def create_user(*, session: Session, user_create: UserCreate) -> User:
+def create_user(
+    *,
+    session: Session,
+    user_create: UserCreate,
+    email_verified: bool = True,
+) -> User:
+    """建号。
+
+    Args:
+        session: 数据库会话。
+        user_create: 建号载荷；`is_active` 由调用方决定（自助注册传 False）。
+        email_verified: 是否直接标记邮箱已验证。默认 True —— 这个原语的调用方
+            （引导首个超管、管理员建号、测试）都是可信来源；**自助注册必须显式传 False**，
+            否则未验证的账号能直接登录。默认取 True 是为了不改动既有调用方的行为，
+            把安全敏感的例外留在唯一那个调用点上明说。
+    """
     db_obj = User.model_validate(
-        user_create, update={"hashed_password": get_password_hash(user_create.password)}
+        user_create,
+        update={
+            "hashed_password": get_password_hash(user_create.password),
+            "email_verified_at": datetime.now(UTC) if email_verified else None,
+        },
     )
     session.add(db_obj)
     session.commit()
@@ -314,6 +333,37 @@ def build_users_public(
     return UsersPublic(data=data, count=count)
 
 
+def mark_email_verified(
+    *, session: Session, user: User, when: datetime | None = None
+) -> User:
+    """标记邮箱已验证，并放开登录（is_active=True）。
+
+    两件事一起做是有意的：`email_verified_at` 是「为什么能/不能登录」的语义字段，
+    `is_active` 是执行层的拦截开关。未验证账号建号时 is_active=False，验证成功必须同时放开，
+    否则用户点完链接仍然登不进去。
+    """
+    user.email_verified_at = when or datetime.now(UTC)
+    user.is_active = True
+    session.add(user)
+    session.commit()
+    session.refresh(user)
+    return user
+
+
+def reset_email_verification(*, session: Session, user: User) -> User:
+    """清空邮箱验证状态并停用（改邮箱后必须重新验证）。
+
+    为什么改邮箱要清验证状态：否则可以「先用合规域名注册并通过验证，再把邮箱改成任意地址」，
+    域名白名单会被一步绕过。
+    """
+    user.email_verified_at = None
+    user.is_active = False
+    session.add(user)
+    session.commit()
+    session.refresh(user)
+    return user
+
+
 def record_audit_log(
     *,
     session: Session,
@@ -322,6 +372,7 @@ def record_audit_log(
     action: str,
     service_name: str | None = None,
     detail: str | None = None,
+    ip: str | None = None,
 ) -> AuditLog:
     """写一条审计日志并提交。
 
@@ -336,6 +387,8 @@ def record_audit_log(
         action: 动作标识，如 config.update / service.start / user.create。
         service_name: 目标服务名；非服务操作为 None。
         detail: 简短说明，超长自动截断到 1024 字符。
+        ip: 来源 IP。准入拒绝、登录被拒这类事件靠它回答「谁在试」；缺省 None
+            表示该事件与来源无关（如系统定时任务）。
 
     Returns:
         已落库并刷新的 AuditLog 行。
@@ -348,6 +401,7 @@ def record_audit_log(
         action=action,
         service_name=service_name,
         detail=detail,
+        ip=ip,
     )
     session.add(entry)
     session.commit()

@@ -22,6 +22,15 @@ class EmailData:
     subject: str
 
 
+class EmailNotConfiguredError(RuntimeError):
+    """邮件服务未配置（缺 SMTP_HOST 或 EMAILS_FROM_EMAIL）。
+
+    原先是 `assert settings.emails_enabled`：断言在生产路径上会变成 500，把「没配邮件」
+    这个真实原因掩盖成「服务器错误」，而调用方也无法区分它与「发信失败」。改成显式异常后，
+    注册接口可以据此返回 503 并给出可操作提示，而不是留下一个永远收不到信的账号。
+    """
+
+
 def render_email_template(*, template_name: str, context: dict[str, Any]) -> str:
     template_str = (
         Path(__file__).parent / "email-templates" / template_name
@@ -37,12 +46,15 @@ def send_email(
     subject: str = "",
     html_content: str = "",
 ) -> None:
-    assert settings.emails_enabled, "no provided configuration for email variables"
-    assert settings.EMAILS_FROM_EMAIL  # For type checker
+    from_email = settings.EMAILS_FROM_EMAIL
+    if not settings.emails_enabled or from_email is None:
+        raise EmailNotConfiguredError(
+            "邮件服务未配置：需要设置 SMTP_HOST 与 EMAILS_FROM_EMAIL"
+        )
     message = emails.message.Message(
         subject=subject,
         html=html_content,
-        mail_from=(settings.EMAILS_FROM_NAME, settings.EMAILS_FROM_EMAIL),
+        mail_from=(settings.EMAILS_FROM_NAME, from_email),
     )
     smtp_options = {"host": settings.SMTP_HOST, "port": settings.SMTP_PORT}
     if settings.SMTP_TLS:

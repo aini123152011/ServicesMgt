@@ -55,6 +55,18 @@ class UpdatePassword(SQLModel):
 class User(UserBase, table=True):
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     hashed_password: str
+    # 邮箱验证：None = 尚未验证（自助注册后必须点邮件里的链接）。既有账号由迁移回填为
+    # created_at，保证升级后登录行为不变。管理员「停用」不动这一列——两者语义分开：
+    # email_verified_at 解释「为什么不能登录」，is_active 负责「拦住」。
+    email_verified_at: datetime | None = Field(
+        default=None,
+        sa_type=DateTime(timezone=True),  # type: ignore
+    )
+    # 重发验证邮件的节流依据（未验证账号才有意义）
+    verification_sent_at: datetime | None = Field(
+        default=None,
+        sa_type=DateTime(timezone=True),  # type: ignore
+    )
     created_at: datetime | None = Field(
         default_factory=get_datetime_utc,
         sa_type=DateTime(timezone=True),  # type: ignore
@@ -65,6 +77,9 @@ class User(UserBase, table=True):
 class UserPublic(UserBase):
     id: uuid.UUID
     created_at: datetime | None = None
+    # 邮箱验证时间；None 表示未验证。前端据此渲染状态列与「手动放行」按钮，
+    # 不额外暴露验证令牌等敏感字段
+    email_verified_at: datetime | None = None
     # 前端按角色显隐操作按钮依赖此字段；无角色用户为空列表
     roles: list[str] = Field(default_factory=list)
 
@@ -242,6 +257,9 @@ class AuditLogBase(SQLModel):
     detail: str | None = Field(default=None, max_length=1024)
     # 冗余邮箱便于删除后追溯：用户操作存目标邮箱，服务操作存操作者邮箱
     user_email: str | None = Field(default=None, max_length=255)
+    # 来源 IP（IPv6 最长 45 字符）。准入规则命中、登录被拒这类事件必须能回答「谁在试」，
+    # 所以从请求侧取真实客户端地址一并留痕
+    ip: str | None = Field(default=None, max_length=45)
 
 
 # Database model, database table inferred from class name
@@ -264,6 +282,7 @@ class AuditLogPublic(SQLModel):
     action: str
     service_name: str | None = None
     detail: str | None = None
+    ip: str | None = None
     created_at: datetime | None = None
 
 
@@ -576,3 +595,190 @@ class ServiceConfigVersionDetail(SQLModel):
     user_email: str | None = None
     rolled_back_from: int | None = None
     created_at: datetime | None = None
+
+
+# --------------------------------------------------------------------------- #
+# 账号准入（自助注册 / 邮箱验证 / 准入规则）
+#
+# 三张表各管一件事：
+#   AccessRule        准入规则（邮箱后缀 / IP），allow 与 deny 两组，deny 优先
+#   PlatformSetting   平台级开关（当前只有 registration.enabled），KV 便于后续扩展
+#   CaptchaChallenge  图片验证码一次性票据，答案只存哈希
+#
+# 为什么规则不存 .env：改一次要重启容器，且 .env 已被二层夹具参数占用；
+# 为什么不存数据卷 JSON：脱离事务与审计，并发写没有约束兜底。
+# --------------------------------------------------------------------------- #
+AccessRuleKind = Literal["email_suffix", "ip"]
+AccessRuleListType = Literal["allow", "deny"]
+# 验证码绑定的入口：跨入口复用同一张验证码即校验失败
+CaptchaScope = Literal["login", "register", "resend"]
+
+
+class AccessRuleBase(SQLModel):
+    # 表列只能用 str：SQLModel 无法把 Literal 映射成 SQL 类型（实测抛
+    # issubclass() arg 1 must be a class）。取值约束放在 AccessRuleCreate 上，
+    # 由 API 边界校验；库里的值只可能由该接口写入
+    kind: str = Field(max_length=16)
+    list_type: str = Field(max_length=16)
+    # 归一化后的值：邮箱后缀小写去 @；IP 用 ipaddress 压缩形式（如 10.0.0.0/8）
+    value: str = Field(max_length=255)
+    note: str | None = Field(default=None, max_length=255)
+
+
+# Database model, database table inferred from class name
+class AccessRule(AccessRuleBase, table=True):
+    # 同类规则同一值只能一条：重复项会让界面出现两条一模一样的规则
+    __table_args__ = (
+        UniqueConstraint("kind", "list_type", "value", name="uq_access_rule"),
+    )
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    # 操作者；用户被删除后置空——规则本身保留，准入规则不该随人员变动消失
+    created_by: uuid.UUID | None = Field(
+        default=None, foreign_key="user.id", nullable=True, ondelete="SET NULL"
+    )
+    created_at: datetime | None = Field(
+        default_factory=get_datetime_utc,
+        sa_type=DateTime(timezone=True),  # type: ignore
+    )
+
+
+class AccessRuleCreate(SQLModel):
+    kind: AccessRuleKind
+    list_type: AccessRuleListType
+    value: str = Field(min_length=1, max_length=255)
+    note: str | None = Field(default=None, max_length=255)
+
+
+class AccessRulePublic(AccessRuleBase):
+    id: uuid.UUID
+    created_at: datetime | None = None
+
+
+class AccessRulesPublic(SQLModel):
+    data: list[AccessRulePublic]
+    count: int
+
+
+# 平台级开关：key 即主键，同一开关只有一行
+class PlatformSetting(SQLModel, table=True):
+    key: str = Field(max_length=64, primary_key=True)
+    value: str = Field(max_length=255)
+    updated_by: uuid.UUID | None = Field(
+        default=None, foreign_key="user.id", nullable=True, ondelete="SET NULL"
+    )
+    updated_at: datetime | None = Field(
+        default_factory=get_datetime_utc,
+        sa_type=DateTime(timezone=True),  # type: ignore
+    )
+
+
+# 访问控制开关的对外形状：email_configured 由进程配置推导，不落库
+class AccessControlSettings(SQLModel):
+    registration_enabled: bool
+    email_configured: bool
+
+
+class AccessControlSettingsUpdate(SQLModel):
+    registration_enabled: bool
+
+
+# IP 规则集：既是保存前的自检入参，也是自检用例的形状
+class IpRuleSet(SQLModel):
+    allow: list[str] = Field(default_factory=list)
+    deny: list[str] = Field(default_factory=list)
+
+
+# 防自锁自检结果：allowed=False 时保存路径直接拒绝写入
+class IpPreflightResult(SQLModel):
+    allowed: bool
+    reason: str
+    current_ip: str
+    matched_rule: str | None = None
+
+
+# 图片验证码一次性票据。答案只存哈希：即使库被读到也拿不到明文答案
+class CaptchaChallenge(SQLModel, table=True):
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    # 同 AccessRuleBase：表列用 str，取值约束由 CaptchaRequest 的 Literal 在边界上保证
+    scope: str = Field(max_length=16)
+    answer_hash: str = Field(max_length=64)
+    # 过期时间建索引：清理按它扫全表
+    expires_at: datetime = Field(
+        sa_type=DateTime(timezone=True),  # type: ignore
+        index=True,
+    )
+    used_at: datetime | None = Field(
+        default=None,
+        sa_type=DateTime(timezone=True),  # type: ignore
+    )
+    created_ip: str | None = Field(default=None, max_length=45)
+    created_at: datetime | None = Field(
+        default_factory=get_datetime_utc,
+        sa_type=DateTime(timezone=True),  # type: ignore
+    )
+
+
+class CaptchaRequest(SQLModel):
+    scope: CaptchaScope = "login"
+
+
+# image 为 data URL（data:image/png;base64,...）：不再单开一个图片接口，省掉缓存头处理
+class CaptchaResponse(SQLModel):
+    captcha_id: uuid.UUID
+    image: str
+
+
+# 邮箱验证码。**必须落库**（不能像密码重置那样用无状态签名）：6 位码只有 10^6 空间，
+# 没有服务端记录就无法限制尝试次数，几分钟就能爆破出来。绑定 user_id 而不是邮箱：
+# 邮箱可变、账号不变；改邮箱时重发新码并作废旧码。
+class EmailVerificationCode(SQLModel, table=True):
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    user_id: uuid.UUID = Field(
+        foreign_key="user.id", nullable=False, ondelete="CASCADE"
+    )
+    scope: str = Field(max_length=16)
+    # 只存哈希：库被读到也拿不到明文码
+    code_hash: str = Field(max_length=64)
+    expires_at: datetime = Field(
+        sa_type=DateTime(timezone=True),  # type: ignore
+        index=True,
+    )
+    # 已尝试次数：超过上限即作废，必须重新发码（防爆破的关键）
+    attempts: int = Field(default=0)
+    used_at: datetime | None = Field(
+        default=None,
+        sa_type=DateTime(timezone=True),  # type: ignore
+    )
+    created_at: datetime | None = Field(
+        default_factory=get_datetime_utc,
+        sa_type=DateTime(timezone=True),  # type: ignore
+    )
+
+
+# POST /auth/register 请求体。密码约束与 UserCreate 一致，注册接口不得放宽
+class RegisterRequest(SQLModel):
+    email: EmailStr = Field(max_length=255)
+    password: str = Field(min_length=8, max_length=128)
+    full_name: str | None = Field(default=None, max_length=255)
+    captcha_id: uuid.UUID
+    captcha_answer: str = Field(min_length=1, max_length=32)
+
+
+# 验证码校验：长度在入口就约束住（SQLModel 的 Field 不支持 pattern，数字格式由校验逻辑
+# 自然失配处理——非 6 位数字必然匹配不上，并计入尝试次数）
+class VerifyEmailRequest(SQLModel):
+    email: EmailStr = Field(max_length=255)
+    code: str = Field(min_length=6, max_length=6)
+
+
+class ResendVerificationRequest(SQLModel):
+    email: EmailStr = Field(max_length=255)
+    captcha_id: uuid.UUID
+    captcha_answer: str = Field(min_length=1, max_length=32)
+
+
+# 注册是否可用（登录页据此决定是否显示注册入口，不泄露其他信息）
+class RegistrationAvailability(SQLModel):
+    enabled: bool
+    email_configured: bool

@@ -30,6 +30,7 @@ const MOCK_USER: UserPublic = {
   full_name: 'Alex Smith',
   roles: ['operator'],
   created_at: '2026-01-01T00:00:00Z',
+  email_verified_at: '2026-01-01T00:00:00Z',
 }
 
 vi.mock('@/stores/auth-store', () => ({

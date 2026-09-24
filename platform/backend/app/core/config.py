@@ -93,6 +93,11 @@ class Settings(BaseSettings):
             services_dir = Path(__file__).resolve().parents[2] / services_dir
         return str(services_dir)
 
+    # 是否信任 X-Forwarded-For 判定来源 IP（准入规则与审计都依赖它）。
+    # 默认关闭：平台前面没有反向代理时，这个头完全由客户端控制，信任它等于白名单可被
+    # 一个请求头绕过。加代理时必须同时打开本开关，并确认代理会重写而非追加该头。
+    TRUST_FORWARDED_FOR: bool = False
+
     SMTP_TLS: bool = True
     SMTP_SSL: bool = False
     SMTP_PORT: int = 587
@@ -109,6 +114,10 @@ class Settings(BaseSettings):
         return self
 
     EMAIL_RESET_TOKEN_EXPIRE_HOURS: int = 48
+    # 邮箱验证码有效期与尝试上限。6 位码只有 10^6 空间：TTL 越短、次数越少越安全，
+    # 但太短会让用户来不及填。10 分钟 / 5 次是常见平衡点
+    EMAIL_VERIFICATION_CODE_TTL_MINUTES: int = 10
+    EMAIL_VERIFICATION_MAX_ATTEMPTS: int = 5
 
     @computed_field  # type: ignore[prop-decorator]
     @property

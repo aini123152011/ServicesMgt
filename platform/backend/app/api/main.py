@@ -1,9 +1,12 @@
 from fastapi import APIRouter
 
 from app.api.routes import (
+    access_control,
     audit,
+    captcha,
     l2,
     login,
+    registration,
     service_data,
     services,
     system,
@@ -21,3 +24,7 @@ api_router.include_router(audit.router)
 api_router.include_router(system.router)
 api_router.include_router(l2.router)
 api_router.include_router(audit.roles_router)
+# 账号准入：匿名入口（验证码/注册/邮箱验证）与管理端规则配置分开成两个 router
+api_router.include_router(captcha.router)
+api_router.include_router(registration.router)
+api_router.include_router(access_control.router)

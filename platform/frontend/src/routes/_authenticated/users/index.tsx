@@ -12,6 +12,11 @@ const usersSearchSchema = z.object({
     .optional()
     .catch([]),
   role: z.array(z.enum(ROLE_NAMES)).optional().catch([]),
+  // 邮箱验证状态筛选（未验证的账号需要管理员手动放行）
+  emailVerified: z
+    .array(z.enum(['verified', 'unverified']))
+    .optional()
+    .catch([]),
   // Per-column text filter (email)
   email: z.string().optional().catch(''),
 })

@@ -14,6 +14,7 @@ const sampleUser = {
   full_name: 'User Example',
   roles: ['readonly'],
   created_at: '2026-09-20T00:00:00Z',
+  email_verified_at: '2026-09-20T00:00:00Z',
 }
 
 describe('useAuthStore', () => {

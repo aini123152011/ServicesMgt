@@ -331,6 +331,7 @@ def test_audit_logs_listing_newest_first(
         "action",
         "service_name",
         "detail",
+        "ip",
         "created_at",
     }
 
@@ -359,7 +360,9 @@ def test_login_token_returns_roles(client: TestClient, db: Session) -> None:
         session=db,
         user_create=UserCreate(email=email, password=password, roles=["operator"]),
     )
-    headers = user_authentication_headers(client=client, email=email, password=password)
+    headers = user_authentication_headers(
+        client=client, db=db, email=email, password=password
+    )
     response = client.post(f"{settings.API_V1_STR}/login/test-token", headers=headers)
     assert response.status_code == 200
     assert response.json()["roles"] == ["operator"]

@@ -2,13 +2,14 @@ from collections.abc import Callable, Generator
 from typing import Annotated
 
 import jwt
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from jwt.exceptions import InvalidTokenError
 from pydantic import ValidationError
 from sqlmodel import Session
 
 from app import crud
+from app.client_ip import TRUSTED_HEADER, resolve_client_ip
 from app.core import security
 from app.core.config import settings
 from app.core.db import engine
@@ -26,6 +27,22 @@ def get_db() -> Generator[Session]:
 
 SessionDep = Annotated[Session, Depends(get_db)]
 TokenDep = Annotated[str, Depends(reusable_oauth2)]
+
+
+def get_client_ip(request: Request) -> str:
+    """当前请求的来源 IP，供准入规则与审计使用。
+
+    判定前提与「为什么不默认信任 X-Forwarded-For」见 `app/client_ip.py` 的模块说明。
+    """
+    peer = request.client.host if request.client else None
+    return resolve_client_ip(
+        peer_host=peer,
+        forwarded_for=request.headers.get(TRUSTED_HEADER),
+        trust_forwarded_for=settings.TRUST_FORWARDED_FOR,
+    )
+
+
+ClientIp = Annotated[str, Depends(get_client_ip)]
 
 
 def get_current_user(session: SessionDep, token: TokenDep) -> User:
@@ -87,3 +104,6 @@ def require_role(*allowed_roles: str) -> Callable[..., User]:
 # 常用便捷别名：管理员全权；操作员=读 + 配置修改 + 生命周期
 RequireAdmin = require_role("admin")
 RequireOperator = require_role("admin", "operator")
+
+# 需要拿到管理员本人的场景（审计要记操作者，不能只做路由级守卫）
+AdminUser = Annotated[User, Depends(RequireAdmin)]

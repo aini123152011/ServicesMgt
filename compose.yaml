@@ -71,6 +71,20 @@ services:
       SERVICES_DIR: /app/services
       VOLUMES_MOUNT_ROOT: /var/lib/platform
       UPDATE_REGISTRY: ${UPDATE_REGISTRY:-}
+      # 发信（注册验证码 / 找回密码）。平台服务是显式列环境变量的，这里漏一个
+      # 就等于 .env 里配了也传不进容器（实测踩到：SMTP 配好了容器里却是空的）。
+      # 缺省为空 = 邮件未配置：注册接口会明确返回 503，而不是建出收不到信的账号
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_TLS: ${SMTP_TLS:-true}
+      SMTP_SSL: ${SMTP_SSL:-false}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      EMAILS_FROM_EMAIL: ${EMAILS_FROM_EMAIL:-}
+      EMAILS_FROM_NAME: ${EMAILS_FROM_NAME:-}
+      # 只有平台前面加了反向代理才打开：直连暴露时信任 X-Forwarded-For 等于
+      # 让准入白名单可被一个请求头绕过
+      TRUST_FORWARDED_FOR: ${TRUST_FORWARDED_FOR:-false}
       PLATFORM_CONTAINER_NAME: fx-platform
       # 二层测试网段（宿主网口面板与一致性校验用）：接 BMC 的网口、测试网段、
       # 需要在测试网段上被 BMC 访问的服务。留空 = 未启用二层夹具（面板会提示如何启用）

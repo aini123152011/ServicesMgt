@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>{{ project_name }} - 邮箱验证码</title>
+</head>
+<body style="background-color:#f4f7f6;margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">
+  <table border="0" width="100%" cellpadding="0" cellspacing="0" role="presentation" style="background-color:#f4f7f6;padding:32px 12px">
+    <tr>
+      <td align="center">
+        <table border="0" width="100%" cellpadding="0" cellspacing="0" role="presentation" style="max-width:560px;background-color:#ffffff;border:1px solid #dce7e5;border-radius:8px">
+          <tr>
+            <td style="padding:40px 36px 32px">
+              <hr style="width:32px;border:0;border-top:3px solid #00897b;margin:0 0 16px" />
+              <p style="font-size:13px;line-height:20px;color:#334155;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin:0 0 32px">{{ project_name }}</p>
+
+              <h1 style="color:#17212b;font-size:26px;font-weight:700;letter-spacing:-0.3px;line-height:34px;margin:0 0 20px">验证你的邮箱</h1>
+
+              <p style="font-size:15px;line-height:26px;color:#334155;margin:0 0 18px">你好 {{ username }}，</p>
+              <p style="font-size:15px;line-height:26px;color:#334155;margin:0 0 18px">请在注册页面输入下面的验证码完成邮箱验证：</p>
+
+              <table border="0" cellpadding="0" cellspacing="0" role="presentation" style="margin:0 0 24px">
+                <tr>
+                  <td style="background-color:#f4f7f6;border:1px solid #dce7e5;border-radius:8px;padding:16px 28px">
+                    <span style="font-family:'SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace;font-size:34px;font-weight:700;letter-spacing:10px;color:#00796b">{{ code }}</span>
+                  </td>
+                </tr>
+              </table>
+
+              <p style="font-size:14px;line-height:23px;color:#64748b;margin:0 0 16px">验证码 {{ valid_minutes }} 分钟内有效，最多可尝试 {{ max_attempts }} 次；超过次数需要重新获取。</p>
+              <p style="font-size:14px;line-height:23px;color:#64748b;margin:0 0 16px">如果不是你本人的操作，忽略本邮件即可——邮箱未验证前账号无法登录。</p>
+
+              <hr style="border:0;border-top:1px solid #dce7e5;margin:36px 0 18px" />
+              <p style="font-size:12px;line-height:20px;color:#64748b;margin:0">{{ project_name }} · 本邮件由系统自动发出，请勿直接回复。</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

@@ -82,6 +82,43 @@ export const userStatusMeta = new Map<
   ],
 ])
 
+/**
+ * 邮箱验证状态展示元数据。
+ *
+ * 与 is_active 分开表达：一个账号可能「已停用」且「已验证」，也可能「待验证」。
+ * 后者才是需要管理员手动放行的那一类。
+ */
+export const userEmailVerifiedMeta = new Map<
+  boolean,
+  { labelKey: TranslationKey; className: string }
+>([
+  [
+    true,
+    {
+      labelKey: 'users.verified',
+      className:
+        'bg-emerald-100/30 text-emerald-900 dark:text-emerald-200 border-emerald-200',
+    },
+  ],
+  [
+    false,
+    {
+      labelKey: 'users.unverified',
+      className:
+        'bg-amber-100/40 text-amber-900 dark:text-amber-200 border-amber-300',
+    },
+  ],
+])
+
+/** 邮箱验证筛选选项，value 与路由 search 的枚举对应 */
+export const userEmailVerifiedOptions: {
+  labelKey: TranslationKey
+  value: string
+}[] = [
+  { labelKey: 'users.verified', value: 'verified' },
+  { labelKey: 'users.unverified', value: 'unverified' },
+]
+
 /** 状态筛选选项，value 与路由 search 的枚举对应 */
 export const userStatusOptions: { labelKey: TranslationKey; value: string }[] =
   [

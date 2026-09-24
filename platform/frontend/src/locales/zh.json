@@ -27,7 +27,10 @@
     "skipToMain": "跳到主要内容",
     "search": "搜索",
     "showPassword": "显示密码",
-    "hidePassword": "隐藏密码"
+    "hidePassword": "隐藏密码",
+    "delete": "删除",
+    "enabled": "已开启",
+    "disabled": "已关闭"
   },
   "nav": {
     "groupServices": "服务管理",
@@ -259,6 +262,34 @@
         "disableConfirmTitle": "停用二层夹具？",
         "disableConfirmBody": "容器会从 macvlan 网络断开，BMC 立即取不到地址；网络对象保留（删了容器就重启不了），下次启用只需重连。"
       }
+    },
+    "accessControl": {
+      "title": "访问控制",
+      "description": "配置注册准入规则与自助注册开关。",
+      "registrationLabel": "允许自助注册",
+      "registrationHint": "关闭后注册入口不可用；已存在的待验证账号不受影响。",
+      "registrationSaved": "注册开关已更新",
+      "emailNotConfigured": "邮件服务未配置，自助注册当前不可用（注册需要发送验证码）。",
+      "emailRulesTitle": "邮箱域名规则",
+      "emailRulesHint": "deny 优先于 allow；allow 为空表示不限制，一旦有值则只允许命中的域名（含子域）。作用于注册与管理员建号/改邮箱。",
+      "ipRulesTitle": "来源 IP 规则",
+      "ipRulesHint": "只作用于登录与注册入口；默认不启用（无规则即不校验）。deny 优先于 allow。",
+      "allowLabel": "允许",
+      "denyLabel": "拒绝",
+      "empty": "暂无规则",
+      "valuePlaceholderEmail": "example.com",
+      "valuePlaceholderIp": "10.0.0.0/8",
+      "notePlaceholder": "备注（可选）",
+      "add": "添加规则",
+      "added": "规则已添加",
+      "deleted": "规则已删除",
+      "deleteConfirm": "删除这条规则？",
+      "currentIp": "当前请求 IP",
+      "selfLockBlocked": "保存这些规则会让你当前的 IP（{{ip}}）无法登录，已拒绝保存。",
+      "loadFailed": "规则加载失败",
+      "listTypeLabel": "类型",
+      "valueLabel": "值",
+      "noteLabel": "备注"
     }
   },
   "auth": {
@@ -271,7 +302,9 @@
       "forgotPassword": "忘记密码？",
       "loading": "登录中…",
       "success": "欢迎回来，{{email}}！",
-      "failed": "登录失败，请重试。"
+      "failed": "登录失败，请重试。",
+      "noAccount": "还没有账号？",
+      "unverified": "邮箱尚未验证，已跳转到验证码页"
     },
     "forgotPassword": {
       "title": "忘记密码",
@@ -286,7 +319,46 @@
       "emailRequired": "请输入邮箱。",
       "emailInvalid": "请输入有效的邮箱地址。",
       "passwordRequired": "请输入密码。",
-      "passwordMin": "密码长度至少 7 个字符。"
+      "passwordMin": "密码长度至少 7 个字符。",
+      "passwordMinRegister": "密码至少 8 位。",
+      "confirmRequired": "请再次输入密码。",
+      "passwordMismatch": "两次输入的密码不一致。"
+    },
+    "captcha": {
+      "label": "图片验证码",
+      "placeholder": "输入图中字符",
+      "refresh": "换一张"
+    },
+    "signUp": {
+      "title": "注册账号",
+      "description": "填写邮箱与密码提交注册，我们会把验证码发到该邮箱。",
+      "haveAccount": "已有账号？",
+      "fullNameLabel": "姓名",
+      "fullNamePlaceholder": "可选",
+      "fullNameHint": "仅用于展示，可留空。",
+      "confirmPasswordLabel": "确认密码",
+      "submit": "提交注册",
+      "loading": "正在提交注册…",
+      "success": "注册已提交，请查收验证码",
+      "failed": "注册失败，请稍后重试",
+      "verifyHint": "提交后请到邮箱查收 6 位验证码；验证通过前账号无法登录。"
+    },
+    "otp": {
+      "title": "验证邮箱",
+      "description": "验证码已发送至 {{email}}，请输入邮件中的 6 位数字。",
+      "missingEmail": "缺少待验证的邮箱地址。",
+      "backToSignUp": "返回注册页重新提交",
+      "footerHint": "验证码 10 分钟内有效；未验证的账号无法登录。",
+      "codeLabel": "邮箱验证码",
+      "codeInvalid": "请输入 6 位数字验证码。",
+      "submit": "验证",
+      "loading": "正在验证…",
+      "success": "邮箱验证成功，请登录",
+      "failed": "验证失败，请检查验证码",
+      "resendAction": "没收到验证码？重新发送",
+      "resendConfirm": "发送验证码",
+      "resending": "正在发送…",
+      "resendSent": "验证码已重新发送"
     }
   },
   "services": {
@@ -448,7 +520,8 @@
       "passwordEditPlaceholder": "留空表示不修改密码",
       "passwordNewPlaceholder": "至少 8 位，含小写字母和数字",
       "confirmPasswordPlaceholder": "再次输入密码",
-      "activeHint": "停用后该用户将无法登录平台"
+      "activeHint": "停用后该用户将无法登录平台",
+      "emailVerified": "邮箱验证"
     },
     "rolesLoading": "角色列表加载中…",
     "rolesLoadFailed": "角色列表加载失败，请关闭后重试。",
@@ -482,7 +555,16 @@
       "passwordDigit": "密码需至少包含一个数字。",
       "passwordMismatch": "两次输入的密码不一致。",
       "rolesRequired": "至少选择一个角色。"
-    }
+    },
+    "verified": "已验证",
+    "unverified": "待验证",
+    "filterAllVerified": "全部邮箱状态",
+    "filterVerified": "仅已验证",
+    "filterUnverified": "仅待验证",
+    "actionVerifyEmail": "标记已验证",
+    "verifyEmailTitle": "手动放行该账号？",
+    "verifyEmailDesc": "用于收不到验证邮件时的人工放行：标记后该账号可立即登录。",
+    "verifyEmailDone": "已标记为邮箱已验证"
   },
   "system": {
     "quick": {

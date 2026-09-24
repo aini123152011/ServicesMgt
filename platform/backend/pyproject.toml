@@ -20,6 +20,9 @@ dependencies = [
     "pwdlib[argon2,bcrypt]>=0.3.1",
     "docker>=7.1.0,<8.0.0",
     "pyyaml<7.0.0,>=6.0.1",
+    # 图片验证码渲染。12.x 才有 python:3.14（cp314）的 manylinux wheel，
+    # 基础镜像就是 3.14，所以下限不能放松
+    "pillow>=12.0.0,<13.0.0",
 ]
 
 [dependency-groups]
@@ -41,7 +44,7 @@ exclude = ["venv", ".venv", "alembic"]
 
 [[tool.mypy.overrides]]
 module = ["docker.*", "yaml.*"]
-# docker 与 pyyaml 未发布类型标注，按 Any 处理避免误报
+# docker 与 pyyaml 未发布类型标注，按 Any 处理避免误报（Pillow 自带 py.typed，不走这条）
 ignore_missing_imports = true
 
 [tool.ruff]

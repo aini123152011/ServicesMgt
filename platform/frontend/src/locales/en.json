@@ -27,7 +27,10 @@
     "skipToMain": "Skip to Main",
     "search": "Search",
     "showPassword": "Show password",
-    "hidePassword": "Hide password"
+    "hidePassword": "Hide password",
+    "delete": "Delete",
+    "enabled": "Enabled",
+    "disabled": "Disabled"
   },
   "nav": {
     "groupServices": "Services",
@@ -259,6 +262,34 @@
         "disableConfirmTitle": "Disable the layer-2 fixture?",
         "disableConfirmBody": "The container is detached from the macvlan network and the BMC stops getting addresses; the network object is kept (deleting it would make the container un-restartable), so re-enabling only needs a reconnect."
       }
+    },
+    "accessControl": {
+      "title": "Access control",
+      "description": "Configure sign-up admission rules and the self-service registration switch.",
+      "registrationLabel": "Allow self-service registration",
+      "registrationHint": "When off, the sign-up entry is unavailable; existing unverified accounts are unaffected.",
+      "registrationSaved": "Registration switch updated",
+      "emailNotConfigured": "Email service is not configured, so self-service registration is unavailable (it needs to send a code).",
+      "emailRulesTitle": "Email domain rules",
+      "emailRulesHint": "deny wins over allow; an empty allow list means no restriction, once it has entries only matching domains (and subdomains) are accepted. Applies to sign-up and to admin create or email change.",
+      "ipRulesTitle": "Source IP rules",
+      "ipRulesHint": "Applies to the login and sign-up entries only; disabled by default (no rules means no check). deny wins over allow.",
+      "allowLabel": "Allow",
+      "denyLabel": "Deny",
+      "empty": "No rules yet",
+      "valuePlaceholderEmail": "example.com",
+      "valuePlaceholderIp": "10.0.0.0/8",
+      "notePlaceholder": "Note (optional)",
+      "add": "Add rule",
+      "added": "Rule added",
+      "deleted": "Rule deleted",
+      "deleteConfirm": "Delete this rule?",
+      "currentIp": "Current request IP",
+      "selfLockBlocked": "Saving these rules would block your current address ({{ip}}); the save was rejected.",
+      "loadFailed": "Failed to load rules",
+      "listTypeLabel": "Type",
+      "valueLabel": "Value",
+      "noteLabel": "Note"
     }
   },
   "auth": {
@@ -271,7 +302,9 @@
       "forgotPassword": "Forgot password?",
       "loading": "Signing in…",
       "success": "Welcome back, {{email}}!",
-      "failed": "Sign in failed. Please try again."
+      "failed": "Sign in failed. Please try again.",
+      "noAccount": "No account yet?",
+      "unverified": "Email is not verified — redirected to the code page"
     },
     "forgotPassword": {
       "title": "Forgot password",
@@ -286,7 +319,46 @@
       "emailRequired": "Please enter your email.",
       "emailInvalid": "Please enter a valid email address.",
       "passwordRequired": "Please enter your password.",
-      "passwordMin": "Password must be at least 7 characters long."
+      "passwordMin": "Password must be at least 7 characters long.",
+      "passwordMinRegister": "Password must be at least 8 characters.",
+      "confirmRequired": "Please confirm your password.",
+      "passwordMismatch": "The two passwords do not match."
+    },
+    "captcha": {
+      "label": "Image code",
+      "placeholder": "Enter the characters",
+      "refresh": "New code"
+    },
+    "signUp": {
+      "title": "Create an account",
+      "description": "Enter your email and password to sign up. We will send a verification code to that address.",
+      "haveAccount": "Already have an account?",
+      "fullNameLabel": "Full name",
+      "fullNamePlaceholder": "Optional",
+      "fullNameHint": "Display only; may be left empty.",
+      "confirmPasswordLabel": "Confirm password",
+      "submit": "Sign up",
+      "loading": "Submitting…",
+      "success": "Registration submitted — check your inbox for the code",
+      "failed": "Sign-up failed, please try again",
+      "verifyHint": "After submitting, enter the 6-digit code from your inbox; the account cannot sign in before verification."
+    },
+    "otp": {
+      "title": "Verify your email",
+      "description": "A code has been sent to {{email}}. Enter the 6-digit number from the email.",
+      "missingEmail": "No email address to verify.",
+      "backToSignUp": "Back to sign-up",
+      "footerHint": "The code is valid for 10 minutes; unverified accounts cannot sign in.",
+      "codeLabel": "Email verification code",
+      "codeInvalid": "Enter the 6-digit code.",
+      "submit": "Verify",
+      "loading": "Verifying…",
+      "success": "Email verified, please sign in",
+      "failed": "Verification failed, please check the code",
+      "resendAction": "Did not get it? Resend",
+      "resendConfirm": "Send code",
+      "resending": "Sending…",
+      "resendSent": "A new code has been sent"
     }
   },
   "services": {
@@ -448,7 +520,8 @@
       "passwordEditPlaceholder": "Leave empty to keep the current password",
       "passwordNewPlaceholder": "At least 8 characters, with a lowercase letter and a digit",
       "confirmPasswordPlaceholder": "Repeat the password",
-      "activeHint": "A deactivated user cannot sign in to the platform"
+      "activeHint": "A deactivated user cannot sign in to the platform",
+      "emailVerified": "Email verified"
     },
     "rolesLoading": "Loading roles…",
     "rolesLoadFailed": "Failed to load the roles; close and try again.",
@@ -482,7 +555,16 @@
       "passwordDigit": "Password must contain at least one digit.",
       "passwordMismatch": "The two passwords do not match.",
       "rolesRequired": "Select at least one role."
-    }
+    },
+    "verified": "Verified",
+    "unverified": "Unverified",
+    "filterAllVerified": "All email states",
+    "filterVerified": "Verified only",
+    "filterUnverified": "Unverified only",
+    "actionVerifyEmail": "Mark verified",
+    "verifyEmailTitle": "Verify this account manually?",
+    "verifyEmailDesc": "Use this when the user cannot receive the verification email: the account can sign in right after.",
+    "verifyEmailDone": "Marked as verified"
   },
   "system": {
     "quick": {

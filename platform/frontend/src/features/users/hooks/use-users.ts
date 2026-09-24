@@ -7,6 +7,7 @@ import {
   listRoles,
   listUsers,
   updateUser,
+  verifyUserEmail,
   type UserCreatePayload,
   type UserUpdatePayload,
 } from '@/api/users'
@@ -42,6 +43,18 @@ export function useUpdateUserMutation() {
       updateUser(id, payload),
     onSuccess: () => {
       toast.success(t('users.updated'))
+      queryClient.invalidateQueries({ queryKey: ['users'] })
+    },
+  })
+}
+
+export function useVerifyUserEmailMutation() {
+  const queryClient = useQueryClient()
+  const { t } = useTranslation()
+  return useMutation({
+    mutationFn: (id: string) => verifyUserEmail(id),
+    onSuccess: () => {
+      toast.success(t('users.verifyEmailDone'))
       queryClient.invalidateQueries({ queryKey: ['users'] })
     },
   })

@@ -1,3 +1,4 @@
+from datetime import UTC, datetime
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
@@ -10,14 +11,13 @@ from app.crud import create_user
 from app.models import User, UserCreate
 from app.utils import generate_password_reset_token
 from tests.utils.user import user_authentication_headers
-from tests.utils.utils import random_email, random_lower_string
+from tests.utils.utils import login_form, random_email, random_lower_string
 
 
-def test_get_access_token(client: TestClient) -> None:
-    login_data = {
-        "username": settings.FIRST_SUPERUSER,
-        "password": settings.FIRST_SUPERUSER_PASSWORD,
-    }
+def test_get_access_token(client: TestClient, db: Session) -> None:
+    login_data = login_form(
+        db, email=settings.FIRST_SUPERUSER, password=settings.FIRST_SUPERUSER_PASSWORD
+    )
     r = client.post(f"{settings.API_V1_STR}/login/access-token", data=login_data)
     tokens = r.json()
     assert r.status_code == 200
@@ -25,11 +25,8 @@ def test_get_access_token(client: TestClient) -> None:
     assert tokens["access_token"]
 
 
-def test_get_access_token_incorrect_password(client: TestClient) -> None:
-    login_data = {
-        "username": settings.FIRST_SUPERUSER,
-        "password": "incorrect",
-    }
+def test_get_access_token_incorrect_password(client: TestClient, db: Session) -> None:
+    login_data = login_form(db, email=settings.FIRST_SUPERUSER, password="incorrect")
     r = client.post(f"{settings.API_V1_STR}/login/access-token", data=login_data)
     assert r.status_code == 400
 
@@ -99,7 +96,9 @@ def test_reset_password(client: TestClient, db: Session) -> None:
     )
     user = create_user(session=db, user_create=user_create)
     token = generate_password_reset_token(email=email)
-    headers = user_authentication_headers(client=client, email=email, password=password)
+    headers = user_authentication_headers(
+        client=client, db=db, email=email, password=password
+    )
     data = {"new_password": new_password, "token": token}
 
     r = client.post(
@@ -144,14 +143,19 @@ def test_login_with_bcrypt_password_upgrades_to_argon2(
     bcrypt_hash = bcrypt_hasher.hash(password)
     assert bcrypt_hash.startswith("$2")  # bcrypt hashes start with $2
 
-    user = User(email=email, hashed_password=bcrypt_hash, is_active=True)
+    user = User(
+        email=email,
+        hashed_password=bcrypt_hash,
+        is_active=True,
+        email_verified_at=datetime.now(UTC),
+    )
     db.add(user)
     db.commit()
     db.refresh(user)
 
     assert user.hashed_password.startswith("$2")
 
-    login_data = {"username": email, "password": password}
+    login_data = login_form(db, email=email, password=password)
     r = client.post(f"{settings.API_V1_STR}/login/access-token", data=login_data)
     assert r.status_code == 200
     tokens = r.json()
@@ -178,14 +182,19 @@ def test_login_with_argon2_password_keeps_hash(client: TestClient, db: Session) 
     assert argon2_hash.startswith("$argon2")
 
     # Create user with argon2 hash
-    user = User(email=email, hashed_password=argon2_hash, is_active=True)
+    user = User(
+        email=email,
+        hashed_password=argon2_hash,
+        is_active=True,
+        email_verified_at=datetime.now(UTC),
+    )
     db.add(user)
     db.commit()
     db.refresh(user)
 
     original_hash = user.hashed_password
 
-    login_data = {"username": email, "password": password}
+    login_data = login_form(db, email=email, password=password)
     r = client.post(f"{settings.API_V1_STR}/login/access-token", data=login_data)
     assert r.status_code == 200
     tokens = r.json()

@@ -19,6 +19,7 @@ import {
 } from '@/components/ui/table'
 import { taskStatusKey } from '../data/update-status'
 import { useSystemInfoQuery } from '../hooks/use-system'
+import { AccessControlPanel } from './access-control-panel'
 import { HostNetworkPanel } from './host-network-panel'
 import { L2BindingPanel } from './l2-binding-panel'
 
@@ -131,6 +132,7 @@ export function AboutPanel() {
 
       <HostNetworkPanel />
       <L2BindingPanel />
+      <AccessControlPanel />
       <Card>
         <CardHeader>
           <CardTitle>{t('settings.about.services.title')}</CardTitle>

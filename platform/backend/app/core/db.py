@@ -30,4 +30,7 @@ def init_db(session: Session) -> None:
             password=settings.FIRST_SUPERUSER_PASSWORD,
             is_superuser=True,
         )
+        # 首个超管由部署者经环境变量创建，属可信来源：crud.create_user 默认即标记
+        # 邮箱已验证。这里若走到「未验证」分支，新部署会卡在唯一管理员登不进去——
+        # 而没有任何人有权限放行它
         user = crud.create_user(session=session, user_create=user_in)

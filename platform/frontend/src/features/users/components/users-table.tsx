@@ -25,7 +25,11 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { DataTablePagination, DataTableToolbar } from '@/components/data-table'
-import { roleOptions, userStatusOptions } from '../data/data'
+import {
+  roleOptions,
+  userEmailVerifiedOptions,
+  userStatusOptions,
+} from '../data/data'
 import { buildUsersColumns } from './users-columns'
 
 type DataTableProps = {
@@ -77,6 +81,7 @@ export function UsersTable({ data, search, navigate }: DataTableProps) {
       // email per-column text filter
       { columnId: 'email', searchKey: 'email', type: 'string' },
       { columnId: 'status', searchKey: 'status', type: 'array' },
+      { columnId: 'emailVerified', searchKey: 'emailVerified', type: 'array' },
       { columnId: 'roles', searchKey: 'role', type: 'array' },
     ],
   })
@@ -124,6 +129,14 @@ export function UsersTable({ data, search, navigate }: DataTableProps) {
             title: t('users.field.status'),
             // 通用表格组件只认 label，选项里存的是 key，在这里翻译
             options: userStatusOptions.map((option) => ({
+              value: option.value,
+              label: t(option.labelKey),
+            })),
+          },
+          {
+            columnId: 'emailVerified',
+            title: t('users.field.emailVerified'),
+            options: userEmailVerifiedOptions.map((option) => ({
               value: option.value,
               label: t(option.labelKey),
             })),

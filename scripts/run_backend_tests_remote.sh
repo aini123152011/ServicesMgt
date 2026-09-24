@@ -46,6 +46,9 @@ done
 echo "==> 跑 pytest（容器内；tests/ 与 services/ 用部署目录里的当前版本挂进去）"
 # - tests 用部署目录的当前版本（镜像里的是构建时的旧副本）
 # - app 也挂进去：uv 把项目装成 editable，挂载后测的就是当前源码而不是镜像里的旧代码
+# - pyproject.toml / uv.lock 也挂进去：镜像里的依赖清单是构建时的快照，新增依赖
+#   （如验证码用的 pillow）不挂这两个文件，容器里 `uv sync --frozen` 装不上，
+#   测试会直接 ImportError。挂了之后测试环境始终与工作树一致
 # - SERVICES_DIR 指向挂载的服务目录，test_service_schemas/seeds 才能扫到全部服务
 # - UV_* 走国内镜像，避免容器里再拉一遍依赖超时
 # - pytest 用**绝对路径**调用：`bash -lc` 会加载 /etc/profile 重算 PATH，镜像里 ENV 设的
@@ -56,6 +59,8 @@ echo "==> 跑 pytest（容器内；tests/ 与 services/ 用部署目录里的当
 docker run --rm --network "$NET" \
   -v "${DEPLOY_DIR}/platform/backend/tests:/app/backend/tests:ro" \
   -v "${DEPLOY_DIR}/platform/backend/app:/app/backend/app:ro" \
+  -v "${DEPLOY_DIR}/platform/backend/pyproject.toml:/app/backend/pyproject.toml:ro" \
+  -v "${DEPLOY_DIR}/platform/backend/uv.lock:/app/backend/uv.lock:ro" \
   -v "${DEPLOY_DIR}/services:/app/services:ro" \
   -e DATABASE_URL="postgresql+psycopg://${DB_USER}:${DB_PASSWORD}@${PG_NAME}:5432/${DB_NAME}" \
   -e SERVICES_DIR=/app/services \

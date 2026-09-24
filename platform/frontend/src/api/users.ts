@@ -69,6 +69,18 @@ export async function updateUser(
 }
 
 /** DELETE /users/{id}，成功返回 Message */
+/**
+ * 管理员手动把账号标记为「邮箱已验证」。
+ *
+ * 用于用户收不到验证邮件时的人工放行；幂等，已验证过再调用不会重复写审计。
+ */
+export async function verifyUserEmail(id: string): Promise<UserPublic> {
+  const { data } = await apiClient.post<UserPublic>(
+    `/api/v1/users/${id}/verify-email`
+  )
+  return data
+}
+
 export async function deleteUser(id: string): Promise<Message> {
   const { data } = await apiClient.delete<Message>(`/api/v1/users/${id}`)
   return data
