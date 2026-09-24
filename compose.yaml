@@ -30,8 +30,9 @@
 # 见 .trellis/spec/services/container-runtime-guidelines.md 第 5 条）。
 # dhcp 需要 NET_ADMIN/NET_RAW：dnsmasq 的 DHCP 要开原始套接字、读写接口状态。
 
-# 项目名会加在网络/卷名前（如 fx_chrony-net）；取短名，避免 fx-fx_xxx 这种冗长前缀
-name: fx
+# 项目名会加在 Docker 网络名前（如 servicesmgt_chrony-net）；用产品名，别用容器前缀，
+# 否则会出现 fx-fx_xxx 这种重复前缀。compose 要求全小写（ServicesMgt 会被拒）
+name: servicesmgt
 
 services:
   # ---------------------------------------------------------------- 平台
