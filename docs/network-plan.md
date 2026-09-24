@@ -1,8 +1,7 @@
 # 网络规划
 
 > 一次性说清：宿主网口怎么用、Docker 网络怎么分、13 个服务的端口怎么映射、被测 BMC 从哪个地址访问哪个夹具。
-> 相关：接线与 macvlan 细节见 [部署指南](./deployment.md)「一之二」，二层网口绑定与校验的设计见
-> `.trellis/tasks/09-23-host-nic-selection/`（形态甲）。
+> 相关：部署与排障见[部署指南](./deployment.md)。
 
 ## 1. 宿主网口与两条访问路径
 
@@ -26,6 +25,63 @@
 
 **两条路径互不影响**：接线不会改变管理网的地址与默认路由，平台与其他业务照旧；宿主机不做 IP 转发、
 不做桥接，所以测试网段的流量不会漏进管理网（隔离，不是故障）。
+
+选择原则：**挑一块不承载管理/业务、当前没有链路的口**（上例是 `enp125s0f1`，备用 `enp125s0f2`）。
+管理口（`enp125s0f0`）不能动——SSH 与平台都走它；真实业务网口（`enp125s0f3`）也不要占用。
+
+### 三种接法对比
+
+| 接法 | 怎么做 | 适用 |
+| --- | --- | --- |
+| **直连（推荐）** | 一根网线：BMC 管理口 ↔ 空闲网口 | 单台 BMC 验证，最安全（该段只有夹具一个 DHCP） |
+| 经交换机同 VLAN | BMC 口与夹具口划进同一 untagged VLAN | BMC 只能接机柜交换机；跨交换机时 VLAN 要透传 |
+| 生产网内 | ❌ 不要 | 会与现场 DHCP 抢答，可能把 BMC 或别的设备配到错误地址 |
+
+### 配套要改的三处（线接对了但不改这三处，BMC 仍拿不到地址）
+
+1. `dhcp` 容器改挂 macvlan：
+   ```yaml
+   networks:
+     dhcp-net:
+       driver: macvlan
+       driver_opts: { parent: enp125s0f1 }        # 换成接 BMC 的那块口
+       ipam: { config: [{ subnet: 192.168.90.0/24, gateway: 192.168.90.1 }] }
+   ```
+2. 把 dnsmasq 的**地址池 / 网关 / RA 前缀**改成该测试网段（池不在接口子网内 dnsmasq 会拒绝服务，
+   实测踩过）。
+3. 平台**不用**加入这张网络——它通过 `docker.sock` 管容器。
+
+### 平台侧能看到与校验
+
+启用后平台会把这些事实呈现出来（不需要额外配置，见 [网络规划](./network-plan.md) §6）：
+「设置 → 关于 → 宿主网口」给出网口清单与当前绑定；服务详情页顶部给出与该服务相关的告警
+（绑定口无链路、地址池不在该网段、绑定口不存在、测试口承载默认路由、走宿主地址的服务缺测试口地址）；
+属于 `L2_SERVICES` 的服务的「使用方式」卡片会改用测试网段地址，而不是运维访问平台用的管理网地址。
+
+`compose.l2.yaml` 已随仓库提供（**只把 dhcp 挂 macvlan**）：挂 macvlan 的容器会失去宿主端口发布
+（实测：DNAT 规则被移除），所以 `tftpd-hpa`/`rsyslog`/`chrony` 保持宿主端口发布、由 BMC 经测试口地址访问。
+
+### 接线后自检
+
+```bash
+# 1) 链路是否起来（接上 BMC 后 carrier 应变成 1）
+cat /sys/class/net/enp125s0f1/carrier
+
+# 2) 该网口能否承载 macvlan（建一个临时子接口再删掉，不动现有配置）
+ip link add link enp125s0f1 name mv-probe type macvlan mode bridge &&   ip link set mv-probe up && ip -d link show mv-probe && ip link del mv-probe
+
+# 3) 真实取址验证：在与 dhcp 同网络的客户端容器里跑探针
+docker run --rm --network servicesmgt_dhcp-net   -v "$PWD/dhcp_probe.py:/probe.py:ro" bmc-platform:latest python3 /probe.py v4
+```
+
+### 三个坑
+
+- **macvlan 容器与宿主机默认不通**：父接口不能直接和子接口通信。若 BMC 还要访问夹具机上其它
+  服务（例如宿主发布的 TFTP 69/18108），需在宿主机再加一个 macvlan shim 接口。
+- **无线网卡不能做 macvlan parent**（有线才行）。
+- **交换机开了 DHCP snooping / 端口安全**会丢掉夹具的 DHCP 应答，需要把夹具所在口设为 trusted。
+
+---
 
 ## 2. Docker 网络规划
 

@@ -1,3 +1,9 @@
+# 服务验证矩阵（2026-09-23）
+
+> 逐服务的四类验证结论：**正向协议** / **故障注入** / **页面** / **BMC 侧**。
+> 数据来源：`scripts/verify_bmc_platform_e2e.py` 实际存在的检查项与 `fault_mode` 取值、各服务 `schema.json`、
+> BMC Redfish 实测记录（见本机任务记录）。
+
 ## IPv6 支持（13 服务中 12 个已覆盖）
 
 每个服务一条「IPv6 客户端可观测行为」用例，跑在启用 IPv6 的容器网络内（宿主无全局 IPv6）：
@@ -20,12 +26,6 @@
 
 > samba/nfs 用连接级探针：探针容器里没有 smbclient 与挂载能力；协议级验证仍由 IPv4 阶段覆盖。
 > dhcp 的 v6 用例在 DHCP 阶段内（RA/SLAAC、DHCPv6 有状态、DNS over v6），不在 `V6_CASES` 里。
-
-# 服务验证矩阵（2026-09-23）
-
-> 逐服务的四类验证结论：**正向协议** / **故障注入** / **页面** / **BMC 侧**。
-> 数据来源：`scripts/verify_bmc_platform_e2e.py` 实际存在的检查项与 `fault_mode` 取值、各服务 `schema.json`、
-> BMC Redfish 实测记录（见本机任务记录）。
 
 ## 总览
 
