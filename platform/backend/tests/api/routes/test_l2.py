@@ -32,7 +32,7 @@ L2_GATEWAY_V6=fd00:90::1
 L2_SERVICES=dhcp,tftpd-hpa,rsyslog,chrony
 """
 
-L2_NETWORK = "servicesmgt_dhcp-l2-net"
+L2_NETWORK = "fx_dhcp-l2-net"
 
 # dhcp 服务当前配置（旧网段 192.168.90.0/24）
 DHCP_VALUES: dict[str, Any] = {
@@ -42,7 +42,7 @@ DHCP_VALUES: dict[str, Any] = {
     "lease_time": "12h",
     "gateway": "192.168.90.1",
     "dns_servers": [],
-    "dns_records": ["bmc-01,192.168.90.10,fd00:90::10"],
+    "dns_records": ["fx-01,192.168.90.10,fd00:90::10"],
     "static_hosts": [],
     "ra_mode": "stateful",
     "ipv6_prefix": "fd00:90::/64",
@@ -156,7 +156,7 @@ def _fake_bindings(monkeypatch: pytest.MonkeyPatch) -> None:
         lambda names: [
             {
                 "service": "dhcp",
-                "container": "bmc-dhcp",
+                "container": "fx-dhcp",
                 "network": L2_NETWORK,
                 "parent": "enp125s0f1",
                 "attached": True,
@@ -528,7 +528,7 @@ def test_apply_writes_env_rebuilds_network_and_syncs_config(
     assert fake_apply_network[0]["parent"] == "enp125s0f3"
     assert fake_apply_network[0]["subnet"] == "192.168.95.0/24"
     assert fake_apply_network[0]["subnet_v6"] == "fd00:95::/64"
-    assert fake_restart == ["bmc-dhcp"]
+    assert fake_restart == ["fx-dhcp"]
     assert fake_apply_config[0]["name"] == "dhcp"
     assert fake_apply_config[0]["values"]["pool_end"] == "192.168.95.200"
 
@@ -653,7 +653,7 @@ def test_disable_removes_network_and_clears_parent(
     env_text = _env_file.read_text(encoding="utf-8")
     assert "DHCP_PARENT_IFACE=\n" in env_text
     assert "L2_SUBNET=192.168.90.0/24\n" in env_text
-    assert fake_restart == ["bmc-dhcp"]
+    assert fake_restart == ["fx-dhcp"]
     logs = db.exec(select(AuditLog)).all()
     assert [row.action for row in logs] == ["l2.disable"]
 

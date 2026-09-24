@@ -1,5 +1,5 @@
 #!/bin/bash
-# 统一生效入口：平台通过 docker exec bmc-vsftpd /reload.sh 触发配置生效。
+# 统一生效入口：平台通过 docker exec fx-vsftpd /reload.sh 触发配置生效。
 # 为什么是重启而非 SIGHUP：vsftpd 没有配置热加载能力（收到信号不会重读
 # vsftpd.conf），且用户清单（local_users.txt）变更需要 entrypoint 重新
 # useradd/chpasswd 同步账号，因此 manifest 声明 reload_mode=restart。

@@ -5,9 +5,9 @@
 # 镜像构建期用 $INCLUDE 把渲染产物接进配置树，避免「挂空卷把整棵配置树覆盖掉」。
 services:
   freeradius:
-    image: ${IMAGE_PREFIX:-}bmc-freeradius:${IMAGE_TAG:-latest}
+    image: ${IMAGE_PREFIX:-}fx-freeradius:${IMAGE_TAG:-latest}
     build: .
-    container_name: bmc-freeradius
+    container_name: fx-freeradius
     restart: unless-stopped
     ports:
       - "1812:1812/udp"

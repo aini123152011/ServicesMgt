@@ -14,7 +14,7 @@
             SearchResultEntry 的属性值；--tls 走 LDAPS
 
 用法（由 verify_bmc_platform_e2e.py 的认证阶段调用）：
-    python3 auth_probe.py radius --host freeradius --secret bmc-radius-secret \\
+    python3 auth_probe.py radius --host freeradius --secret fx-radius-secret \\
         --user bmcuser --password ChangeMe123 [--expect accept|reject|timeout] \\
         [--expect-attr Tunnel-Private-Group-Id=100] [--min-delay 3]
     python3 auth_probe.py ldap --host slapd --base dc=bmc,dc=lab --bind-dn cn=admin,dc=bmc,dc=lab \\

@@ -1,5 +1,5 @@
 #!/bin/bash
-# 统一生效入口：平台通过 docker exec bmc-rsyslog /reload.sh 触发配置生效。
+# 统一生效入口：平台通过 docker exec fx-rsyslog /reload.sh 触发配置生效。
 # 为什么是重启而非 SIGHUP：rsyslogd 收到 SIGHUP 只会关闭并重新打开所有输出文件
 # （配合日志轮转使用，源码 tools/rsyslogd.c 的 bHadHUP 逻辑不会重读配置），
 # 配置变更必须整体重启进程才能生效，因此 manifest 声明 reload_mode=restart。

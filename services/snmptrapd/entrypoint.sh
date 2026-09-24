@@ -6,7 +6,7 @@ set -eu
 
 CONF_DIR="/etc/snmp"
 CONF_FILE="${CONF_DIR}/snmptrapd.conf"
-SEED_FILE="/usr/share/bmc-snmptrapd/snmptrapd.conf.default"
+SEED_FILE="/usr/share/fx-snmptrapd/snmptrapd.conf.default"
 
 if [ ! -f "${CONF_FILE}" ]; then
     echo "entrypoint: 配置卷缺少 snmptrapd.conf，播种内置默认配置"

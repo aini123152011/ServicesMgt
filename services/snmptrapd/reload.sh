@@ -1,5 +1,5 @@
 #!/bin/bash
-# 统一生效入口：平台通过 docker exec bmc-snmptrapd /reload.sh 触发配置生效。
+# 统一生效入口：平台通过 docker exec fx-snmptrapd /reload.sh 触发配置生效。
 # 为什么是重启而非 SIGHUP：snmptrapd 收到 SIGHUP 会重读 snmptrapd.conf（源码
 # apps/snmptrapd.c 的 hup_handler -> trapd_update_config），但仅覆盖配置文件内指令
 # （如 authCommunity）；监听地址、输出文件、输出格式是启动命令行参数，SIGHUP 无法应用，

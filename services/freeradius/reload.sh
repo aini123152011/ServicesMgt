@@ -1,5 +1,5 @@
 #!/bin/bash
-# 统一生效入口：平台通过 docker exec bmc-freeradius /reload.sh 触发配置生效。
+# 统一生效入口：平台通过 docker exec fx-freeradius /reload.sh 触发配置生效。
 # 为什么是重启而非 HUP：freeradius 的 HUP 只重读部分内容，clients.conf 与 users 表都在启动期读入，
 # 改密钥/用户必须重启进程（freeradius 3.2 里 -HUP 只做部分重载，实测改 clients 不生效）。
 # 实现方式：终止当前 freeradius，entrypoint 的监督循环检测到退出后自动带新配置拉起（容器不重启）。

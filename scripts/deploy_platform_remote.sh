@@ -19,10 +19,10 @@ VERSION="${VERSION:-dev}"
 # 镜像来源：IMAGE_PREFIX 含结尾斜杠（如 docker.io/<账号>/），IMAGE_TAG 默认与 VERSION 一致
 IMAGE_PREFIX="${IMAGE_PREFIX:-}"
 IMAGE_TAG="${IMAGE_TAG:-$VERSION}"
-IMAGE_REF="${IMAGE_PREFIX}bmc-platform:${IMAGE_TAG}"
+IMAGE_REF="${IMAGE_PREFIX}fx-platform:${IMAGE_TAG}"
 BUILD_LOCAL="${BUILD_LOCAL:-0}"
-DEPLOY_DIR="${DEPLOY_DIR:-/opt/bmc-servicesmgt-deploy}"
-CONTAINER="${CONTAINER:-bmc-platform-backend}"
+DEPLOY_DIR="${DEPLOY_DIR:-/opt/fx-deploy}"
+CONTAINER="${CONTAINER:-fx-platform}"
 PACKAGE="${PACKAGE:-/tmp/platform-update.tgz}"
 
 cd "$DEPLOY_DIR"
@@ -88,7 +88,7 @@ network=$(docker inspect "$CONTAINER" --format '{{.HostConfig.NetworkMode}}')
 restart=$(docker inspect "$CONTAINER" --format '{{.HostConfig.RestartPolicy.Name}}')
 
 if [ "$BUILD_LOCAL" = "1" ]; then
-  echo "==> 本地构建 bmc-platform:$VERSION（BUILD_LOCAL=1，基于现有 latest 的分层构建）"
+  echo "==> 本地构建 fx-platform:$VERSION（BUILD_LOCAL=1，基于现有 latest 的分层构建）"
 else
   echo "==> 拉取平台镜像 $IMAGE_REF"
   docker pull "$IMAGE_REF" || {
@@ -98,29 +98,29 @@ else
 fi
 
 if [ "$BUILD_LOCAL" = "1" ]; then
-# Dockerfile.platform.fast 是 `FROM bmc-platform:latest` 的分层增量构建，每次叠约 5 层；
+# Dockerfile.platform.fast 是 `FROM fx-platform:latest` 的分层增量构建，每次叠约 5 层；
 # overlay2 的下层上限是 128 层，累计到 120+ 层时构建会直接失败（报 "max depth exceeded"，
 # 实测 122 层触发）。超过阈值就先把 latest 压成单层：docker commit 只会在原层上再加一层，
 # 真正压平要用 export（导出完整文件系统）+ import（单层重建）。
 MAX_LAYERS="${MAX_LAYERS:-100}"
-layers=$(docker inspect --format '{{len .RootFS.Layers}}' bmc-platform:latest 2>/dev/null || echo 0)
+layers=$(docker inspect --format '{{len .RootFS.Layers}}' fx-platform:latest 2>/dev/null || echo 0)
 if [ "${layers:-0}" -gt "$MAX_LAYERS" ]; then
   echo "==> latest 已有 $layers 层（阈值 $MAX_LAYERS），先压成单层"
-  flat_cid=$(docker create bmc-platform:latest)
-  docker export "$flat_cid" -o /tmp/bmc-platform-flat.tar
+  flat_cid=$(docker create fx-platform:latest)
+  docker export "$flat_cid" -o /tmp/fx-platform-flat.tar
   docker rm "$flat_cid" >/dev/null
   # import 不继承镜像配置（ENV/WORKDIR 会丢，PATH 丢了容器就找不到 fastapi），逐条搬过来
-  mapfile -t flat_envs < <(docker inspect bmc-platform:latest \
+  mapfile -t flat_envs < <(docker inspect fx-platform:latest \
     --format '{{range .Config.Env}}{{println .}}{{end}}' | grep -v '^$')
   flat_changes=()
   for entry in "${flat_envs[@]}"; do
     flat_changes+=(--change "ENV $entry")
   done
   docker import "${flat_changes[@]}" --change 'WORKDIR /app/backend' \
-    /tmp/bmc-platform-flat.tar bmc-platform:flat >/dev/null
-  docker tag bmc-platform:flat bmc-platform:latest
-  rm -f /tmp/bmc-platform-flat.tar
-  echo "==> 压缩完成：$(docker inspect --format '{{len .RootFS.Layers}}' bmc-platform:latest) 层"
+    /tmp/fx-platform-flat.tar fx-platform:flat >/dev/null
+  docker tag fx-platform:flat fx-platform:latest
+  rm -f /tmp/fx-platform-flat.tar
+  echo "==> 压缩完成：$(docker inspect --format '{{len .RootFS.Layers}}' fx-platform:latest) 层"
 fi
 
 docker build -f Dockerfile.platform.fast \
@@ -128,7 +128,7 @@ docker build -f Dockerfile.platform.fast \
   --build-arg APP_VERSION="$VERSION" \
   --build-arg APP_BUILD="$(date +%Y%m%d%H%M)" \
   . 2>&1 | tail -3
-docker tag "$IMAGE_REF" bmc-platform:latest
+docker tag "$IMAGE_REF" fx-platform:latest
 fi   # BUILD_LOCAL
 
 echo "==> 先跑数据库迁移（用新镜像，在切流之前）"
@@ -141,7 +141,7 @@ for entry in "${envs[@]}"; do
 done
 docker run --rm --network "$network" \
   "${env_args[@]}" \
-  "bmc-platform:$VERSION" alembic upgrade head
+  "fx-platform:$VERSION" alembic upgrade head
 
 echo "==> 重建容器（沿用原运行参数：网络 $network / 端口 $port / 重启策略 $restart）"
 docker rm -f "$CONTAINER" >/dev/null

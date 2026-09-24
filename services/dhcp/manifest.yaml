@@ -3,7 +3,7 @@ name: dhcp
 display_name: DHCP / DNS 服务
 category: network            # 分类枚举: time | file-share | log-monitor | network
 description: 基于 dnsmasq 的 DHCPv4 + DHCPv6/SLAAC + DNS 服务：为 BMC 管理口下发地址、网关、DNS 与域名，并支持 PXE 引导参数（与 tftpd-hpa 夹具联动）
-container_name: bmc-dhcp
+container_name: fx-dhcp
 config_dir: /etc/dnsmasq
 config_files:
   - dnsmasq.conf
@@ -34,9 +34,9 @@ usage:
     summary: 用真实 DHCP 客户端取址，并验证域名解析（A / AAAA / PTR 三向）
     command: |
       dhclient -4 -v eth0 && ip -4 addr show eth0
-      dig +short @{{host}} bmc-01.bmc.lab A
-      dig +short @{{host}} bmc-01.bmc.lab AAAA
+      dig +short @{{host}} fx-01.bmc.lab A
+      dig +short @{{host}} fx-01.bmc.lab AAAA
       dig +short @{{host}} -x 172.30.12.10 PTR
   - target: Linux
     summary: 查看租约文件（谁拿了哪个地址、租约何时到期）
-    command: docker exec bmc-dhcp cat /var/lib/dnsmasq/dnsmasq.leases
+    command: docker exec fx-dhcp cat /var/lib/dnsmasq/dnsmasq.leases

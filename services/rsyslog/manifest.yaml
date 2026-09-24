@@ -4,7 +4,7 @@ name: rsyslog
 display_name: BMC 日志归集
 category: log-monitor          # 分类枚举: time | file-share | log-monitor
 description: 基于 rsyslog 的集中日志接收服务，按日期目录与来源 IP 归档 BMC 日志
-container_name: bmc-rsyslog
+container_name: fx-rsyslog
 config_dir: /etc/rsyslog       # 配置卷在容器内的挂载点
 config_files:                  # 渲染产物相对 config_dir 的路径列表
   - rsyslog.conf
@@ -25,7 +25,7 @@ usage:                        # 详情页「外部使用方式」卡片内容；
       服务器 {{host}}    端口 {{port}}    传输 UDP
   - target: Linux
     summary: 用 logger 发一条测试日志（UDP 发到本服务首个端口；改过 listen_port 时以本服务配置为准）
-    command: logger -n {{host}} -P {{port}} -d "bmc-syslog-test"
+    command: logger -n {{host}} -P {{port}} -d "fx-syslog-test"
   - target: Linux
     summary: 在目标机上确认日志按「日期目录/来源IP.log」落盘（容器内归档根 /var/log/bmc）
-    command: docker exec bmc-rsyslog ls -l /var/log/bmc/$(date +%F)/
+    command: docker exec fx-rsyslog ls -l /var/log/bmc/$(date +%F)/

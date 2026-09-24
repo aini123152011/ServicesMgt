@@ -6,7 +6,7 @@ set -eu
 
 CONF_DIR="/etc/tftpd-hpa"
 CONF_FILE="${CONF_DIR}/tftpd-hpa.conf"
-SEED_FILE="/usr/share/bmc-tftpd-hpa/tftpd-hpa.conf.default"
+SEED_FILE="/usr/share/fx-tftpd-hpa/tftpd-hpa.conf.default"
 
 if [ ! -f "${CONF_FILE}" ]; then
     echo "entrypoint: 配置卷缺少 tftpd-hpa.conf，播种内置默认配置"

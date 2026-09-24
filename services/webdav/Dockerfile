@@ -24,8 +24,8 @@ COPY reload.sh /reload.sh
 # 启动前置脚本：处理配置卷首次挂空 + htpasswd 凭据转换 + 监督循环（apache2 为其子进程）
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 # 镜像内置默认配置：内容与 schema.json 默认值的渲染结果保持一致，作为空卷种子
-COPY defaults/apache2.conf /usr/share/bmc-webdav/apache2.conf.default
-COPY defaults/users.txt /usr/share/bmc-webdav/users.txt.default
+COPY defaults/apache2.conf /usr/share/fx-webdav/apache2.conf.default
+COPY defaults/users.txt /usr/share/fx-webdav/users.txt.default
 RUN chmod +x /reload.sh /usr/local/bin/entrypoint.sh
 
 # WebDAV 服务端口

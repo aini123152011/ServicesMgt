@@ -5,7 +5,7 @@
 set -eu
 
 CONF_DIR="/etc/freeradius/3.0/bmc"
-SEED_DIR="/usr/share/bmc-freeradius"
+SEED_DIR="/usr/share/fx-freeradius"
 
 mkdir -p "${CONF_DIR}" /var/log/freeradius
 if [ ! -f "${CONF_DIR}/clients.conf" ]; then

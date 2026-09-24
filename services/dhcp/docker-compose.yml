@@ -16,9 +16,9 @@
 # 并把默认配置里的地址池/网关/前缀改成该网段的（否则 dnsmasq 会因为池不在接口子网内而拒绝服务）。
 services:
   dhcp:
-    image: ${IMAGE_PREFIX:-}bmc-dhcp:${IMAGE_TAG:-latest}
+    image: ${IMAGE_PREFIX:-}fx-dhcp:${IMAGE_TAG:-latest}
     build: .
-    container_name: bmc-dhcp
+    container_name: fx-dhcp
     restart: unless-stopped
     # dnsmasq 的 DHCP 要开原始套接字（NET_RAW）并读写接口状态（NET_ADMIN）
     cap_add:

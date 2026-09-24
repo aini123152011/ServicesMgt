@@ -9,7 +9,7 @@
 
 ## 零、镜像从哪来（先读这一节）
 
-镜像名统一为 `bmc-<服务>` / `bmc-platform`，从哪个仓库拉由 `.env` 决定：
+镜像名统一为 `fx-<服务>` / `fx-platform`，从哪个仓库拉由 `.env` 决定：
 
 ```dotenv
 IMAGE_PREFIX=docker.io/aini123152008/     # 完整仓库前缀，**含结尾斜杠**
@@ -150,7 +150,7 @@ docker compose up -d          # 用服务自身的规范端口（nginx 80/443、
 平台镜像两种定义：
 
 - `Dockerfile.platform` —— 权威定义（含 `uv sync`），首次构建用；
-- `Dockerfile.platform.fast` —— 分层增量（`FROM bmc-platform:latest` 再覆盖 app 与前端产物），日常更新用。
+- `Dockerfile.platform.fast` —— 分层增量（`FROM fx-platform:latest` 再覆盖 app 与前端产物），日常更新用。
 
 增量部署到目标机（本地打包 → ssh 传包 → 远端构建/迁移/重建）：
 

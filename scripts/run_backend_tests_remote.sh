@@ -13,11 +13,11 @@
 #   bash scripts/run_backend_tests_remote.sh tests/test_service_seeds.py -q   # 透传 pytest 参数
 set -euo pipefail
 
-DEPLOY_DIR="${DEPLOY_DIR:-/opt/bmc-servicesmgt-deploy}"
-IMAGE="${IMAGE:-bmc-platform:latest}"
+DEPLOY_DIR="${DEPLOY_DIR:-/opt/fx-deploy}"
+IMAGE="${IMAGE:-fx-platform:latest}"
 PG_IMAGE="${PG_IMAGE:-postgres:18.4-alpine}"
-PG_NAME="bmc-pytest-pg"
-NET="bmc-pytest-net"
+PG_NAME="fx-pytest-pg"
+NET="fx-pytest-net"
 DB_USER="postgres"
 DB_PASSWORD="pytest-only-not-a-secret"
 DB_NAME="bmc_platform"

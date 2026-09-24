@@ -30,14 +30,14 @@
 # 见 .trellis/spec/services/container-runtime-guidelines.md 第 5 条）。
 # dhcp 需要 NET_ADMIN/NET_RAW：dnsmasq 的 DHCP 要开原始套接字、读写接口状态。
 
-# 项目名会加在网络/卷名前（如 servicesmgt_chrony-net）；取短名，避免 bmc-servicesmgt_xxx 这种冗长前缀
-name: servicesmgt
+# 项目名会加在网络/卷名前（如 fx_chrony-net）；取短名，避免 fx-fx_xxx 这种冗长前缀
+name: fx
 
 services:
   # ---------------------------------------------------------------- 平台
   platform-pg:
     image: postgres:18.4-alpine
-    container_name: bmc-platform-pg
+    container_name: fx-platform-pg
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-bmc}
@@ -45,7 +45,7 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-bmc_platform}
     volumes:
       - bmc-platform-isolated-pg-data:/var/lib/postgresql
-    networks: [bmc-platform-isolated-net]
+    networks: [platform-net]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-bmc} -d ${POSTGRES_DB:-bmc_platform}"]
       interval: 10s
@@ -53,8 +53,8 @@ services:
       retries: 5
 
   platform:
-    image: ${IMAGE_PREFIX:-}bmc-platform:${IMAGE_TAG:-latest}
-    container_name: bmc-platform-backend
+    image: ${IMAGE_PREFIX:-}fx-platform:${IMAGE_TAG:-latest}
+    container_name: fx-platform
     restart: unless-stopped
     depends_on:
       platform-pg:
@@ -62,7 +62,7 @@ services:
     environment:
       PROJECT_NAME: ${PROJECT_NAME:-BMC Services Platform}
       SECRET_KEY: ${SECRET_KEY:?SECRET_KEY 必须在 .env 中提供}
-      DATABASE_URL: postgresql://${POSTGRES_USER:-bmc}:${POSTGRES_PASSWORD}@bmc-platform-pg:5432/${POSTGRES_DB:-bmc_platform}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-bmc}:${POSTGRES_PASSWORD}@fx-platform-pg:5432/${POSTGRES_DB:-bmc_platform}
       FIRST_SUPERUSER: ${FIRST_SUPERUSER:?FIRST_SUPERUSER 必须在 .env 中提供}
       FIRST_SUPERUSER_PASSWORD: ${FIRST_SUPERUSER_PASSWORD:?FIRST_SUPERUSER_PASSWORD 必须在 .env 中提供}
       FRONTEND_HOST: ${FRONTEND_HOST:-http://localhost:18080}
@@ -70,7 +70,7 @@ services:
       SERVICES_DIR: /app/services
       VOLUMES_MOUNT_ROOT: /var/lib/platform
       UPDATE_REGISTRY: ${UPDATE_REGISTRY:-}
-      PLATFORM_CONTAINER_NAME: bmc-platform-backend
+      PLATFORM_CONTAINER_NAME: fx-platform
       # 二层测试网段（宿主网口面板与一致性校验用）：接 BMC 的网口、测试网段、
       # 需要在测试网段上被 BMC 访问的服务。留空 = 未启用二层夹具（面板会提示如何启用）
       DHCP_PARENT_IFACE: ${DHCP_PARENT_IFACE:-}
@@ -92,12 +92,12 @@ services:
       # 平台要改写 .env 里的 L2 参数——那是这些参数的**权威副本**，compose 也从它取值。
       # 平台只写白名单里的那几个键，且绝不把文件内容回显给任何接口（见 app/l2_config.py 模块说明）。
       - .:/host-deploy
-    networks: [bmc-platform-isolated-net]
+    networks: [platform-net]
 
   # ---------------------------------------------------------------- 13 个服务
   chrony:
-    image: ${IMAGE_PREFIX:-}bmc-chrony:${IMAGE_TAG:-latest}
-    container_name: bmc-chrony
+    image: ${IMAGE_PREFIX:-}fx-chrony:${IMAGE_TAG:-latest}
+    container_name: fx-chrony
     restart: unless-stopped
     ports: ["123:123/udp", "18101:123/udp"]
     volumes:
@@ -106,8 +106,8 @@ services:
     networks: [chrony-net]
 
   nginx:
-    image: ${IMAGE_PREFIX:-}bmc-nginx:${IMAGE_TAG:-latest}
-    container_name: bmc-nginx
+    image: ${IMAGE_PREFIX:-}fx-nginx:${IMAGE_TAG:-latest}
+    container_name: fx-nginx
     restart: unless-stopped
     ports: ["18102:80", "18103:443"]
     volumes:
@@ -116,8 +116,8 @@ services:
     networks: [nginx-net]
 
   rsyslog:
-    image: ${IMAGE_PREFIX:-}bmc-rsyslog:${IMAGE_TAG:-latest}
-    container_name: bmc-rsyslog
+    image: ${IMAGE_PREFIX:-}fx-rsyslog:${IMAGE_TAG:-latest}
+    container_name: fx-rsyslog
     restart: unless-stopped
     ports: ["514:514/tcp", "514:514/udp", "18104:514/tcp", "18104:514/udp"]
     volumes:
@@ -126,8 +126,8 @@ services:
     networks: [rsyslog-net]
 
   webdav:
-    image: ${IMAGE_PREFIX:-}bmc-webdav:${IMAGE_TAG:-latest}
-    container_name: bmc-webdav
+    image: ${IMAGE_PREFIX:-}fx-webdav:${IMAGE_TAG:-latest}
+    container_name: fx-webdav
     restart: unless-stopped
     ports: ["18105:8080"]
     volumes:
@@ -136,8 +136,8 @@ services:
     networks: [webdav-net]
 
   sftp:
-    image: ${IMAGE_PREFIX:-}bmc-sftp:${IMAGE_TAG:-latest}
-    container_name: bmc-sftp
+    image: ${IMAGE_PREFIX:-}fx-sftp:${IMAGE_TAG:-latest}
+    container_name: fx-sftp
     restart: unless-stopped
     ports: ["18106:22"]
     volumes:
@@ -146,8 +146,8 @@ services:
     networks: [sftp-net]
 
   vsftpd:
-    image: ${IMAGE_PREFIX:-}bmc-vsftpd:${IMAGE_TAG:-latest}
-    container_name: bmc-vsftpd
+    image: ${IMAGE_PREFIX:-}fx-vsftpd:${IMAGE_TAG:-latest}
+    container_name: fx-vsftpd
     restart: unless-stopped
     # 被动模式数据端口段必须整段发布，否则登录成功但列目录/传输会挂住
     ports:
@@ -160,8 +160,8 @@ services:
     networks: [vsftpd-net]
 
   tftpd-hpa:
-    image: ${IMAGE_PREFIX:-}bmc-tftpd-hpa:${IMAGE_TAG:-latest}
-    container_name: bmc-tftpd-hpa
+    image: ${IMAGE_PREFIX:-}fx-tftpd-hpa:${IMAGE_TAG:-latest}
+    container_name: fx-tftpd-hpa
     restart: unless-stopped
     # 69 是被测 BMC 取固件/配置文件的 TFTP 标准端口，必须保留；18108 是统一范围内的入口
     ports: ["69:69/udp", "18108:69/udp"]
@@ -171,8 +171,8 @@ services:
     networks: [tftpd-net]
 
   samba:
-    image: ${IMAGE_PREFIX:-}bmc-samba:${IMAGE_TAG:-latest}
-    container_name: bmc-samba
+    image: ${IMAGE_PREFIX:-}fx-samba:${IMAGE_TAG:-latest}
+    container_name: fx-samba
     restart: unless-stopped
     ports: ["445:445", "18109:445"]
     volumes:
@@ -181,8 +181,8 @@ services:
     networks: [samba-net]
 
   nfs-ganesha:
-    image: ${IMAGE_PREFIX:-}bmc-nfs-ganesha:${IMAGE_TAG:-latest}
-    container_name: bmc-nfs
+    image: ${IMAGE_PREFIX:-}fx-nfs-ganesha:${IMAGE_TAG:-latest}
+    container_name: fx-nfs-ganesha
     restart: unless-stopped
     # VFS FSAL 在 ext4 绑定挂载上需要完整能力（见文件头说明）
     privileged: true
@@ -193,8 +193,8 @@ services:
     networks: [nfs-net]
 
   snmptrapd:
-    image: ${IMAGE_PREFIX:-}bmc-snmptrapd:${IMAGE_TAG:-latest}
-    container_name: bmc-snmptrapd
+    image: ${IMAGE_PREFIX:-}fx-snmptrapd:${IMAGE_TAG:-latest}
+    container_name: fx-snmptrapd
     restart: unless-stopped
     ports: ["162:162/udp", "18111:162/udp"]
     volumes:
@@ -203,8 +203,8 @@ services:
     networks: [snmptrapd-net]
 
   postfix:
-    image: ${IMAGE_PREFIX:-}bmc-postfix:${IMAGE_TAG:-latest}
-    container_name: bmc-postfix
+    image: ${IMAGE_PREFIX:-}fx-postfix:${IMAGE_TAG:-latest}
+    container_name: fx-postfix
     restart: unless-stopped
     ports: ["25:25", "18112:25"]
     volumes:
@@ -213,8 +213,8 @@ services:
     networks: [postfix-net]
 
   dhcp:
-    image: ${IMAGE_PREFIX:-}bmc-dhcp:${IMAGE_TAG:-latest}
-    container_name: bmc-dhcp
+    image: ${IMAGE_PREFIX:-}fx-dhcp:${IMAGE_TAG:-latest}
+    container_name: fx-dhcp
     restart: unless-stopped
     # DHCP 要开原始套接字（NET_RAW）并读写接口状态（NET_ADMIN）
     cap_add: [NET_ADMIN, NET_RAW]
@@ -228,8 +228,8 @@ services:
 
 
   freeradius:
-    image: ${IMAGE_PREFIX:-}bmc-freeradius:${IMAGE_TAG:-latest}
-    container_name: bmc-freeradius
+    image: ${IMAGE_PREFIX:-}fx-freeradius:${IMAGE_TAG:-latest}
+    container_name: fx-freeradius
     restart: unless-stopped
     # RADIUS 认证端口是 BMC 侧只能填 IP 的标准端口，必须保留 1812/1813；18114 是统一范围内的入口
     ports: ["1812:1812/udp", "1813:1813/udp", "18114:1812/udp"]
@@ -252,7 +252,7 @@ networks:
   # IPv6 客户端行为；enable_ipv6 是网络级开关，不需要改 Docker daemon。
   # dhcp-net 的网段同时是 dnsmasq 默认配置里的地址池所在网段（172.30.12.0/24 / fd00:30:12::/64），
   # 这样「客户端容器在同一网络里取址」才是真的能取到。
-  bmc-platform-isolated-net: { driver: bridge, enable_ipv6: true, ipam: { config: [{ subnet: 172.30.0.0/24 }, { subnet: fd00:30:0::/64 }] } }
+  platform-net: { driver: bridge, enable_ipv6: true, ipam: { config: [{ subnet: 172.30.0.0/24 }, { subnet: fd00:30:0::/64 }] } }
   chrony-net: { driver: bridge, enable_ipv6: true, ipam: { config: [{ subnet: 172.30.1.0/24 }, { subnet: fd00:30:1::/64 }] } }
   nginx-net: { driver: bridge, enable_ipv6: true, ipam: { config: [{ subnet: 172.30.2.0/24 }, { subnet: fd00:30:2::/64 }] } }
   rsyslog-net: { driver: bridge, enable_ipv6: true, ipam: { config: [{ subnet: 172.30.3.0/24 }, { subnet: fd00:30:3::/64 }] } }
@@ -270,7 +270,7 @@ networks:
 volumes:
   # 数据库用命名卷（平台自带）；服务用绑定挂载，与「单服务独立部署」的卷布局一致。
   # **external**：这个卷是平台既有部署创建的，名字不带项目前缀；若交给 compose 管理，
-  # 它会按项目名新建一个空卷（servicesmgt_bmc-platform-isolated-pg-data）→ 平台连到没有表的库，
+  # 它会按项目名新建一个空卷（fx_bmc-platform-isolated-pg-data）→ 平台连到没有表的库，
   # 登录直接 500（实测踩到）。声明 external 即复用既有数据卷。
   bmc-platform-isolated-pg-data:
     external: true

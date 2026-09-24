@@ -3,7 +3,7 @@ name: samba
 display_name: Samba / CIFS 文件共享
 category: file-share          # 分类枚举: time | file-share | log-monitor
 description: 基于 Samba 的 Windows/CIFS 文件共享服务，支持 SMB2/SMB3、用户认证与协议版本故障注入
-container_name: bmc-samba
+container_name: fx-samba
 config_dir: /etc/samba-bmc    # 配置卷在容器内的挂载点
 config_files:                 # 渲染产物相对 config_dir 的路径列表
   - smb.conf

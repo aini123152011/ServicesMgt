@@ -137,7 +137,7 @@ def probe_tftp(addr: str, port: int) -> str:
 
 def probe_syslog(addr: str, port: int) -> str:
     # 落盘由 e2e 在宿主侧核对归档文件，这里只证明 v6 报文能发到服务
-    udp_send(addr, port, b"<134>v6probe bmc-v6: ipv6 syslog probe")
+    udp_send(addr, port, b"<134>v6probe fx-v6: ipv6 syslog probe")
     return f"PASS syslog addr={addr} 已发送（落盘由宿主侧核对）"
 
 

@@ -3,7 +3,7 @@ name: nfs-ganesha
 display_name: NFS 网络文件系统
 category: file-share          # 分类枚举: time | file-share | log-monitor
 description: 基于 NFS-Ganesha 的网络文件共享服务，支持 NFSv3/v4、网段访问控制与虚拟介质故障注入
-container_name: bmc-nfs
+container_name: fx-nfs-ganesha
 config_dir: /etc/ganesha-bmc  # 配置卷在容器内的挂载点
 config_files:                 # 渲染产物相对 config_dir 的路径列表
   - ganesha.conf
@@ -25,4 +25,4 @@ usage:                        # 详情页「外部使用方式」卡片内容；
     command: mount -t nfs -o vers=3,nolock {{host}}:/data/nfs /mnt
   - target: Linux
     summary: 用 NFSv4 挂载并读取导出目录（本服务不注册 mountd，showmount 会报 Program not registered，属预期）
-    command: mkdir -p /mnt/bmc-nfs && mount -t nfs4 {{host}}:/data/nfs /mnt/bmc-nfs && ls /mnt/bmc-nfs
+    command: mkdir -p /mnt/fx-nfs-ganesha && mount -t nfs4 {{host}}:/data/nfs /mnt/fx-nfs-ganesha && ls /mnt/fx-nfs-ganesha

@@ -200,20 +200,20 @@ def test_service_bindings_reads_macvlan_parent(monkeypatch: Any) -> None:
     _fake_client(
         monkeypatch,
         {
-            "bmc-dhcp": _FakeContainerObj(
+            "fx-dhcp": _FakeContainerObj(
                 {
-                    "servicesmgt_dhcp-net": {"IPAddress": "172.30.12.2"},
-                    "servicesmgt_dhcp-l2-net": {"IPAddress": "192.168.90.2"},
+                    "fx_dhcp-net": {"IPAddress": "172.30.12.2"},
+                    "fx_dhcp-l2-net": {"IPAddress": "192.168.90.2"},
                 }
             ),
-            "bmc-nginx": _FakeContainerObj(
-                {"servicesmgt_nginx-net": {"IPAddress": "172.30.2.2"}}
+            "fx-nginx": _FakeContainerObj(
+                {"fx_nginx-net": {"IPAddress": "172.30.2.2"}}
             ),
         },
         {
-            "servicesmgt_dhcp-net": _FakeNetwork("bridge", None),
-            "servicesmgt_dhcp-l2-net": _FakeNetwork("macvlan", "enp125s0f1"),
-            "servicesmgt_nginx-net": _FakeNetwork("bridge", None),
+            "fx_dhcp-net": _FakeNetwork("bridge", None),
+            "fx_dhcp-l2-net": _FakeNetwork("macvlan", "enp125s0f1"),
+            "fx_nginx-net": _FakeNetwork("bridge", None),
         },
     )
 
@@ -236,11 +236,11 @@ def test_l2_address_two_sources(monkeypatch: Any) -> None:
     _fake_client(
         monkeypatch,
         {
-            "bmc-dhcp": _FakeContainerObj(
-                {"servicesmgt_dhcp-l2-net": {"IPAddress": "192.168.90.2"}}
+            "fx-dhcp": _FakeContainerObj(
+                {"fx_dhcp-l2-net": {"IPAddress": "192.168.90.2"}}
             )
         },
-        {"servicesmgt_dhcp-l2-net": _FakeNetwork("macvlan", "enp125s0f1")},
+        {"fx_dhcp-l2-net": _FakeNetwork("macvlan", "enp125s0f1")},
     )
     interfaces = [_iface("enp125s0f1", cidr="192.168.90.0/24")]
     bindings = host_network.service_bindings(["dhcp"])
@@ -338,8 +338,8 @@ def test_checks_pool_outside_subnet(monkeypatch: Any) -> None:
     attached = [
         {
             "service": "dhcp",
-            "container": "bmc-dhcp",
-            "network": "servicesmgt_dhcp-l2-net",
+            "container": "fx-dhcp",
+            "network": "fx_dhcp-l2-net",
             "parent": "enp125s0f1",
             "attached": True,
             "address": "192.168.90.2",
@@ -366,7 +366,7 @@ def test_checks_subnet_mismatch_and_host_served_without_address(
         bindings=[
             {
                 "service": "dhcp",
-                "container": "bmc-dhcp",
+                "container": "fx-dhcp",
                 "network": "n",
                 "parent": "enp125s0f1",
                 "attached": True,
@@ -395,8 +395,8 @@ def test_checks_address_conflict(monkeypatch: Any) -> None:
         bindings=[
             {
                 "service": "dhcp",
-                "container": "bmc-dhcp",
-                "network": "servicesmgt_dhcp-l2-net",
+                "container": "fx-dhcp",
+                "network": "fx_dhcp-l2-net",
                 "parent": "enp125s0f1",
                 "attached": True,
                 "address": "192.168.90.1",
@@ -415,8 +415,8 @@ def test_checks_address_conflict(monkeypatch: Any) -> None:
         bindings=[
             {
                 "service": "dhcp",
-                "container": "bmc-dhcp",
-                "network": "servicesmgt_dhcp-l2-net",
+                "container": "fx-dhcp",
+                "network": "fx_dhcp-l2-net",
                 "parent": "enp125s0f1",
                 "attached": True,
                 "address": "192.168.90.2",
@@ -441,7 +441,7 @@ def test_checks_dhcp_not_attached(monkeypatch: Any) -> None:
         bindings=[
             {
                 "service": "dhcp",
-                "container": "bmc-dhcp",
+                "container": "fx-dhcp",
                 "network": None,
                 "parent": None,
                 "attached": False,
@@ -468,8 +468,8 @@ def test_checks_ra_prefix_outside_parent_subnet(monkeypatch: Any) -> None:
         bindings=[
             {
                 "service": "dhcp",
-                "container": "bmc-dhcp",
-                "network": "servicesmgt_dhcp-l2-net",
+                "container": "fx-dhcp",
+                "network": "fx_dhcp-l2-net",
                 "parent": "enp125s0f1",
                 "attached": True,
                 "address": "192.168.90.2",
@@ -486,8 +486,8 @@ def test_checks_ra_prefix_outside_parent_subnet(monkeypatch: Any) -> None:
         bindings=[
             {
                 "service": "dhcp",
-                "container": "bmc-dhcp",
-                "network": "servicesmgt_dhcp-l2-net",
+                "container": "fx-dhcp",
+                "network": "fx_dhcp-l2-net",
                 "parent": "enp125s0f1",
                 "attached": True,
                 "address": "192.168.90.2",
@@ -534,8 +534,8 @@ def test_checks_address_conflict_ipv6(monkeypatch: Any) -> None:
         bindings=[
             {
                 "service": "dhcp",
-                "container": "bmc-dhcp",
-                "network": "servicesmgt_dhcp-l2-net",
+                "container": "fx-dhcp",
+                "network": "fx_dhcp-l2-net",
                 "parent": "enp125s0f1",
                 "attached": True,
                 "address": "192.168.90.2",
@@ -563,8 +563,8 @@ def test_evaluate_checks_ignores_settings(monkeypatch: Any) -> None:
         bindings=[
             {
                 "service": "dhcp",
-                "container": "bmc-dhcp",
-                "network": "servicesmgt_dhcp-l2-net",
+                "container": "fx-dhcp",
+                "network": "fx_dhcp-l2-net",
                 "parent": "enp125s0f3",
                 "attached": True,
                 "address": "192.168.95.2",
@@ -623,8 +623,8 @@ def test_evaluate_checks_uses_l2_subnet_as_reference() -> None:
         bindings=[
             {
                 "service": "dhcp",
-                "container": "bmc-dhcp",
-                "network": "servicesmgt_dhcp-l2-net",
+                "container": "fx-dhcp",
+                "network": "fx_dhcp-l2-net",
                 "parent": "enp125s0f1",
                 "attached": True,
                 "address": "192.168.95.2",

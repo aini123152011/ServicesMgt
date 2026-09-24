@@ -1,5 +1,5 @@
 #!/bin/bash
-# 统一生效入口：平台通过 docker exec bmc-webdav /reload.sh 触发配置生效。
+# 统一生效入口：平台通过 docker exec fx-webdav /reload.sh 触发配置生效。
 # 为什么是重启而非 SIGUSR1 平滑重启：监听端口、DAV 根目录等指令无法经
 # SIGUSR1 热生效（已有监听套接字被保留），且用户清单变更需要 entrypoint
 # 重建 htpasswd，因此 manifest 声明 reload_mode=restart。

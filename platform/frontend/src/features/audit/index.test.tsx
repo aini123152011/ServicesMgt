@@ -78,7 +78,7 @@ const SERVICES: ServiceSummary[] = [
     display_name: '时间同步服务',
     category: 'time',
     description: null,
-    container_name: 'bmc-chrony',
+    container_name: 'fx-chrony',
     ports: [{ port: 123, protocol: 'udp', description: null }],
     reload_mode: 'restart',
   },

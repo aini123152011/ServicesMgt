@@ -1,5 +1,5 @@
 #!/bin/bash
-# 统一生效入口：平台通过 docker exec bmc-samba /reload.sh 触发配置生效。
+# 统一生效入口：平台通过 docker exec fx-samba /reload.sh 触发配置生效。
 # 实现方式：终止运行中的 smbd，由 entrypoint 监督循环重新同步账号并以新配置拉起。
 set -euo pipefail
 

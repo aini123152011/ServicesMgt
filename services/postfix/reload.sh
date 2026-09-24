@@ -1,5 +1,5 @@
 #!/bin/bash
-# 统一生效入口：平台通过 docker exec bmc-postfix /reload.sh 触发配置生效。
+# 统一生效入口：平台通过 docker exec fx-postfix /reload.sh 触发配置生效。
 # 为什么是重启而非热加载：postfix reload 只让运行中的守护进程重读部分参数，
 # 官方文档要求 inet_interfaces 等参数变更、以及 master.cf 进程结构变更必须
 # stop + start（重启进程）才能完全生效，因此统一按重启路径处理，

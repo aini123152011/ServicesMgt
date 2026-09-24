@@ -4,7 +4,7 @@ name: vsftpd
 display_name: FTP 文件共享
 category: file-share          # 分类枚举: time | file-share | log-monitor
 description: 基于 vsftpd 的 FTP 服务，本地账号密码登录，支持被动模式、chroot 与限速
-container_name: bmc-vsftpd
+container_name: fx-vsftpd
 config_dir: /etc/vsftpd       # 配置卷在容器内的挂载点
 config_files:                 # 渲染产物相对 config_dir 的路径列表
   - vsftpd.conf

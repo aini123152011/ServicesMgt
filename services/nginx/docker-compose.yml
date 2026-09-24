@@ -2,9 +2,9 @@
 # 独立网络 + 独立卷，与其他服务互不干扰（R1 隔离）
 services:
   nginx:
-    image: ${IMAGE_PREFIX:-}bmc-nginx:${IMAGE_TAG:-latest}
+    image: ${IMAGE_PREFIX:-}fx-nginx:${IMAGE_TAG:-latest}
     build: .
-    container_name: bmc-nginx
+    container_name: fx-nginx
     restart: unless-stopped
     ports:
       - "80:80/tcp"

@@ -63,7 +63,7 @@ def test_exec_reload_retries_while_container_is_restarting(
     container = _FakeContainer([_restarting_conflict(), _FakeResult(b"reload ok")])
     monkeypatch.setattr(lifecycle, "_get_container", lambda *_a, **_k: container)
 
-    assert lifecycle.exec_reload({"container_name": "bmc-chrony"}) == "reload ok"
+    assert lifecycle.exec_reload({"container_name": "fx-chrony"}) == "reload ok"
     assert container.calls == 2
 
 
@@ -77,7 +77,7 @@ def test_exec_reload_gives_up_after_retry_budget(
     monkeypatch.setattr(lifecycle, "_get_container", lambda *_a, **_k: container)
 
     with pytest.raises(lifecycle.LifecycleError):
-        lifecycle.exec_reload({"container_name": "bmc-chrony"})
+        lifecycle.exec_reload({"container_name": "fx-chrony"})
     assert container.calls == lifecycle.RELOAD_RETRY_ATTEMPTS
 
 
@@ -97,7 +97,7 @@ def test_exec_reload_does_not_retry_other_api_errors(
     monkeypatch.setattr(lifecycle, "_get_container", lambda *_a, **_k: container)
 
     with pytest.raises(lifecycle.LifecycleError):
-        lifecycle.exec_reload({"container_name": "bmc-chrony"})
+        lifecycle.exec_reload({"container_name": "fx-chrony"})
     assert container.calls == 1
 
 
@@ -109,6 +109,6 @@ def test_exec_reload_reports_nonzero_exit_without_retry(
     monkeypatch.setattr(lifecycle, "_get_container", lambda *_a, **_k: container)
 
     with pytest.raises(lifecycle.LifecycleError) as excinfo:
-        lifecycle.exec_reload({"container_name": "bmc-chrony"})
+        lifecycle.exec_reload({"container_name": "fx-chrony"})
     assert "no daemon" in str(excinfo.value)
     assert container.calls == 1

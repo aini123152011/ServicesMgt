@@ -5,7 +5,7 @@
 set -eu
 
 CONF_DIR="/etc/vsftpd"
-SEED_DIR="/usr/share/bmc-vsftpd"
+SEED_DIR="/usr/share/fx-vsftpd"
 USERS_FILE="${CONF_DIR}/local_users.txt"
 
 # 空卷播种：缺配置无法启动；用户清单缺失则播种默认账号（bmcuser/ChangeMe123）

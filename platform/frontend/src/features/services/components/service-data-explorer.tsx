@@ -105,7 +105,7 @@ export function ServiceDataExplorer({
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
-    link.download = selectedFilePath.split('/').pop() || 'bmc-log.txt'
+    link.download = selectedFilePath.split('/').pop() || 'fx-log.txt'
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)

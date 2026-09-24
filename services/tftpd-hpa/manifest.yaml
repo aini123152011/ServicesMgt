@@ -4,7 +4,7 @@ name: tftpd-hpa
 display_name: TFTP 文件传输
 category: file-share          # 分类枚举: time | file-share | log-monitor
 description: 基于 tftpd-hpa 的 TFTP 服务，供 BMC/网络设备上传下载配置与固件
-container_name: bmc-tftpd-hpa
+container_name: fx-tftpd-hpa
 config_dir: /etc/tftpd-hpa    # 配置卷在容器内的挂载点
 config_files:                 # 渲染产物相对 config_dir 的路径列表
   - tftpd-hpa.conf

@@ -24,7 +24,7 @@ services/<name>/
 | `display_name` | 中文显示名 |
 | `category` | `time` \| `file-share` \| `log-monitor` \| `network` |
 | `description` | 一句话说明 |
-| `container_name` | 容器名，约定 `bmc-<name>` |
+| `container_name` | 容器名，约定 `fx-<name>` |
 | `config_dir` | 配置卷在容器内的挂载点（如 `/etc/chrony`） |
 | `config_files` | 渲染产物相对 config_dir 的路径列表 |
 | `ports` | `[{port, protocol, description}]` |
@@ -38,7 +38,7 @@ services/<name>/
 
 - Service Registry 扫描 `SERVICES_DIR`（`app/core/config.py`）加载 manifest+schema
 - 配置渲染：Jinja2（`trim_blocks=True + lstrip_blocks=True`，模板头部勿删该约定注释）渲染到 `{VOLUMES_MOUNT_ROOT}/<name>-config/`，原子写入
-- 生效：`docker exec bmc-<name> /reload.sh`；容器未运行时保存配置但 `applied=false`（启动后生效）
+- 生效：`docker exec fx-<name> /reload.sh`；容器未运行时保存配置但 `applied=false`（启动后生效）
 - 模板渲染环境说明见 `services/chrony/templates/chrony.conf.j2` 头部注释
 
 ## 验收清单

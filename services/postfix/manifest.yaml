@@ -4,7 +4,7 @@ name: postfix
 display_name: SMTP 邮件中继
 category: log-monitor          # 分类枚举: time | file-share | log-monitor
 description: 基于 postfix 的 SMTP 服务，为 BMC 告警邮件提供中继与投递
-container_name: bmc-postfix
+container_name: fx-postfix
 config_dir: /etc/postfix       # 配置卷在容器内的挂载点
 config_files:                  # 渲染产物相对 config_dir 的路径列表
   - main.cf
@@ -19,7 +19,7 @@ usage:                        # 详情页「外部使用方式」卡片内容；
     summary: 在 BMC 上把告警邮件的中继服务器指向本服务（Redfish Managers/{id}/SmtpService，或 BMC Web 的邮件告警设置）
     command: |
       # BMC Web → 设置 → 告警/邮件通知：
-      SMTP 服务器 {{host}}    端口 {{port}}    发件地址 bmc@bmc-mail.local    认证 无
+      SMTP 服务器 {{host}}    端口 {{port}}    发件地址 bmc@fx-mail.local    认证 无
   - target: Linux
     summary: 用 SMTP 客户端验证本服务可中继（来源须在本服务可信网段 mynetworks 内，否则 RCPT 被拒）
     command: curl -sv smtp://{{host}}:{{port}} --mail-from bmc@test.local --mail-rcpt test@example.com

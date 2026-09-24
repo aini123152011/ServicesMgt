@@ -88,7 +88,7 @@
       "type": "string",
       "label": "Basic 认证密码",
       "secret": true,
-      "default": "bmc-fixture-pass",
+      "default": "fx-fixture-pass",
       "group": "base"
     },
     {

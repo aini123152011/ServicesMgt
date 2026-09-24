@@ -39,7 +39,7 @@ router = APIRouter(prefix="/l2", tags=["l2"], dependencies=[Depends(get_current_
 logger = logging.getLogger(__name__)
 
 DHCP_SERVICE = "dhcp"
-DHCP_CONTAINER = "bmc-dhcp"
+DHCP_CONTAINER = "fx-dhcp"
 
 # 执行路径上会遇到的异常：Docker 网络操作、.env 读写、容器重启、服务配置下发（502）
 _EXEC_ERRORS = (

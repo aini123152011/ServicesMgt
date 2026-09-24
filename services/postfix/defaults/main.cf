@@ -1,7 +1,7 @@
 # 本文件由 BMC 服务管理平台自动渲染生成，请勿手工编辑
 
 # 本机邮件名：对外 HELO 标识与日志中的主机名
-myhostname = bmc-mail.local
+myhostname = fx-mail.local
 
 # 本地投递域留空：BMC 场景只做告警邮件转发/中继，不在本机投递 mailbox，
 # 邮件按 mynetworks 中继规则交给 relayhost 或按 DNS MX 直接投递

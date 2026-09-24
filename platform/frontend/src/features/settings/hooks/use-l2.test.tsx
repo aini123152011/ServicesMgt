@@ -37,7 +37,7 @@ const STATE: L2State = {
   l2_gateway_v6: 'fd00:90::1',
   l2_services: ['dhcp'],
   duplicate_keys: [],
-  network: 'servicesmgt_dhcp-l2-net',
+  network: 'fx_dhcp-l2-net',
   network_exists: true,
   network_parent: 'enp125s0f1',
   attached: true,

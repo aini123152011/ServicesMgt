@@ -25,7 +25,7 @@ mkdir -p "${SSL_DIR}"
 if [ ! -f "${SSL_DIR}/cert.pem" ] || [ ! -f "${SSL_DIR}/key.pem" ]; then
     echo "entrypoint: 未检测到已有 SSL 证书，生成默认自签名证书..."
     openssl req -x509 -newkey rsa:2048 -nodes -days 3650 \
-        -subj "/CN=bmc-nginx" \
+        -subj "/CN=fx-nginx" \
         -out "${SSL_DIR}/cert.pem" \
         -keyout "${SSL_DIR}/key.pem" >/dev/null 2>&1
     chmod 600 "${SSL_DIR}/key.pem"

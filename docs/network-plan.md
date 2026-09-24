@@ -71,7 +71,7 @@ cat /sys/class/net/enp125s0f1/carrier
 ip link add link enp125s0f1 name mv-probe type macvlan mode bridge &&   ip link set mv-probe up && ip -d link show mv-probe && ip link del mv-probe
 
 # 3) 真实取址验证：在与 dhcp 同网络的客户端容器里跑探针
-docker run --rm --network servicesmgt_dhcp-net   -v "$PWD/dhcp_probe.py:/probe.py:ro" bmc-platform:latest python3 /probe.py v4
+docker run --rm --network fx_dhcp-net   -v "$PWD/dhcp_probe.py:/probe.py:ro" fx-platform:latest python3 /probe.py v4
 ```
 
 ### 三个坑
@@ -93,8 +93,8 @@ docker run --rm --network servicesmgt_dhcp-net   -v "$PWD/dhcp_probe.py:/probe.p
 │                                                                                │
 │  平台容器                每个服务容器（各自一张 bridge，互不可见）                 │
 │  ┌──────────────────┐   ┌───────────────────────────────────────────────────┐  │
-│  │ bmc-platform     │   │ chrony-net   172.30.1.0/24   fd00:30:1::/64       │  │
-│  │ bmc-platform-pg  │   │ nginx-net    172.30.2.0/24   fd00:30:2::/64       │  │
+│  │ fx-platform     │   │ chrony-net   172.30.1.0/24   fd00:30:1::/64       │  │
+│  │ fx-platform-pg  │   │ nginx-net    172.30.2.0/24   fd00:30:2::/64       │  │
 │  │ 172.30.0.0/24    │   │ rsyslog-net  172.30.3.0/24   fd00:30:3::/64       │  │
 │  │ fd00:30:0::/64   │   │ webdav-net   172.30.4.0/24   fd00:30:4::/64       │  │
 │  └────────┬─────────┘   │ sftp-net     172.30.5.0/24   fd00:30:5::/64       │  │
@@ -133,7 +133,7 @@ docker run --rm --network servicesmgt_dhcp-net   -v "$PWD/dhcp_probe.py:/probe.p
 | postfix | postfix-net 172.30.11.0/24 · fd00:30:11::/64 | 25 | 25、18112 | 重启 | — |
 | dhcp | dhcp-net 172.30.12.0/24 · fd00:30:12::/64 **＋ dhcp-l2-net（macvlan）** | 67/udp、547/udp、53/tcp+udp | **仅 18113（DNS）** | 重启 | `192.168.90.x:67`（DHCP）／`53`（DNS） |
 | freeradius | freeradius-net 172.30.13.0/24 · fd00:30:13::/64 | 1812/udp、1813/udp | 1812、1813、18114 | 重启 | — |
-| **平台** | bmc-platform-isolated-net 172.30.0.0/24 · fd00:30:0::/64 | 8000 | **18080** | — | 管理网访问，不经测试口 |
+| **平台** | platform-net 172.30.0.0/24 · fd00:30:0::/64 | 8000 | **18080** | — | 管理网访问，不经测试口 |
 
 **两处例外要记住**：
 
@@ -146,7 +146,7 @@ docker run --rm --network servicesmgt_dhcp-net   -v "$PWD/dhcp_probe.py:/probe.p
 
 ```
 被测 BMC（管理口）
- ├─ 取址：DHCPDISCOVER 广播 ──► enp125s0f1 ──► macvlan ──► bmc-dhcp 容器（192.168.90.x:67）
+ ├─ 取址：DHCPDISCOVER 广播 ──► enp125s0f1 ──► macvlan ──► fx-dhcp 容器（192.168.90.x:67）
  │        DHCP 下发：地址 192.168.90.100-200、网关 192.168.90.1、DNS 192.168.90.x、可选 PXE 参数
  ├─ 域名解析：192.168.90.x:53（DNS，v4/v6 双栈）
  ├─ 取固件：tftp://192.168.90.1:69        （tftpd-hpa，宿主测试口地址）

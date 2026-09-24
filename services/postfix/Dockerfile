@@ -18,18 +18,18 @@ RUN sed -i "s|deb.debian.org|${APT_MIRROR}|g" /etc/apt/sources.list.d/debian.sou
 # 支撑配置快照：master.cf / dynamicmaps.cf 及 postfix 脚本工具集（post-install, postfix-files等）
 # 是包自带且平台不渲染的必需配置。配置卷挂到 /etc/postfix 后，若平台先渲染 main.cf 再启动容器，
 # Docker 不会把镜像内该路径内容拷进卷，故完整备份到种子目录由 entrypoint 兜底回填
-RUN mkdir -p /usr/share/bmc-postfix/seed_etc \
-    && cp -a /etc/postfix/. /usr/share/bmc-postfix/seed_etc/ \
-    && cp /etc/postfix/master.cf /usr/share/bmc-postfix/master.cf.default \
-    && cp /etc/postfix/dynamicmaps.cf /usr/share/bmc-postfix/dynamicmaps.cf.default \
-    && rm -f /etc/postfix/main.cf /usr/share/bmc-postfix/seed_etc/main.cf
+RUN mkdir -p /usr/share/fx-postfix/seed_etc \
+    && cp -a /etc/postfix/. /usr/share/fx-postfix/seed_etc/ \
+    && cp /etc/postfix/master.cf /usr/share/fx-postfix/master.cf.default \
+    && cp /etc/postfix/dynamicmaps.cf /usr/share/fx-postfix/dynamicmaps.cf.default \
+    && rm -f /etc/postfix/main.cf /usr/share/fx-postfix/seed_etc/main.cf
 
 # 统一生效入口：平台契约要求所有服务镜像都提供 /reload.sh（docker exec <容器> /reload.sh）
 COPY reload.sh /reload.sh
 # 启动前置脚本：处理配置卷首次挂空 + chroot 目录修复 + 监督循环
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 # 镜像内置默认配置：内容与 schema.json 默认值的渲染结果保持一致，作为空卷种子
-COPY defaults/main.cf /usr/share/bmc-postfix/main.cf.default
+COPY defaults/main.cf /usr/share/fx-postfix/main.cf.default
 RUN chmod +x /reload.sh /usr/local/bin/entrypoint.sh
 
 # SMTP 标准端口

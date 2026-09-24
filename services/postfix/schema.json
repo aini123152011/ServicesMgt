@@ -4,7 +4,7 @@
       "name": "myhostname",
       "type": "string",
       "label": "邮件主机名",
-      "default": "bmc-mail.local",
+      "default": "fx-mail.local",
       "required": true,
       "help": "本机对外标识（HELO/日志中的主机名），建议填内网可解析的 FQDN",
       "pattern": "^[A-Za-z0-9]([A-Za-z0-9.\\-]*[A-Za-z0-9])?$",

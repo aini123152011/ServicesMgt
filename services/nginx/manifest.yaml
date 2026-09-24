@@ -4,7 +4,7 @@ name: nginx
 display_name: HTTP / HTTPS 文件服务
 category: file-share          # 分类枚举: time | file-share | log-monitor
 description: 提供高性能固件分发与日志收集的 HTTP/HTTPS 服务，支持 Basic 认证、限速与故障注入
-container_name: bmc-nginx
+container_name: fx-nginx
 config_dir: /etc/nginx-bmc    # 配置卷在容器内的挂载点
 config_files:                 # 渲染产物相对 config_dir 的路径列表
   - nginx.conf

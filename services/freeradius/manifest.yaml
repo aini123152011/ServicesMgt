@@ -3,7 +3,7 @@ name: freeradius
 display_name: RADIUS 认证服务
 category: network            # 分类枚举: time | file-share | log-monitor | network
 description: 基于 FreeRADIUS 的认证服务：为 BMC 提供 RADIUS 认证/计费应答，可下发 VLAN 等回复属性，并带拒绝/无应答/属性篡改类故障模式
-container_name: bmc-freeradius
+container_name: fx-freeradius
 config_dir: /etc/freeradius/3.0/bmc   # 只挂一个子目录：包自带的配置树保持原样，靠 $INCLUDE 接进来
 config_files:
   - clients.conf
@@ -29,8 +29,8 @@ usage:
   - target: Linux
     summary: 用真实 RADIUS 客户端验证认证（radtest 来自 freeradius-utils）
     command: |
-      radtest bmcuser ChangeMe123 {{host}} 0 bmc-radius-secret
+      radtest bmcuser ChangeMe123 {{host}} 0 fx-radius-secret
       # 期望 Access-Accept；密码错则 Access-Reject
   - target: Linux
     summary: 查看服务日志（认证成功/失败逐条可查）
-    command: docker logs bmc-freeradius --tail 50
+    command: docker logs fx-freeradius --tail 50

@@ -4,7 +4,7 @@ name: snmptrapd
 display_name: SNMP Trap 接收
 category: log-monitor          # 分类枚举: time | file-share | log-monitor
 description: 基于 net-snmp snmptrapd 的 Trap 接收服务，接收 BMC 告警事件并落盘
-container_name: bmc-snmptrapd
+container_name: fx-snmptrapd
 config_dir: /etc/snmp          # 配置卷在容器内的挂载点
 config_files:                  # 渲染产物相对 config_dir 的路径列表
   - snmptrapd.conf
@@ -22,7 +22,7 @@ usage:                        # 详情页「外部使用方式」卡片内容；
       Trap 目的地址 {{host}}    端口 {{port}}    版本 v2c    社区 bmctrap
   - target: Linux
     summary: 用 net-snmp 客户端发一条 v2c Trap（社区须在本服务 communities 清单内，默认 bmctrap）
-    command: snmptrap -v2c -c bmctrap {{host}}:{{port}} '' 1.3.6.1.4.1.8072.2.3.0.1 1.3.6.1.4.1.8072.2.3.0.2 s "bmc-trap-test"
+    command: snmptrap -v2c -c bmctrap {{host}}:{{port}} '' 1.3.6.1.4.1.8072.2.3.0.1 1.3.6.1.4.1.8072.2.3.0.2 s "fx-trap-test"
   - target: Linux
     summary: 在目标机上查看 Trap 落盘结果（容器内日志文件 /var/log/snmp/traps.log）
-    command: docker exec bmc-snmptrapd tail -n 5 /var/log/snmp/traps.log
+    command: docker exec fx-snmptrapd tail -n 5 /var/log/snmp/traps.log

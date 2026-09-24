@@ -31,8 +31,8 @@ def fake_targets(monkeypatch: pytest.MonkeyPatch) -> list[dict[str, Any]]:
         {
             "target": "platform",
             "display_name": settings.PROJECT_NAME,
-            "container_name": "bmc-platform-backend",
-            "image": "bmc-platform:latest",
+            "container_name": "fx-platform",
+            "image": "fx-platform:latest",
             "running_image_id": "sha256:aaa",
             "available_image_id": "sha256:aaa",
             "image_created": "2026-09-21T00:00:00Z",
@@ -42,7 +42,7 @@ def fake_targets(monkeypatch: pytest.MonkeyPatch) -> list[dict[str, Any]]:
         {
             "target": "nginx",
             "display_name": "HTTP / HTTPS 文件服务",
-            "container_name": "bmc-nginx",
+            "container_name": "fx-nginx",
             "image": "bmc/nginx:latest",
             "running_image_id": "sha256:old",
             "available_image_id": "sha256:new",
@@ -121,7 +121,7 @@ def test_check_updates_returns_conclusion(
                 {
                     "target": "nginx",
                     "display_name": "HTTP / HTTPS 文件服务",
-                    "container_name": "bmc-nginx",
+                    "container_name": "fx-nginx",
                     "image": "bmc/nginx:latest",
                     "running_image_id": "sha256:old",
                     "available_image_id": "sha256:new",
@@ -284,7 +284,7 @@ def test_current_status_marks_failed_when_helper_died(
     )
     system_update.write_status(
         target="platform",
-        image="bmc-platform:latest",
+        image="fx-platform:latest",
         status="running",
         phase="pending",
     )

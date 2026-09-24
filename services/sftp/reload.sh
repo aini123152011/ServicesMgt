@@ -1,5 +1,5 @@
 #!/bin/bash
-# 统一生效入口：平台通过 docker exec bmc-sftp /reload.sh 触发配置生效。
+# 统一生效入口：平台通过 docker exec fx-sftp /reload.sh 触发配置生效。
 # 为什么是重启而非 SIGHUP：sshd 收到 SIGHUP 虽会重读配置文件，
 # 但用户清单（users.txt）变更需要 entrypoint 重新 useradd/chpasswd 同步账号，
 # 只有走一遍监督循环才能完成，因此 manifest 声明 reload_mode=restart。

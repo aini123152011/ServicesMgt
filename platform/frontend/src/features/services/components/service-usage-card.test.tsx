@@ -26,7 +26,7 @@ const BMC_ENTRY: ServiceUsageEntry = {
 const LINUX_ENTRY: ServiceUsageEntry = {
   target: 'Linux',
   summary: '发一条测试日志',
-  command: 'logger -n {{host}} -P {{port}} -d "bmc-syslog-test"\n',
+  command: 'logger -n {{host}} -P {{port}} -d "fx-syslog-test"\n',
 }
 
 describe('ServiceUsageCard', () => {
@@ -48,7 +48,7 @@ describe('ServiceUsageCard', () => {
     await expect
       .element(
         screen.getByText(
-          `logger -n ${window.location.hostname} -P 514 -d "bmc-syslog-test"`
+          `logger -n ${window.location.hostname} -P 514 -d "fx-syslog-test"`
         )
       )
       .toBeInTheDocument()
@@ -72,7 +72,7 @@ describe('ServiceUsageCard', () => {
     await expect
       .element(
         screen.getByText(
-          `logger -n ${window.location.hostname} -P {{port}} -d "bmc-syslog-test"`
+          `logger -n ${window.location.hostname} -P {{port}} -d "fx-syslog-test"`
         )
       )
       .toBeInTheDocument()
@@ -93,7 +93,7 @@ describe('ServiceUsageCard', () => {
 
 it('绑定了二层网段时用测试网段地址替换 {{host}}，而不是访问地址', async () => {
   const entries: ServiceUsageEntry[] = [
-    { target: 'BMC', summary: '取址', command: 'dig @{{host}} bmc-01.bmc.lab' },
+    { target: 'BMC', summary: '取址', command: 'dig @{{host}} fx-01.bmc.lab' },
   ]
   const screen = await render(
     <ServiceUsageCard entries={entries} port={53} l2Address='192.168.90.1' />
@@ -101,7 +101,7 @@ it('绑定了二层网段时用测试网段地址替换 {{host}}，而不是访�
 
   // 被测 BMC 在测试网段上够不到管理网地址，卡片必须显示二层地址
   await expect
-    .element(screen.getByText('dig @192.168.90.1 bmc-01.bmc.lab'))
+    .element(screen.getByText('dig @192.168.90.1 fx-01.bmc.lab'))
     .toBeVisible()
 })
 
@@ -110,7 +110,7 @@ it('未绑定二层时仍用访问地址替换 {{host}}', async () => {
     {
       target: 'Linux',
       summary: '直连',
-      command: 'dig @{{host}} bmc-01.bmc.lab',
+      command: 'dig @{{host}} fx-01.bmc.lab',
     },
   ]
   const screen = await render(
@@ -118,8 +118,6 @@ it('未绑定二层时仍用访问地址替换 {{host}}', async () => {
   )
 
   await expect
-    .element(
-      screen.getByText(`dig @${window.location.hostname} bmc-01.bmc.lab`)
-    )
+    .element(screen.getByText(`dig @${window.location.hostname} fx-01.bmc.lab`))
     .toBeVisible()
 })

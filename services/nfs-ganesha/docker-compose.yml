@@ -2,9 +2,9 @@
 # 独立网络 + 独立卷，与其他服务互不干扰（R1 隔离）
 services:
   nfs-ganesha:
-    image: ${IMAGE_PREFIX:-}bmc-nfs-ganesha:${IMAGE_TAG:-latest}
+    image: ${IMAGE_PREFIX:-}fx-nfs-ganesha:${IMAGE_TAG:-latest}
     build: .
-    container_name: bmc-nfs
+    container_name: fx-nfs-ganesha
     restart: unless-stopped
     # NFS-Ganesha 的 VFS FSAL 用 name_to_handle_at/open_by_handle_at 给导出目录发文件句柄，
     # 在宿主 bind 挂载的 ext4 上这套调用要求容器具备完整能力且不被 seccomp/SELinux 限制，

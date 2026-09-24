@@ -7,7 +7,7 @@
 # radiusd 直接静默丢弃（不回任何报文），BMC 侧的可观测行为就是「认证超时」。
 # 曾经的做法是「换一个密钥」，实测那样服务端仍会用错密钥解密码 → 回 Access-Reject（表现为密码错），
 # 与「无应答」不是一回事。
-client bmc-nas {
+client fx-nas {
     ipaddr = 192.0.2.0/24
     secret = {{ nas_clients[0].split(',')[2] }}
     require_message_authenticator = no

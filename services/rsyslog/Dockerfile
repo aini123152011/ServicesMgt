@@ -24,7 +24,7 @@ COPY reload.sh /reload.sh
 # 启动前置脚本：处理配置卷首次挂空 + 监督循环（rsyslogd 为其子进程）
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 # 镜像内置默认配置：内容与 schema.json 默认值的渲染结果保持一致，作为空卷种子
-COPY defaults/rsyslog.conf /usr/share/bmc-rsyslog/rsyslog.conf.default
+COPY defaults/rsyslog.conf /usr/share/fx-rsyslog/rsyslog.conf.default
 RUN chmod +x /reload.sh /usr/local/bin/entrypoint.sh
 
 # Syslog 标准端口：UDP 为主，TCP 可选

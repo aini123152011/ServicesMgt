@@ -18,9 +18,9 @@ SERVICES_DIR="${ROOT_DIR}/services"
 PLATFORMS="${PLATFORMS:-}"   # buildx 目标架构；留空 = 当前平台
 REGISTRY="${REGISTRY:-}"     # 镜像仓库前缀（如 ghcr.io/org）；留空 = 仅本地 tag
 TAG="${TAG:-latest}"         # 镜像 tag
-# 镜像名前缀：本地 tag 与仓库路径保持同名（bmc-chrony / ghcr.io/<owner>/bmc-chrony），
+# 镜像名前缀：本地 tag 与仓库路径保持同名（fx-chrony / ghcr.io/<owner>/fx-chrony），
 # 避免「本地一套名、仓库一套名」两套命名
-NAME_PREFIX="${NAME_PREFIX:-bmc-}"
+NAME_PREFIX="${NAME_PREFIX:-fx-}"
 PUSH="${PUSH:-0}"            # 1 = 构建后推送（需同时设置 REGISTRY）
 # 额外 build-arg，空格分隔（如 "APT_MIRROR=mirrors.aliyun.com"）。
 # 留空 = 用 Dockerfile 里的默认值，与 CI 行为完全一致；国内网络本地构建时可用它换源加速。

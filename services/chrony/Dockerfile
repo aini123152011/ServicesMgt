@@ -24,7 +24,7 @@ COPY reload.sh /reload.sh
 # 启动前置脚本：处理配置卷首次挂空
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 # 镜像内置默认配置：内容与 schema.json 默认值的渲染结果保持一致，作为空卷种子
-COPY defaults/chrony.conf /usr/share/bmc-chrony/chrony.conf.default
+COPY defaults/chrony.conf /usr/share/fx-chrony/chrony.conf.default
 RUN chmod +x /reload.sh /usr/local/bin/entrypoint.sh
 
 # NTP 标准端口

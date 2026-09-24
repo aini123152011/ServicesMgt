@@ -3,9 +3,9 @@
 services:
   webdav:
     # 有 image 时 compose 会把 build 产物打上该 tag，也方便直接使用 CI 构建好的镜像
-    image: ${IMAGE_PREFIX:-}bmc-webdav:${IMAGE_TAG:-latest}
+    image: ${IMAGE_PREFIX:-}fx-webdav:${IMAGE_TAG:-latest}
     build: .
-    container_name: bmc-webdav
+    container_name: fx-webdav
     restart: unless-stopped
     ports:
       # 默认发布到宿主机所有地址，供内网设备挂载/访问；仅本机使用时改为 "127.0.0.1:8080:8080/tcp"

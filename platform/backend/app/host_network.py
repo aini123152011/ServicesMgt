@@ -171,7 +171,7 @@ def _client() -> Any:
 def _helper_image(client: Any) -> str:
     """helper 容器用的镜像：优先取平台容器自己的镜像，取不到再退回本地 tag。
 
-    不写死镜像名：平台可能以 `${IMAGE_PREFIX}bmc-platform:<tag>` 或 `bmc-platform:<版本>` 运行，
+    不写死镜像名：平台可能以 `${IMAGE_PREFIX}fx-platform:<tag>` 或 `fx-platform:<版本>` 运行，
     写死会让 helper 在换 tag 的部署上起不来（那时 IP 采集整块降级）。
     """
     try:
@@ -181,7 +181,7 @@ def _helper_image(client: Any) -> str:
             return image
     except Exception as e:  # noqa: BLE001 - 取不到就退回默认 tag，不影响主流程
         logger.debug(f"cannot resolve platform image for helper: {e}")
-    return "bmc-platform:latest"
+    return "fx-platform:latest"
 
 
 def _read_host_addresses() -> tuple[
@@ -304,7 +304,7 @@ def service_bindings(service_names: list[str]) -> list[dict[str, Any]]:
         return bindings
 
     for name in service_names:
-        container_name = "bmc-nfs" if name == "nfs-ganesha" else f"bmc-{name}"
+        container_name = "fx-nfs-ganesha" if name == "nfs-ganesha" else f"fx-{name}"
         entry: dict[str, Any] = {
             "service": name,
             "container": container_name,

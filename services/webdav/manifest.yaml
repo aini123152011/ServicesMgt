@@ -4,7 +4,7 @@ name: webdav
 display_name: WebDAV 文件共享
 category: file-share          # 分类枚举: time | file-share | log-monitor
 description: 基于 Apache mod_dav 的 WebDAV 服务，支持 Basic 认证、只读模式与上传限额
-container_name: bmc-webdav
+container_name: fx-webdav
 config_dir: /etc/apache2-bmc  # 配置卷在容器内的挂载点（自定义目录，避开包自带配置）
 config_files:                 # 渲染产物相对 config_dir 的路径列表
   - apache2.conf

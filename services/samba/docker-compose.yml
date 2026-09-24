@@ -2,9 +2,9 @@
 # 独立网络 + 独立卷，与其他服务互不干扰（R1 隔离）
 services:
   samba:
-    image: ${IMAGE_PREFIX:-}bmc-samba:${IMAGE_TAG:-latest}
+    image: ${IMAGE_PREFIX:-}fx-samba:${IMAGE_TAG:-latest}
     build: .
-    container_name: bmc-samba
+    container_name: fx-samba
     restart: unless-stopped
     ports:
       - "445:445/tcp"

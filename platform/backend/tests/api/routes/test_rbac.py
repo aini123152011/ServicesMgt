@@ -137,7 +137,7 @@ def test_operator_can_run_service_action_and_writes_audit(
     assert response.status_code == 200
     entry = db.exec(select(AuditLog).where(AuditLog.action == "service.start")).one()
     assert entry.service_name == "chrony"
-    assert entry.detail == "container=bmc-chrony"
+    assert entry.detail == "container=fx-chrony"
 
 
 def test_operator_cannot_manage_users(

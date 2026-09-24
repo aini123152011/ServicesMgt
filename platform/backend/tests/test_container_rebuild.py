@@ -40,7 +40,7 @@ def test_extract_run_params_covers_all_runtime_conditions() -> None:
             "CapAdd": ["SYS_ADMIN"],
             "Privileged": True,
         },
-        "NetworkSettings": {"Networks": {"bmc-net": {}}},
+        "NetworkSettings": {"Networks": {"fx-net": {}}},
     }
 
     params = container_rebuild.extract_run_params(_FakeContainer(attrs))
@@ -56,7 +56,7 @@ def test_extract_run_params_covers_all_runtime_conditions() -> None:
         "TZ": "Asia/Shanghai",
         "SERVICES_DIR": "/app/services",
     }
-    assert params["network"] == "bmc-net"
+    assert params["network"] == "fx-net"
     assert params["restart_policy"] == {"Name": "unless-stopped"}
     assert params["cap_add"] == ["SYS_ADMIN"]
     assert params["privileged"] is True
@@ -99,7 +99,7 @@ def test_extract_run_params_drops_image_owned_version_env() -> None:
     """版本元数据必须跟随新镜像：照抄旧容器的值会让更新后仍上报旧版本。"""
     attrs = {
         "Config": {
-            "Image": "bmc-platform:latest",
+            "Image": "fx-platform:latest",
             "Env": [
                 "DATABASE_URL=postgresql://bmc:pwd@pg:5432/bmc_platform",
                 "PLATFORM_VERSION=0.4.0",
@@ -107,7 +107,7 @@ def test_extract_run_params_drops_image_owned_version_env() -> None:
             ],
         },
         "HostConfig": {"RestartPolicy": {"Name": "unless-stopped"}},
-        "NetworkSettings": {"Networks": {"bmc-platform-isolated-net": {}}},
+        "NetworkSettings": {"Networks": {"platform-net": {}}},
     }
 
     params = container_rebuild.extract_run_params(_FakeContainer(attrs))
@@ -138,7 +138,7 @@ def test_extract_run_params_restores_security_opt_and_extra_conditions() -> None
             "Dns": ["1.1.1.1"],
             "ExtraHosts": ["host.local:127.0.0.1"],
         },
-        "NetworkSettings": {"Networks": {"bmc-net": {}}},
+        "NetworkSettings": {"Networks": {"fx-net": {}}},
     }
 
     params = container_rebuild.extract_run_params(_FakeContainer(attrs))

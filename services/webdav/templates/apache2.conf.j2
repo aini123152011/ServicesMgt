@@ -22,7 +22,7 @@ LoadModule rewrite_module /usr/lib/apache2/modules/mod_rewrite.so
 
 ServerRoot /etc/apache2
 # 显式声明 ServerName，避免启动时的 FQDN 解析告警
-ServerName bmc-webdav
+ServerName fx-webdav
 Listen {{ port }}
 
 # 以 www-data 运行工作子进程；PID 与互斥锁落在 /var/run/apache2（entrypoint 兜底创建）

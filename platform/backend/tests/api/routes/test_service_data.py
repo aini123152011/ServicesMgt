@@ -43,7 +43,7 @@ def _make_plugin(directory: Path, *, data_dir: str | None) -> None:
         "display_name": f"{directory.name} 测试插件",
         "category": "log-monitor",
         "description": "service_data 接口测试用插件",
-        "container_name": f"bmc-{directory.name}",
+        "container_name": f"fx-{directory.name}",
         "config_dir": "/etc/test",
         "config_files": ["test.conf"],
         "ports": [],

@@ -1,5 +1,5 @@
 #!/bin/bash
-# 统一生效入口：平台通过 docker exec bmc-chrony /reload.sh 触发配置生效。
+# 统一生效入口：平台通过 docker exec fx-chrony /reload.sh 触发配置生效。
 #
 # 为什么是「重启 chronyd 进程」而不是 SIGHUP 热加载（实测结论，chrony 4.3 / bookworm）：
 # chronyd 启动后按 PRIVDROP 降权到 _chrony，而重载配置时要重建自己的 pidfile 与命令套接字，

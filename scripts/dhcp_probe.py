@@ -20,7 +20,7 @@
     python3 dhcp_probe.py v4  --iface eth0 [--mac 02:42:ac:1e:0c:aa] [--expect-absent] [--timeout 6]
     python3 dhcp_probe.py v6  --iface eth0 [--expect-absent] [--timeout 6]
     python3 dhcp_probe.py ra  --iface eth0 [--expect-prefix fd00:30:12::/64] [--expect-absent]
-    python3 dhcp_probe.py dns --server 172.30.12.2 --name bmc-01.bmc.lab --type A [--expect 172.30.12.10]
+    python3 dhcp_probe.py dns --server 172.30.12.2 --name fx-01.bmc.lab --type A [--expect 172.30.12.10]
 
 输出一行 `PASS ...` 或 `FAIL ...`，退出码 0/2（与 v6_probe.py 一致，便于 e2e 复用判定）。
 """
@@ -200,7 +200,7 @@ def dhcp_v4_exchange(iface: str, mac: bytes, timeout: float, do_request: bool) -
 
         xid = random.randint(1, 0xFFFFFFFF)
         client_id = bytes([1]) + mac
-        hostname = b"bmc-probe"
+        hostname = b"fx-probe"
         want = bytes([1, 3, 6, 51, 54, 66, 67])
         common = [(61, client_id), (12, hostname), (55, want)]
 

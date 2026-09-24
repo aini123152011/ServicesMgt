@@ -133,13 +133,13 @@ def test_service_status_stale_and_not_switched_becomes_failed(
     """超过宽限期、没有 worker、容器仍是旧镜像 → 判失败，解除对后续更新的阻塞。"""
     monkeypatch.setattr(system_update, "_worker_running", False)
     monkeypatch.setattr(
-        system_update, "_service_container", lambda _plugins, _t: "bmc-nginx"
+        system_update, "_service_container", lambda _plugins, _t: "fx-nginx"
     )
     monkeypatch.setattr(
         system_update,
         "_client",
         lambda: _FakeClient(
-            containers={"bmc-nginx": _FakeContainer("sha256:old")},
+            containers={"fx-nginx": _FakeContainer("sha256:old")},
             images={"bmc/nginx:latest": "sha256:new"},
         ),
     )
@@ -165,13 +165,13 @@ def test_service_status_stale_but_already_switched_becomes_succeeded(
     """容器已切到目标镜像 → 补记成功（线程没来得及写状态也算成功）。"""
     monkeypatch.setattr(system_update, "_worker_running", False)
     monkeypatch.setattr(
-        system_update, "_service_container", lambda _plugins, _t: "bmc-nginx"
+        system_update, "_service_container", lambda _plugins, _t: "fx-nginx"
     )
     monkeypatch.setattr(
         system_update,
         "_client",
         lambda: _FakeClient(
-            containers={"bmc-nginx": _FakeContainer("sha256:new")},
+            containers={"fx-nginx": _FakeContainer("sha256:new")},
             images={"bmc/nginx:latest": "sha256:new"},
         ),
     )
@@ -225,7 +225,7 @@ def test_run_rebuild_records_failure_for_unexpected_exception(
     monkeypatch.setattr(container_rebuild, "rebuild_container", _boom)
     monkeypatch.setattr(system_update, "_worker_running", True)
 
-    system_update._run_rebuild("nginx", "bmc-nginx", "bmc/nginx:latest")
+    system_update._run_rebuild("nginx", "fx-nginx", "bmc/nginx:latest")
 
     payload = json.loads(status_file.read_text(encoding="utf-8"))
     assert payload["status"] == "failed"

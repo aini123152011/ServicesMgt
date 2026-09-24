@@ -107,7 +107,7 @@ def test_read_services(
         "display_name": "NTP 时间同步",
         "category": "time",
         "description": "基于 chrony 的 NTP 服务，为 BMC/内网设备提供时间同步",
-        "container_name": "bmc-chrony",
+        "container_name": "fx-chrony",
         "ports": [{"port": 123, "protocol": "udp", "description": "NTP 服务端口"}],
         "reload_mode": "hot",
         # 未保存过配置时没有故障模式（首页据此判断是否处于非正常模式）
@@ -210,8 +210,8 @@ def test_update_service_config_applied(
     assert "maxdistance 5" in text
     assert "server ntp.aliyun.com iburst" in text
     # reload 以 manifest 容器名执行
-    assert ("get_status", "bmc-chrony") in fake_lifecycle.calls
-    assert ("exec_reload", "bmc-chrony") in fake_lifecycle.calls
+    assert ("get_status", "fx-chrony") in fake_lifecycle.calls
+    assert ("exec_reload", "fx-chrony") in fake_lifecycle.calls
     # 数据库记录新值与已生效标记
     config = get_service_config(session=db, service_name="chrony")
     assert config is not None
@@ -240,7 +240,7 @@ def test_update_service_config_not_running(
     assert content["message"] == (
         "Configuration saved; service is not running, it will be applied on next start"
     )
-    assert ("exec_reload", "bmc-chrony") not in fake_lifecycle.calls
+    assert ("exec_reload", "fx-chrony") not in fake_lifecycle.calls
     config = get_service_config(session=db, service_name="chrony")
     assert config is not None
     assert config.applied is False
@@ -348,7 +348,7 @@ def test_run_service_action(
         if action != "stop"
         else "Service 'chrony' stopped successfully"
     }
-    assert (action, "bmc-chrony") in fake_lifecycle.calls
+    assert (action, "fx-chrony") in fake_lifecycle.calls
 
 
 def test_run_service_action_invalid(

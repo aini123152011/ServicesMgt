@@ -1,5 +1,5 @@
 #!/bin/bash
-# 统一生效入口：平台通过 docker exec bmc-dhcp /reload.sh 触发配置生效。
+# 统一生效入口：平台通过 docker exec fx-dhcp /reload.sh 触发配置生效。
 # 为什么是重启而非 SIGHUP：dnsmasq 的 SIGHUP 只重读 /etc/hosts 与 DHCP 租约相关的部分配置，
 # 地址池、RA 前缀、PXE 参数等都要重启进程才生效（且 --conf-file 是启动参数）。
 # 实现方式：终止当前 dnsmasq，entrypoint 的监督循环检测到退出后自动带新配置拉起（容器不重启）。

@@ -1,5 +1,5 @@
 
-FROM bmc-platform:latest
+FROM fx-platform:latest
 # 构建参数用 APP_VERSION/APP_BUILD，不能叫 PLATFORM_VERSION：Docker 里同名 ARG 与 ENV
 # 会互相遮蔽，上一层已 ENV PLATFORM_VERSION，同名 ARG 会被 ENV 覆盖导致 --build-arg 失效
 ARG APP_VERSION=dev

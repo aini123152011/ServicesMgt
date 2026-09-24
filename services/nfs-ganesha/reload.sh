@@ -1,5 +1,5 @@
 #!/bin/bash
-# 统一生效入口：平台通过 docker exec bmc-nfs /reload.sh 触发配置生效。
+# 统一生效入口：平台通过 docker exec fx-nfs-ganesha /reload.sh 触发配置生效。
 # 实现方式：终止运行中的 ganesha.nfsd，由 entrypoint 启动脚本检测后带新配置重新拉起。
 set -euo pipefail
 

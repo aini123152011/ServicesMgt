@@ -1,5 +1,5 @@
 #!/bin/bash
-# 统一生效入口：平台通过 docker exec bmc-nginx /reload.sh 触发配置生效。
+# 统一生效入口：平台通过 docker exec fx-nginx /reload.sh 触发配置生效。
 # 热加载依据：nginx 收到 SIGHUP 会重读主配置文件并平滑加载新 worker 进程，
 # 当前正在传输的文件不中断，实现零停机热重载。
 set -euo pipefail

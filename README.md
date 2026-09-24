@@ -21,7 +21,7 @@ docker compose up -d          # 拉起平台（含 PostgreSQL）与 13 个服务
 docker compose ps             # 看健康状态
 ```
 
-镜像名统一为 `bmc-<服务>` / `bmc-platform`，支持 Docker Hub 与 GHCR 两家仓库
+镜像名统一为 `fx-<服务>` / `fx-platform`，支持 Docker Hub 与 GHCR 两家仓库
 切换，详见[部署指南](docs/deployment.md)。本地开发改代码时再走构建：
 `docker compose -f compose.yaml -f compose.build.yaml up -d --build`。
 

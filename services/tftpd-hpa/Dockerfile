@@ -22,7 +22,7 @@ COPY reload.sh /reload.sh
 # 启动前置脚本：处理配置卷首次挂空 + 服务目录准备 + 监督循环（in.tftpd 为其子进程）
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 # 镜像内置默认配置：内容与 schema.json 默认值的渲染结果保持一致，作为空卷种子
-COPY defaults/tftpd-hpa.conf /usr/share/bmc-tftpd-hpa/tftpd-hpa.conf.default
+COPY defaults/tftpd-hpa.conf /usr/share/fx-tftpd-hpa/tftpd-hpa.conf.default
 RUN chmod +x /reload.sh /usr/local/bin/entrypoint.sh
 
 # TFTP 标准端口

@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 
 # 平台容器名取自配置（部署名可能不同；spec 禁止硬编码）
 PLATFORM_CONTAINER_NAME = settings.PLATFORM_CONTAINER_NAME
-SELF_UPDATE_CONTAINER_NAME = "bmc-platform-selfupdate"
+SELF_UPDATE_CONTAINER_NAME = "fx-platform-selfupdate"
 UPLOADS_DIRNAME = "uploads"
 STATUS_FILENAME = "system-update.json"
 # 平台自更新的 helper 等待时间：先让触发它的 API 把响应返回给前端

@@ -3,9 +3,9 @@
 services:
   snmptrapd:
     # 有 image 时 compose 会把 build 产物打上该 tag，也方便直接使用 CI 构建好的镜像
-    image: ${IMAGE_PREFIX:-}bmc-snmptrapd:${IMAGE_TAG:-latest}
+    image: ${IMAGE_PREFIX:-}fx-snmptrapd:${IMAGE_TAG:-latest}
     build: .
-    container_name: bmc-snmptrapd
+    container_name: fx-snmptrapd
     restart: unless-stopped
     ports:
       # 默认发布到宿主机所有地址，供内网 BMC 设备发送 Trap；

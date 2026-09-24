@@ -57,7 +57,7 @@ const BASE_INFO: SystemInfo = {
     {
       target: 'nginx',
       display_name: 'HTTP/HTTPS 文件服务',
-      container_name: 'bmc-nginx',
+      container_name: 'fx-nginx',
       image: 'bmc/nginx:latest',
       running_image_id: 'sha256:aaaa11112222',
       available_image_id: 'sha256:bbbb33334444',
@@ -68,7 +68,7 @@ const BASE_INFO: SystemInfo = {
     {
       target: 'chrony',
       display_name: 'NTP 时间同步',
-      container_name: 'bmc-chrony',
+      container_name: 'fx-chrony',
       image: 'bmc/chrony:latest',
       running_image_id: 'sha256:cccc55556666',
       available_image_id: 'sha256:cccc55556666',

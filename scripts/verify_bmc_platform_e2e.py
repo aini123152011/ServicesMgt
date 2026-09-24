@@ -48,7 +48,7 @@ import urllib.parse
 import urllib.request
 
 BASE_URL = "http://127.0.0.1:18080"
-PLATFORM_CONTAINER = "bmc-platform-backend"
+PLATFORM_CONTAINER = "fx-platform"
 NTP_EPOCH_DELTA = 2208988800
 
 # 各服务发布到宿主机的端口：统一范围 18101–18112（compose.yaml 同时为 BMC 侧保留了标准端口
@@ -347,7 +347,7 @@ def smtp_send(host: str, port: int, sender: str, rcpt: str, marker: str, timeout
     body = f"Subject: BMC E2E {marker}\r\nFrom: {sender}\r\nTo: {rcpt}\r\n\r\n{marker}\r\n"
     try:
         with smtplib.SMTP(host, port, timeout=timeout) as s:
-            code, _ = s.ehlo("bmc-e2e")
+            code, _ = s.ehlo("fx-e2e")
             code, resp = s.mail(sender)
             if code != 250:
                 return False, f"MAIL 被拒: {code} {resp}"
@@ -372,11 +372,11 @@ def smtp_send_starttls(host: str, port: int, sender: str, rcpt: str, marker: str
     body = f"Subject: BMC E2E TLS {marker}\r\nFrom: {sender}\r\nTo: {rcpt}\r\n\r\n{marker}\r\n"
     try:
         with smtplib.SMTP(host, port, timeout=timeout) as s:
-            s.ehlo("bmc-e2e")
+            s.ehlo("fx-e2e")
             code, resp = s.starttls(context=_ssl._create_unverified_context())
             if code != 220:
                 return False, f"STARTTLS 被拒: {code} {resp}"
-            s.ehlo("bmc-e2e")
+            s.ehlo("fx-e2e")
             code, resp = s.mail(sender)
             if code != 250:
                 return False, f"MAIL 被拒: {code} {resp}"
@@ -437,7 +437,7 @@ CFG_NGINX = {
     "ssl_cert_pem": "", "ssl_key_pem": "",
     "autoindex": True, "enable_upload": True, "max_upload_size_mb": 512,
     "auth_basic_enabled": False, "auth_basic_user": "bmc_admin",
-    "auth_basic_password": "bmc-fixture-pass",
+    "auth_basic_password": "fx-fixture-pass",
     "fault_mode": "none", "mock_status_code": 500, "throttle_rate_kbs": 50,
 }
 CFG_RSYSLOG = {
@@ -479,7 +479,7 @@ CFG_SNMPTRAPD = {
     "output_format": "full", "listen_address": "0.0.0.0", "fault_mode": "none",
 }
 CFG_POSTFIX = {
-    "myhostname": "bmc-mail.local", "relayhost": "",
+    "myhostname": "fx-mail.local", "relayhost": "",
     "mynetworks": ["127.0.0.0/8", "192.168.0.0/16"],
     "message_size_limit_mb": 10, "mailbox_size_limit_mb": 512,
     "fault_mode": "none", "tarpit_delay_seconds": 20,
@@ -490,7 +490,7 @@ CFG_DHCP = {
     "domain": "bmc.lab",
     "pool_start": "172.30.12.100", "pool_end": "172.30.12.200",
     "lease_time": "12h", "gateway": "172.30.12.1",
-    "dns_servers": [], "dns_records": ["bmc-01,172.30.12.10,fd00:30:12::10"],
+    "dns_servers": [], "dns_records": ["fx-01,172.30.12.10,fd00:30:12::10"],
     "static_hosts": [],
     "ra_mode": "slaac", "ipv6_prefix": "fd00:30:12::/64",
     "ipv6_pool_start": "fd00:30:12::100", "ipv6_pool_end": "fd00:30:12::200",
@@ -513,23 +513,23 @@ SERVICES_ALL = {
 
 # RADIUS 正向配置（与 freeradius schema 默认值一致）
 CFG_RADIUS = {
-    "nas_clients": ["bmc-nas,0.0.0.0/0,bmc-radius-secret"],
+    "nas_clients": ["fx-nas,0.0.0.0/0,fx-radius-secret"],
     "users": ["bmcuser,ChangeMe123", "bmcadmin,ChangeMe123"],
     "reply_attributes": ["Tunnel-Type=VLAN", "Tunnel-Medium-Type=IEEE-802",
                          "Tunnel-Private-Group-Id=100"],
     "fault_mode": "none",
 }
 # RADIUS 阶段用的固定值
-RADIUS_CONTAINER = "bmc-freeradius"
-RADIUS_NETWORK = "servicesmgt_freeradius-net"
-RADIUS_SECRET = "bmc-radius-secret"
+RADIUS_CONTAINER = "fx-freeradius"
+RADIUS_NETWORK = "fx_freeradius-net"
+RADIUS_SECRET = "fx-radius-secret"
 RADIUS_USER = "bmcuser"
 RADIUS_PASSWORD = "ChangeMe123"
 RADIUS_VLAN = "100"
 
 # DHCP 阶段用的固定值（与 CFG_DHCP / compose.yaml 的 dhcp-net 网段一致）
-DHCP_CONTAINER = "bmc-dhcp"
-DHCP_NETWORK = "servicesmgt_dhcp-net"
+DHCP_CONTAINER = "fx-dhcp"
+DHCP_NETWORK = "fx_dhcp-net"
 DHCP_POOL_PREFIX = "172.30.12."
 DHCP_PREFIX_V6 = "fd00:30:12::/64"
 DHCP_RESERVED_MAC = "02:42:ac:1e:0c:aa"
@@ -552,8 +552,8 @@ def phase_platform(token: str) -> None:
     record("1.2 12 种 BMC 支撑服务全部注册", st == 200 and SERVICES_ALL.issubset(names),
            f"found {len(names)}: {sorted(names)}")
 
-    not_running = [n for n in sorted(SERVICES_ALL) if not container_running(f"bmc-{n}") and not (
-        n == "nfs-ganesha" and container_running("bmc-nfs"))]
+    not_running = [n for n in sorted(SERVICES_ALL) if not container_running(f"fx-{n}") and not (
+        n == "nfs-ganesha" and container_running("fx-nfs-ganesha"))]
     record("1.3 12 个服务容器均处于运行状态", not not_running, f"未运行: {not_running}")
 
     st, resp = api("GET", "/api/v1/services/chrony", token=token)
@@ -575,7 +575,7 @@ def phase_chrony(token: str) -> None:
 
     st, applied, resp = put_config(token, "chrony", {**CFG_CHRONY, "fault_mode": "stratum_16"})
     record("2.3 故障注入 stratum_16 配置生效（容器不崩溃）",
-           st == 200 and applied is True and container_running("bmc-chrony"),
+           st == 200 and applied is True and container_running("fx-chrony"),
            f"status={st} {resp[:140]}")
     got = wait_for(lambda: (lambda r: r if r[0] == 3 else None)(ntp_query()),
                    timeout=30, label="未同步宣告")
@@ -620,12 +620,12 @@ def phase_nginx(token: str) -> None:
     # Basic 认证（AC11 特性之一）
     st, applied, _ = put_config(token, "nginx",
                                 {**CFG_NGINX, "auth_basic_enabled": True, "auth_basic_user": "bmc_admin",
-                                 "auth_basic_password": "bmc-fixture-pass"})
+                                 "auth_basic_password": "fx-fixture-pass"})
     record("3.4 Basic 认证配置提交并生效", st == 200 and applied is True, f"status={st}")
     time.sleep(3)
     st_noauth, _ = http_get(f"http://127.0.0.1:{PORT_NGINX_HTTP}/bmc_fw_e2e.bin")
     st_auth, _ = http_get(f"http://127.0.0.1:{PORT_NGINX_HTTP}/bmc_fw_e2e.bin",
-                          auth=("bmc_admin", "bmc-fixture-pass"))
+                          auth=("bmc_admin", "fx-fixture-pass"))
     record("3.5 未认证被拒(401)、认证后放行", st_noauth == 401 and st_auth == 200,
            f"noauth={st_noauth} auth={st_auth}")
 
@@ -650,7 +650,7 @@ def phase_nginx(token: str) -> None:
 
     put_config(token, "nginx", {**CFG_NGINX, "fault_mode": "extreme_slow", "throttle_rate_kbs": 5})
     conf = wait_for(lambda: (lambda c: c if "limit_rate 5k" in c else None)(
-        exec_in("bmc-nginx", "cat /etc/nginx-bmc/nginx.conf")), timeout=25, label="限速规则")
+        exec_in("fx-nginx", "cat /etc/nginx-bmc/nginx.conf")), timeout=25, label="限速规则")
     record("3.10 故障注入：限速规则 limit_rate 5k 已生效", bool(conf))
 
     # 3.11/3.12 故障注入 corrupt_content_length：声明一个远大于实际文件的 Content-Length。
@@ -686,7 +686,7 @@ def phase_rsyslog(token: str) -> None:
     time.sleep(3)
 
     marker = f"SENSOR_ALERT_{int(time.time())}"
-    message = f"<134>1 - bmc-node-e2e bmc_sensor - - - [{marker}] CPU Temp exceeds threshold\n"
+    message = f"<134>1 - fx-node-e2e bmc_sensor - - - [{marker}] CPU Temp exceeds threshold\n"
 
     def send_and_locate():
         """发送一条 BMC 风格的 syslog 并定位落盘文件。
@@ -700,7 +700,7 @@ def phase_rsyslog(token: str) -> None:
         finally:
             sock.close()
         time.sleep(2)
-        hit = exec_in("bmc-rsyslog", f"grep -rl {marker} /var/log/bmc 2>/dev/null | head -n 1")
+        hit = exec_in("fx-rsyslog", f"grep -rl {marker} /var/log/bmc 2>/dev/null | head -n 1")
         return hit or None
 
     hit_file = wait_for(send_and_locate, timeout=45, interval=3, label="日志落盘")
@@ -728,7 +728,7 @@ def phase_rsyslog(token: str) -> None:
     # 这是**客户端可观测**的判定：只看配置里有没有 `stop` 无法区分「黑洞」与「服务挂了」。
     def archived(marker: str) -> bool:
         return bool(sh(
-            f"docker exec bmc-rsyslog sh -c 'grep -rl {marker} /var/log/bmc 2>/dev/null | head -1'"
+            f"docker exec fx-rsyslog sh -c 'grep -rl {marker} /var/log/bmc 2>/dev/null | head -1'"
         ).strip())
 
     def tcp_open() -> bool:
@@ -980,7 +980,7 @@ def phase_vsftpd(token: str) -> None:
     # 注意要用足够大的文件：小文件会被限速器的突发额度一次放完（实测 20KB 仍秒传），
     # 200KB 才能观察到「下不完」。
     put_config(token, "vsftpd", {**CFG_VSFTPD, "fault_mode": "extreme_throttle"})
-    exec_in("bmc-vsftpd", "mkdir -p /data/bmce2e && dd if=/dev/urandom of=/data/bmce2e/throttle.bin bs=1024 count=200 2>/dev/null")
+    exec_in("fx-vsftpd", "mkdir -p /data/bmce2e && dd if=/dev/urandom of=/data/bmce2e/throttle.bin bs=1024 count=200 2>/dev/null")
     time.sleep(6)
 
     def slow_download_incomplete():
@@ -1006,7 +1006,7 @@ def phase_tftpd(token: str) -> None:
     record("8.1 配置提交并生效", st == 200 and applied is True, f"status={st} {resp[:140]}")
 
     marker = b"BMC_TFTP_E2E_PAYLOAD"
-    exec_in("bmc-tftpd-hpa", f"mkdir -p /srv/tftp && printf '{marker.decode()}' > /srv/tftp/e2e_tftp.bin")
+    exec_in("fx-tftpd-hpa", f"mkdir -p /srv/tftp && printf '{marker.decode()}' > /srv/tftp/e2e_tftp.bin")
     time.sleep(2)
 
     def fetch():
@@ -1056,7 +1056,7 @@ def phase_tftpd(token: str) -> None:
             return "timeout"
 
     got = wait_for(external_rrq_times_out, timeout=45, interval=5, label="外部 RRQ 超时")
-    healthy = exec_in("bmc-tftpd-hpa", "grep -qs in.tftpd /proc/[0-9]*/comm && echo ok || echo no")
+    healthy = exec_in("fx-tftpd-hpa", "grep -qs in.tftpd /proc/[0-9]*/comm && echo ok || echo no")
     record("8.6 故障注入 timeout_simulate：外部 RRQ 超时且进程仍健康",
            bool(got) and "ok" in healthy, f"{got} 进程={healthy.strip()}")
 
@@ -1128,9 +1128,9 @@ def phase_nfs(token: str) -> None:
     st, applied, resp = put_config(token, "nfs-ganesha", CFG_NFS)
     record("10.1 导出配置提交并生效", st == 200 and applied is True, f"status={st} {resp[:140]}")
 
-    mnt = "/mnt/bmc-e2e-nfs"
+    mnt = "/mnt/fx-e2e-nfs"
     sh(f"mkdir -p {mnt}; umount {mnt} 2>/dev/null; true")
-    exec_in("bmc-nfs", "mkdir -p /data/nfs && chmod 777 /data/nfs")
+    exec_in("fx-nfs-ganesha", "mkdir -p /data/nfs && chmod 777 /data/nfs")
 
     def mount_and_write():
         st1 = sh(f"mount -t nfs -o vers=4.1,port={PORT_NFS},nolock 127.0.0.1:/data/nfs {mnt} 2>&1")
@@ -1207,11 +1207,11 @@ def phase_snmptrapd(token: str) -> None:
     time.sleep(3)
 
     marker = f"BMC_TRAP_E2E_{int(time.time())}"
-    exec_in("bmc-snmptrapd", "mkdir -p /var/log/snmp && : > /var/log/snmp/traps.log")
+    exec_in("fx-snmptrapd", "mkdir -p /var/log/snmp && : > /var/log/snmp/traps.log")
     snmp_v2c_trap(HOST_ADDR, PORT_SNMPTRAP, "public", marker)
 
     def trap_logged():
-        out = exec_in("bmc-snmptrapd", "cat /var/log/snmp/traps.log 2>/dev/null")
+        out = exec_in("fx-snmptrapd", "cat /var/log/snmp/traps.log 2>/dev/null")
         return out if marker in out else None
 
     ok = wait_for(trap_logged, timeout=45, interval=4, label="Trap 落盘")
@@ -1220,22 +1220,22 @@ def phase_snmptrapd(token: str) -> None:
     put_config(token, "snmptrapd", {**CFG_SNMPTRAPD, "fault_mode": "reject_community"})
     time.sleep(3)
     marker2 = f"BMC_TRAP_DENY_{int(time.time())}"
-    exec_in("bmc-snmptrapd", ": > /var/log/snmp/traps.log")
+    exec_in("fx-snmptrapd", ": > /var/log/snmp/traps.log")
     snmp_v2c_trap(HOST_ADDR, PORT_SNMPTRAP, "public", marker2)
     time.sleep(5)
-    logged = exec_in("bmc-snmptrapd", "cat /var/log/snmp/traps.log 2>/dev/null")
+    logged = exec_in("fx-snmptrapd", "cat /var/log/snmp/traps.log 2>/dev/null")
     record("11.3 故障注入：非授权社区被丢弃", marker2 not in logged)
 
     # 11.4/11.5 故障注入 force_v3_only：不配置 v1/v2c 社区 → v2c Trap 不落盘，但服务仍活着
     put_config(token, "snmptrapd", {**CFG_SNMPTRAPD, "fault_mode": "force_v3_only"})
     time.sleep(5)
     marker3 = f"BMC_TRAP_V3ONLY_{int(time.time())}"
-    exec_in("bmc-snmptrapd", ": > /var/log/snmp/traps.log")
+    exec_in("fx-snmptrapd", ": > /var/log/snmp/traps.log")
     snmp_v2c_trap(HOST_ADDR, PORT_SNMPTRAP, "bmctrap", marker3)
     time.sleep(5)
-    logged3 = exec_in("bmc-snmptrapd", "cat /var/log/snmp/traps.log 2>/dev/null")
+    logged3 = exec_in("fx-snmptrapd", "cat /var/log/snmp/traps.log 2>/dev/null")
     record("11.4 故障注入 force_v3_only：v2c Trap 不落盘且容器仍在运行",
-           marker3 not in logged3 and container_running("bmc-snmptrapd"))
+           marker3 not in logged3 and container_running("fx-snmptrapd"))
 
     # 11.5/11.6 故障注入 blackhole_drop：只监听 127.0.0.1 → 外部 Trap 收不到，
     # 但进程与健康检查仍正常（与「服务挂了」可区分）。
@@ -1243,19 +1243,19 @@ def phase_snmptrapd(token: str) -> None:
     put_config(token, "snmptrapd", {**CFG_SNMPTRAPD, "fault_mode": "blackhole_drop"})
 
     def bound_to_loopback():
-        row = exec_in("bmc-snmptrapd",
+        row = exec_in("fx-snmptrapd",
                       "grep -i :00A2 /proc/net/udp | head -1").split()
         # /proc/net/udp 第 2 列是 local_address:port 的小端十六进制；0100007F = 127.0.0.1
         return row[1] if len(row) > 1 and row[1].startswith("0100007F") else None
 
     got_bind = wait_for(bound_to_loopback, timeout=45, interval=4, label="只绑回环")
     marker_bh = f"BMC_TRAP_BLACKHOLE_{int(time.time())}"
-    exec_in("bmc-snmptrapd", ": > /var/log/snmp/traps.log")
+    exec_in("fx-snmptrapd", ": > /var/log/snmp/traps.log")
     snmp_v2c_trap(HOST_ADDR, PORT_SNMPTRAP, "bmctrap", marker_bh)
     time.sleep(5)
-    logged_bh = exec_in("bmc-snmptrapd", "cat /var/log/snmp/traps.log 2>/dev/null")
+    logged_bh = exec_in("fx-snmptrapd", "cat /var/log/snmp/traps.log 2>/dev/null")
     record("11.5 故障注入 blackhole_drop：只监听回环，外部 Trap 不落盘",
-           bool(got_bind) and marker_bh not in logged_bh and container_running("bmc-snmptrapd"),
+           bool(got_bind) and marker_bh not in logged_bh and container_running("fx-snmptrapd"),
            f"bind={got_bind or '非回环'} 已落盘={marker_bh in logged_bh}")
 
     st, applied, _ = put_config(token, "snmptrapd", CFG_SNMPTRAPD)
@@ -1264,7 +1264,7 @@ def phase_snmptrapd(token: str) -> None:
     marker4 = f"BMC_TRAP_RESET_{int(time.time())}"
     snmp_v2c_trap(HOST_ADDR, PORT_SNMPTRAP, "bmctrap", marker4)
     got = wait_for(lambda: True if marker4 in exec_in(
-        "bmc-snmptrapd", "cat /var/log/snmp/traps.log 2>/dev/null") else None,
+        "fx-snmptrapd", "cat /var/log/snmp/traps.log 2>/dev/null") else None,
         timeout=40, interval=5, label="复位后 Trap 落盘")
     record("11.7 复位后 Trap 重新落盘", bool(got))
 
@@ -1276,27 +1276,27 @@ def phase_postfix(token: str) -> None:
     record("12.1 中继与网络配置提交并生效", st == 200 and applied is True, f"status={st} {resp[:140]}")
 
     ok = wait_for(
-        lambda: (lambda b: b if "bmc-mail.local" in b else None)(smtp_banner("127.0.0.1", PORT_SMTP)),
+        lambda: (lambda b: b if "fx-mail.local" in b else None)(smtp_banner("127.0.0.1", PORT_SMTP)),
         timeout=60, interval=5, label="SMTP banner")
     record("12.2 SMTP 问候语反映平台配置的主机名", bool(ok), (ok or "").replace("\n", " ")[:120])
 
     marker = f"BMC_SMTP_E2E_{int(time.time())}"
-    accepted, detail = smtp_send("127.0.0.1", PORT_SMTP, "bmc-e2e@bmc-mail.local",
-                                 "root@bmc-mail.local", marker)
+    accepted, detail = smtp_send("127.0.0.1", PORT_SMTP, "fx-e2e@fx-mail.local",
+                                 "root@fx-mail.local", marker)
     record("12.3 源地址不在 mynetworks 白名单时中继被拒",
            not accepted and "Relay access denied" in detail, detail)
 
     st, applied, _ = put_config(token, "postfix", CFG_POSTFIX_RELAY)
     record("12.4 把宿主机网段加入 mynetworks 的配置生效", st == 200 and applied is True, f"status={st}")
     time.sleep(5)
-    accepted, detail = smtp_send("127.0.0.1", PORT_SMTP, "bmc-e2e@bmc-mail.local",
-                                 "root@bmc-mail.local", f"{marker}_ok")
+    accepted, detail = smtp_send("127.0.0.1", PORT_SMTP, "fx-e2e@fx-mail.local",
+                                 "root@fx-mail.local", f"{marker}_ok")
     record("12.5 白名单放行后邮件被 SMTP 接受投递（250）", accepted, detail)
 
     put_config(token, "postfix", {**CFG_POSTFIX_RELAY, "fault_mode": "reject_554"})
     time.sleep(5)
-    accepted, detail = smtp_send("127.0.0.1", PORT_SMTP, "bmc-e2e@bmc-mail.local",
-                                 "root@bmc-mail.local", f"{marker}_deny")
+    accepted, detail = smtp_send("127.0.0.1", PORT_SMTP, "fx-e2e@fx-mail.local",
+                                 "root@fx-mail.local", f"{marker}_deny")
     record("12.6 故障注入：邮件被 554 永久拒收", not accepted and "554" in detail, detail)
 
     # 12.7–12.9 故障注入 force_tls：明文被拒、TLS 客户端仍可投递。
@@ -1309,8 +1309,8 @@ def phase_postfix(token: str) -> None:
     time.sleep(5)
 
     def plaintext_rejected():
-        accepted, detail = smtp_send("127.0.0.1", PORT_SMTP, "bmc-e2e@bmc-mail.local",
-                                     "root@bmc-mail.local", f"{marker}_plain")
+        accepted, detail = smtp_send("127.0.0.1", PORT_SMTP, "fx-e2e@fx-mail.local",
+                                     "root@fx-mail.local", f"{marker}_plain")
         return detail if (not accepted and "STARTTLS" in detail) else None
 
     got = wait_for(plaintext_rejected, timeout=60, interval=5, label="明文被拒")
@@ -1318,8 +1318,8 @@ def phase_postfix(token: str) -> None:
            bool(got), (got or "明文未被拒").replace("\n", " ")[:140])
 
     def tls_accepted():
-        ok_tls, detail = smtp_send_starttls("127.0.0.1", PORT_SMTP, "bmc-e2e@bmc-mail.local",
-                                            "root@bmc-mail.local", f"{marker}_tls")
+        ok_tls, detail = smtp_send_starttls("127.0.0.1", PORT_SMTP, "fx-e2e@fx-mail.local",
+                                            "root@fx-mail.local", f"{marker}_tls")
         return detail if ok_tls else None
 
     got_tls = wait_for(tls_accepted, timeout=60, interval=5, label="STARTTLS 投递")
@@ -1333,8 +1333,8 @@ def phase_postfix(token: str) -> None:
     time.sleep(5)
 
     def temporary_reject():
-        accepted, detail = smtp_send("127.0.0.1", PORT_SMTP, "bmc-e2e@bmc-mail.local",
-                                     "root@bmc-mail.local", f"{marker}_grey")
+        accepted, detail = smtp_send("127.0.0.1", PORT_SMTP, "fx-e2e@fx-mail.local",
+                                     "root@fx-mail.local", f"{marker}_grey")
         return detail if (not accepted and " 4" in detail) else None
 
     got = wait_for(temporary_reject, timeout=60, interval=5, label="临时拒绝")
@@ -1346,7 +1346,7 @@ def phase_postfix(token: str) -> None:
     put_config(token, "postfix", {**CFG_POSTFIX, "fault_mode": "tarpit_delay"})
     time.sleep(5)
     start = time.time()
-    smtp_send("127.0.0.1", PORT_SMTP, "bmc-e2e@bmc-mail.local", "root@bmc-mail.local",
+    smtp_send("127.0.0.1", PORT_SMTP, "fx-e2e@fx-mail.local", "root@fx-mail.local",
               f"{marker}_tarpit", timeout=90)
     slow = time.time() - start
     record("12.11 故障注入 tarpit_delay：出错会话被拖慢（>=15s）",
@@ -1356,8 +1356,8 @@ def phase_postfix(token: str) -> None:
     record("12.12 复位正向配置生效", st == 200 and applied is True, f"status={st}")
     time.sleep(5)
     start = time.time()
-    accepted, detail = smtp_send("127.0.0.1", PORT_SMTP, "bmc-e2e@bmc-mail.local",
-                                 "root@bmc-mail.local", f"{marker}_after")
+    accepted, detail = smtp_send("127.0.0.1", PORT_SMTP, "fx-e2e@fx-mail.local",
+                                 "root@fx-mail.local", f"{marker}_after")
     fast = time.time() - start
     record("12.13 复位后同样出错会话恢复快速响应",
            fast < 15 and "4" in detail, f"耗时 {fast:.1f}s {detail[:80]}")
@@ -1367,7 +1367,7 @@ def phase_secrets(token: str) -> None:
     """AC13：secret 字段脱敏读取、掩码回填与审计不含明文。"""
     print("\n>>> 阶段 13: secret 敏感字段脱敏与掩码回填（AC13）")
     put_config(token, "nginx", {**CFG_NGINX, "auth_basic_enabled": True,
-                                "auth_basic_password": "bmc-fixture-pass"})
+                                "auth_basic_password": "fx-fixture-pass"})
     st, resp = api("GET", "/api/v1/services/nginx", token=token)
     values = json.loads(resp).get("config", {}).get("values", {}) if st == 200 else {}
     record("13.1 详情读取时 secret 字段已脱敏",
@@ -1383,7 +1383,7 @@ def phase_secrets(token: str) -> None:
     st, resp = api("GET", "/api/v1/audit-logs?limit=100", token=token)
     text = resp if isinstance(resp, str) else ""
     record("13.3 审计日志不含 secret 明文",
-           st == 200 and "bmc-fixture-pass" not in text, f"status={st} 命中明文={'bmc-fixture-pass' in text}")
+           st == 200 and "fx-fixture-pass" not in text, f"status={st} 命中明文={'fx-fixture-pass' in text}")
 
     put_config(token, "nginx", CFG_NGINX)
     time.sleep(3)
@@ -1477,7 +1477,7 @@ def phase_versions(token: str) -> None:
 
     # secret 字段在版本详情里同样是掩码：历史接口不能成为绕过脱敏的后门
     put_config(token, "nginx", {**CFG_NGINX, "auth_basic_enabled": True,
-                                "auth_basic_password": "bmc-fixture-pass"})
+                                "auth_basic_password": "fx-fixture-pass"})
     nginx_versions = _config_versions(token, "nginx")
     if nginx_versions:
         newest_nginx = nginx_versions[0]["version"]
@@ -1566,9 +1566,9 @@ V6_CASES = [
 
 # 探针容器需要 python3：优先用平台镜像（部署机上都已有），其次用拉取态的 GHCR 标签。
 V6_CLIENT_IMAGES = [
-    "bmc-platform:latest",
-    "ghcr.nju.edu.cn/aini123152011/bmc-platform:latest",
-    "ghcr.io/aini123152011/bmc-platform:latest",
+    "fx-platform:latest",
+    "ghcr.nju.edu.cn/aini123152011/fx-platform:latest",
+    "ghcr.io/aini123152011/fx-platform:latest",
 ]
 
 
@@ -1596,12 +1596,12 @@ def phase_ipv6(token: str) -> None:
         return
     image = _v6_client_image()
     if not image:
-        record("17.0 探针客户端镜像可用", False, "没有 bmc-platform 镜像（探针需要 python3）")
+        record("17.0 探针客户端镜像可用", False, "没有 fx-platform 镜像（探针需要 python3）")
         return
 
     for index, (svc, net, port, kind) in enumerate(V6_CASES, start=1):
         cmd = (
-            f"docker run --rm --network servicesmgt_{net} "
+            f"docker run --rm --network fx_{net} "
             f"-v {probe}:/probe.py:ro {image} python3 /probe.py {svc} {port} {kind}"
         )
         out = sh(cmd, timeout=90)
@@ -1612,7 +1612,7 @@ def phase_ipv6(token: str) -> None:
 
 # --------------------------------------------------------------------------- #
 # DHCP 阶段：DHCP 走二层广播，宿主机经 NAT 端口映射根本收不到（见 compose.yaml 文件头），
-# 所以探针必须跑在「与 dhcp 容器同一网络（servicesmgt_dhcp-net）的客户端容器」里，用真实报文取址。
+# 所以探针必须跑在「与 dhcp 容器同一网络（fx_dhcp-net）的客户端容器」里，用真实报文取址。
 # 探针实现见同目录 scripts/dhcp_probe.py：自建 DHCPv4 帧（源地址 0.0.0.0 + 广播标志，与真实
 # 「无地址客户端」一致）、DHCPv6 SOLICIT、ICMPv6 Router Solicitation、最小 DNS 查询。
 # --------------------------------------------------------------------------- #
@@ -1623,7 +1623,7 @@ def dhcp_probe(*args: str, timeout: int = 120) -> str:
         return f"FAIL 缺少探针脚本 {probe}"
     image = _v6_client_image()
     if not image:
-        return "FAIL 没有 bmc-platform 镜像（探针需要 python3）"
+        return "FAIL 没有 fx-platform 镜像（探针需要 python3）"
     # NET_ADMIN：让探针能把网卡置为混杂模式，静态绑定用例里服务端可能按 chaddr 单播到别的 MAC
     cmd = (
         f"docker run --rm --network {DHCP_NETWORK} --cap-add NET_ADMIN "
@@ -1675,12 +1675,12 @@ def phase_dhcp(token: str) -> None:
     out = dhcp_probe("ra", "--expect-prefix", DHCP_PREFIX_V6)
     record("18.3 SLAAC：RA 通告出配置的 IPv6 前缀", out.startswith("PASS"), out[:150])
 
-    out = dhcp_probe("dns", "--server", "dhcp", "--name", "bmc-01.bmc.lab", "--type", "A",
+    out = dhcp_probe("dns", "--server", "dhcp", "--name", "fx-01.bmc.lab", "--type", "A",
                      "--expect", "172.30.12.10")
     record("18.4 DNS 正向解析 A 记录（v4 查询，地址即 DHCP 下发的 DNS）",
            out.startswith("PASS"), out[:150])
 
-    out = dhcp_probe("dns", "--server", "dhcp", "--name", "bmc-01.bmc.lab", "--type", "AAAA",
+    out = dhcp_probe("dns", "--server", "dhcp", "--name", "fx-01.bmc.lab", "--type", "AAAA",
                      "--expect", "fd00:30:12::10")
     record("18.5 DNS 正向解析 AAAA 记录（同名的 v6 地址）", out.startswith("PASS"), out[:150])
 
@@ -1688,12 +1688,12 @@ def phase_dhcp(token: str) -> None:
     out = dhcp_probe("dns", "--server", v6_addr, "--addr", "172.30.12.10") if v6_addr \
         else "FAIL 取不到 dhcp 容器的 IPv6 地址"
     record("18.6 DNS 反向解析 PTR，且走 IPv6 访问 53 端口（双栈监听）",
-           out.startswith("PASS") and "bmc-01" in out, out[:150])
+           out.startswith("PASS") and "fx-01" in out, out[:150])
 
     # 静态绑定（BMC 侧「按 MAC 保留地址」的等价能力）
     st, applied, resp = put_config(token, "dhcp",
                                    {**CFG_DHCP, "static_hosts": [
-                                       f"{DHCP_RESERVED_MAC},{DHCP_RESERVED_ADDR},bmc-09"]})
+                                       f"{DHCP_RESERVED_MAC},{DHCP_RESERVED_ADDR},fx-09"]})
     out = dhcp_probe("v4", "--mac", DHCP_RESERVED_MAC, "--expect-addr", DHCP_RESERVED_ADDR) \
         if st == 200 and applied else f"FAIL 配置未生效 status={st}"
     record("18.7 静态绑定：按 MAC 下发固定地址 dhcp-host",
@@ -1736,7 +1736,7 @@ def phase_dhcp(token: str) -> None:
     record("18.14 故障注入 blackhole 配置生效", st == 200 and applied is True, f"status={st}")
     out = dhcp_probe("v4", "--expect-absent", "--timeout", "8")
     record("18.15 blackhole：DHCP 完全无应答（BMC 取不到地址）", out.startswith("PASS"), out[:150])
-    out = dhcp_probe("dns", "--server", "dhcp", "--name", "bmc-01.bmc.lab", "--type", "A",
+    out = dhcp_probe("dns", "--server", "dhcp", "--name", "fx-01.bmc.lab", "--type", "A",
                      "--expect", "172.30.12.10")
     record("18.16 blackhole 下 DNS 仍正常（能区分「取址失败」与「服务已挂」）",
            out.startswith("PASS"), out[:150])
@@ -1752,7 +1752,7 @@ def phase_dhcp(token: str) -> None:
     # 因此第 5 个故障换成同样有价值且可观测的「DNS 解析到错误地址」。
     st, applied, _ = put_config(token, "dhcp", {**CFG_DHCP, "fault_mode": "dns_wrong_answer"})
     record("18.18 故障注入 dns_wrong_answer 配置生效", st == 200 and applied is True, f"status={st}")
-    out = dhcp_probe("dns", "--server", "dhcp", "--name", "bmc-01.bmc.lab", "--type", "A",
+    out = dhcp_probe("dns", "--server", "dhcp", "--name", "fx-01.bmc.lab", "--type", "A",
                      "--expect", "192.0.2.99")
     record("18.19 dns_wrong_answer：域内名字解析到不可达地址（BMC 解析成功但连不上）",
            out.startswith("PASS"), out[:150])
@@ -1798,7 +1798,7 @@ def radius_probe(*args: str, timeout: int = 90) -> str:
         return f"FAIL 缺少探针脚本 {probe}"
     image = _v6_client_image()
     if not image:
-        return "FAIL 没有 bmc-platform 镜像（探针需要 python3）"
+        return "FAIL 没有 fx-platform 镜像（探针需要 python3）"
     cmd = (
         f"docker run --rm --network {RADIUS_NETWORK} "
         f"-v {probe}:/probe.py:ro {image} python3 /probe.py radius "

@@ -36,7 +36,7 @@ def _manifest_with_usage(usage: Any) -> dict[str, Any]:
         "display_name": "NTP 时间同步",
         "category": "time",
         "description": "usage 校验测试用 manifest",
-        "container_name": "bmc-chrony",
+        "container_name": "fx-chrony",
         "config_dir": "/etc/chrony",
         "config_files": ["chrony.conf"],
         "ports": [{"port": 123, "protocol": "udp", "description": "NTP 服务端口"}],

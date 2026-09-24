@@ -27,7 +27,7 @@ from docker.models.networks import Network
 logger = logging.getLogger(__name__)
 
 # 形态甲里唯一挂 macvlan 的服务容器（与 host_network.py 的容器名推导保持一致）
-DHCP_CONTAINER = "bmc-dhcp"
+DHCP_CONTAINER = "fx-dhcp"
 
 # 网络名后缀：compose 的网络名是 `<project>_dhcp-l2-net`，project 名从容器标签读
 L2_NETWORK_SUFFIX = "_dhcp-l2-net"
@@ -316,7 +316,7 @@ def compose_project(container: Container) -> str:
     """从容器标签读 compose 项目名（网络名由它拼出），读不到时按部署目录名兜底。"""
     labels = ((container.attrs or {}).get("Config") or {}).get("Labels") or {}
     project = str(labels.get("com.docker.compose.project") or "").strip()
-    return project or "servicesmgt"
+    return project or "fx"
 
 
 def l2_network_name(client: docker.DockerClient, container: Container) -> str:

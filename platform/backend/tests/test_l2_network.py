@@ -15,8 +15,8 @@ from docker.errors import APIError, NotFound
 
 from app import l2_network
 
-L2_NAME = "servicesmgt_dhcp-l2-net"
-BRIDGE_NAME = "servicesmgt_dhcp-net"
+L2_NAME = "fx_dhcp-l2-net"
+BRIDGE_NAME = "fx_dhcp-net"
 
 
 def _macvlan_attrs(
@@ -37,7 +37,7 @@ def _macvlan_attrs(
             ]
         },
         "Labels": {
-            "com.docker.compose.project": "servicesmgt",
+            "com.docker.compose.project": "fx",
             "com.docker.compose.network": "dhcp-l2-net",
         },
     }
@@ -123,7 +123,7 @@ class FakeClient:
         *,
         container_networks: dict[str, Any] | None = None,
         networks: dict[str, FakeNetwork] | None = None,
-        project: str = "servicesmgt",
+        project: str = "fx",
     ) -> None:
         nets = (
             container_networks
@@ -261,7 +261,7 @@ def test_apply_network_rebuilds_in_verified_order() -> None:
         {"Subnet": "fd00:90::/64", "Gateway": "fd00:90::1"},
     ]
     # 旧网络的 compose 标签要继承，否则 compose 认不出这张网络
-    assert created["labels"]["com.docker.compose.project"] == "servicesmgt"
+    assert created["labels"]["com.docker.compose.project"] == "fx"
     # 4 步：断开 → 删 → 建 → 连
     assert len(steps) == 4
     assert state.network == L2_NAME
@@ -328,7 +328,7 @@ def test_apply_network_uses_explicit_addresses_when_given() -> None:
     assert len(client.api.created) == 1
     created = client.api.created[0]
     assert created["labels"] == {
-        "com.docker.compose.project": "servicesmgt",
+        "com.docker.compose.project": "fx",
         "com.docker.compose.network": "dhcp-l2-net",
     }
     assert created["options"] == {"parent": "enp125s0f1"}
