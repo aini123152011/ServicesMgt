@@ -1,1 +1,1 @@
-smbuser:fx-fixture-pass
+smbuser:bmc-fixture-pass

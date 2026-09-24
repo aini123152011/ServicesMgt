@@ -12,7 +12,7 @@ CONF_FILE="${CONF_DIR}/chrony.conf"
 FAKETIME_CONF="${CONF_DIR}/faketime.conf"
 SUPERVISOR_PIDFILE="/run/chrony/supervisor.pid"
 CHRONYD_PIDFILE="/run/chrony/chronyd.pid"
-SEED_FILE="/usr/share/fx-chrony/chrony.conf.default"
+SEED_FILE="/usr/share/bmc-chrony/chrony.conf.default"
 
 if [ ! -f "${CONF_FILE}" ]; then
     echo "entrypoint: 配置卷缺少 chrony.conf，播种内置默认配置"

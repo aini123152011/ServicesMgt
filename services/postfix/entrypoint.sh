@@ -4,7 +4,7 @@
 set -eu
 
 CONF_DIR="/etc/postfix"
-SEED_DIR="/usr/share/fx-postfix"
+SEED_DIR="/usr/share/bmc-postfix"
 
 # 回填 postfix 必需支撑文件（如 postfix-files, post-install, postfix-script 等）
 if [ -d "${SEED_DIR}/seed_etc" ]; then

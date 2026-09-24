@@ -6,7 +6,7 @@ set -eu
 
 CONF_DIR="/etc/rsyslog"
 CONF_FILE="${CONF_DIR}/rsyslog.conf"
-SEED_FILE="/usr/share/fx-rsyslog/rsyslog.conf.default"
+SEED_FILE="/usr/share/bmc-rsyslog/rsyslog.conf.default"
 
 if [ ! -f "${CONF_FILE}" ]; then
     echo "entrypoint: 配置卷缺少 rsyslog.conf，播种内置默认配置"

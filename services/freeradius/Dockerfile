@@ -34,8 +34,8 @@ RUN printf '\n$INCLUDE bmc/clients.conf\n' >> /etc/freeradius/3.0/clients.conf \
 COPY reload.sh /reload.sh
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 # 镜像内置默认配置：内容与 schema.json 默认值的渲染结果一致，作为空卷种子
-COPY defaults/clients.conf /usr/share/fx-freeradius/clients.conf.default
-COPY defaults/authorize /usr/share/fx-freeradius/authorize.default
+COPY defaults/clients.conf /usr/share/bmc-freeradius/clients.conf.default
+COPY defaults/authorize /usr/share/bmc-freeradius/authorize.default
 RUN chmod +x /reload.sh /usr/local/bin/entrypoint.sh
 
 # RADIUS 认证 / 计费

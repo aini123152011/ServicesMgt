@@ -42,7 +42,7 @@ DHCP_VALUES: dict[str, Any] = {
     "lease_time": "12h",
     "gateway": "192.168.90.1",
     "dns_servers": [],
-    "dns_records": ["fx-01,192.168.90.10,fd00:90::10"],
+    "dns_records": ["bmc-01,192.168.90.10,fd00:90::10"],
     "static_hosts": [],
     "ra_mode": "stateful",
     "ipv6_prefix": "fd00:90::/64",

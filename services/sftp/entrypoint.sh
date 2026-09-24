@@ -5,7 +5,7 @@
 set -eu
 
 CONF_DIR="/etc/ssh"
-SEED_DIR="/usr/share/fx-sftp"
+SEED_DIR="/usr/share/bmc-sftp"
 USERS_FILE="${CONF_DIR}/users.txt"
 
 # 空卷播种：sshd 缺配置无法启动；用户清单缺失则播种默认账号（bmcadmin/ChangeMe123）

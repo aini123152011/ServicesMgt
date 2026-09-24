@@ -34,8 +34,8 @@ usage:
     summary: 用真实 DHCP 客户端取址，并验证域名解析（A / AAAA / PTR 三向）
     command: |
       dhclient -4 -v eth0 && ip -4 addr show eth0
-      dig +short @{{host}} fx-01.bmc.lab A
-      dig +short @{{host}} fx-01.bmc.lab AAAA
+      dig +short @{{host}} bmc-01.bmc.lab A
+      dig +short @{{host}} bmc-01.bmc.lab AAAA
       dig +short @{{host}} -x 172.30.12.10 PTR
   - target: Linux
     summary: 查看租约文件（谁拿了哪个地址、租约何时到期）

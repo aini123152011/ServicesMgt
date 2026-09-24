@@ -60,7 +60,7 @@
       "type": "string",
       "label": "Samba 认证密码",
       "secret": true,
-      "default": "fx-fixture-pass",
+      "default": "bmc-fixture-pass",
       "required": true,
       "group": "base"
     },

@@ -35,8 +35,8 @@ COPY reload.sh /reload.sh
 # 启动前置脚本：处理配置卷首次挂空 + 本地账号准备 + 监督循环（vsftpd 为其子进程）
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 # 镜像内置默认配置：内容与 schema.json 默认值的渲染结果保持一致，作为空卷种子
-COPY defaults/vsftpd.conf /usr/share/fx-vsftpd/vsftpd.conf.default
-COPY defaults/local_users.txt /usr/share/fx-vsftpd/local_users.txt.default
+COPY defaults/vsftpd.conf /usr/share/bmc-vsftpd/vsftpd.conf.default
+COPY defaults/local_users.txt /usr/share/bmc-vsftpd/local_users.txt.default
 RUN chmod +x /reload.sh /usr/local/bin/entrypoint.sh
 
 # FTP 控制端口与被动模式数据端口（schema 默认范围的两端）

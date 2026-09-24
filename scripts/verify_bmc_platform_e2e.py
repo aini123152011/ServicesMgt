@@ -437,7 +437,7 @@ CFG_NGINX = {
     "ssl_cert_pem": "", "ssl_key_pem": "",
     "autoindex": True, "enable_upload": True, "max_upload_size_mb": 512,
     "auth_basic_enabled": False, "auth_basic_user": "bmc_admin",
-    "auth_basic_password": "fx-fixture-pass",
+    "auth_basic_password": "bmc-fixture-pass",
     "fault_mode": "none", "mock_status_code": 500, "throttle_rate_kbs": 50,
 }
 CFG_RSYSLOG = {
@@ -490,7 +490,7 @@ CFG_DHCP = {
     "domain": "bmc.lab",
     "pool_start": "172.30.12.100", "pool_end": "172.30.12.200",
     "lease_time": "12h", "gateway": "172.30.12.1",
-    "dns_servers": [], "dns_records": ["fx-01,172.30.12.10,fd00:30:12::10"],
+    "dns_servers": [], "dns_records": ["bmc-01,172.30.12.10,fd00:30:12::10"],
     "static_hosts": [],
     "ra_mode": "slaac", "ipv6_prefix": "fd00:30:12::/64",
     "ipv6_pool_start": "fd00:30:12::100", "ipv6_pool_end": "fd00:30:12::200",
@@ -620,12 +620,12 @@ def phase_nginx(token: str) -> None:
     # Basic 认证（AC11 特性之一）
     st, applied, _ = put_config(token, "nginx",
                                 {**CFG_NGINX, "auth_basic_enabled": True, "auth_basic_user": "bmc_admin",
-                                 "auth_basic_password": "fx-fixture-pass"})
+                                 "auth_basic_password": "bmc-fixture-pass"})
     record("3.4 Basic 认证配置提交并生效", st == 200 and applied is True, f"status={st}")
     time.sleep(3)
     st_noauth, _ = http_get(f"http://127.0.0.1:{PORT_NGINX_HTTP}/bmc_fw_e2e.bin")
     st_auth, _ = http_get(f"http://127.0.0.1:{PORT_NGINX_HTTP}/bmc_fw_e2e.bin",
-                          auth=("bmc_admin", "fx-fixture-pass"))
+                          auth=("bmc_admin", "bmc-fixture-pass"))
     record("3.5 未认证被拒(401)、认证后放行", st_noauth == 401 and st_auth == 200,
            f"noauth={st_noauth} auth={st_auth}")
 
@@ -1367,7 +1367,7 @@ def phase_secrets(token: str) -> None:
     """AC13：secret 字段脱敏读取、掩码回填与审计不含明文。"""
     print("\n>>> 阶段 13: secret 敏感字段脱敏与掩码回填（AC13）")
     put_config(token, "nginx", {**CFG_NGINX, "auth_basic_enabled": True,
-                                "auth_basic_password": "fx-fixture-pass"})
+                                "auth_basic_password": "bmc-fixture-pass"})
     st, resp = api("GET", "/api/v1/services/nginx", token=token)
     values = json.loads(resp).get("config", {}).get("values", {}) if st == 200 else {}
     record("13.1 详情读取时 secret 字段已脱敏",
@@ -1383,7 +1383,7 @@ def phase_secrets(token: str) -> None:
     st, resp = api("GET", "/api/v1/audit-logs?limit=100", token=token)
     text = resp if isinstance(resp, str) else ""
     record("13.3 审计日志不含 secret 明文",
-           st == 200 and "fx-fixture-pass" not in text, f"status={st} 命中明文={'fx-fixture-pass' in text}")
+           st == 200 and "bmc-fixture-pass" not in text, f"status={st} 命中明文={'bmc-fixture-pass' in text}")
 
     put_config(token, "nginx", CFG_NGINX)
     time.sleep(3)
@@ -1477,7 +1477,7 @@ def phase_versions(token: str) -> None:
 
     # secret 字段在版本详情里同样是掩码：历史接口不能成为绕过脱敏的后门
     put_config(token, "nginx", {**CFG_NGINX, "auth_basic_enabled": True,
-                                "auth_basic_password": "fx-fixture-pass"})
+                                "auth_basic_password": "bmc-fixture-pass"})
     nginx_versions = _config_versions(token, "nginx")
     if nginx_versions:
         newest_nginx = nginx_versions[0]["version"]
@@ -1675,12 +1675,12 @@ def phase_dhcp(token: str) -> None:
     out = dhcp_probe("ra", "--expect-prefix", DHCP_PREFIX_V6)
     record("18.3 SLAAC：RA 通告出配置的 IPv6 前缀", out.startswith("PASS"), out[:150])
 
-    out = dhcp_probe("dns", "--server", "dhcp", "--name", "fx-01.bmc.lab", "--type", "A",
+    out = dhcp_probe("dns", "--server", "dhcp", "--name", "bmc-01.bmc.lab", "--type", "A",
                      "--expect", "172.30.12.10")
     record("18.4 DNS 正向解析 A 记录（v4 查询，地址即 DHCP 下发的 DNS）",
            out.startswith("PASS"), out[:150])
 
-    out = dhcp_probe("dns", "--server", "dhcp", "--name", "fx-01.bmc.lab", "--type", "AAAA",
+    out = dhcp_probe("dns", "--server", "dhcp", "--name", "bmc-01.bmc.lab", "--type", "AAAA",
                      "--expect", "fd00:30:12::10")
     record("18.5 DNS 正向解析 AAAA 记录（同名的 v6 地址）", out.startswith("PASS"), out[:150])
 
@@ -1688,7 +1688,7 @@ def phase_dhcp(token: str) -> None:
     out = dhcp_probe("dns", "--server", v6_addr, "--addr", "172.30.12.10") if v6_addr \
         else "FAIL 取不到 dhcp 容器的 IPv6 地址"
     record("18.6 DNS 反向解析 PTR，且走 IPv6 访问 53 端口（双栈监听）",
-           out.startswith("PASS") and "fx-01" in out, out[:150])
+           out.startswith("PASS") and "bmc-01" in out, out[:150])
 
     # 静态绑定（BMC 侧「按 MAC 保留地址」的等价能力）
     st, applied, resp = put_config(token, "dhcp",
@@ -1736,7 +1736,7 @@ def phase_dhcp(token: str) -> None:
     record("18.14 故障注入 blackhole 配置生效", st == 200 and applied is True, f"status={st}")
     out = dhcp_probe("v4", "--expect-absent", "--timeout", "8")
     record("18.15 blackhole：DHCP 完全无应答（BMC 取不到地址）", out.startswith("PASS"), out[:150])
-    out = dhcp_probe("dns", "--server", "dhcp", "--name", "fx-01.bmc.lab", "--type", "A",
+    out = dhcp_probe("dns", "--server", "dhcp", "--name", "bmc-01.bmc.lab", "--type", "A",
                      "--expect", "172.30.12.10")
     record("18.16 blackhole 下 DNS 仍正常（能区分「取址失败」与「服务已挂」）",
            out.startswith("PASS"), out[:150])
@@ -1752,7 +1752,7 @@ def phase_dhcp(token: str) -> None:
     # 因此第 5 个故障换成同样有价值且可观测的「DNS 解析到错误地址」。
     st, applied, _ = put_config(token, "dhcp", {**CFG_DHCP, "fault_mode": "dns_wrong_answer"})
     record("18.18 故障注入 dns_wrong_answer 配置生效", st == 200 and applied is True, f"status={st}")
-    out = dhcp_probe("dns", "--server", "dhcp", "--name", "fx-01.bmc.lab", "--type", "A",
+    out = dhcp_probe("dns", "--server", "dhcp", "--name", "bmc-01.bmc.lab", "--type", "A",
                      "--expect", "192.0.2.99")
     record("18.19 dns_wrong_answer：域内名字解析到不可达地址（BMC 解析成功但连不上）",
            out.startswith("PASS"), out[:150])

@@ -6,7 +6,7 @@ set -eu
 
 CONF_DIR="/etc/dnsmasq"
 CONF_FILE="${CONF_DIR}/dnsmasq.conf"
-SEED_FILE="/usr/share/fx-dhcp/dnsmasq.conf.default"
+SEED_FILE="/usr/share/bmc-dhcp/dnsmasq.conf.default"
 LEASE_DIR="/var/lib/dnsmasq"
 LEASE_FILE="${LEASE_DIR}/dnsmasq.leases"
 

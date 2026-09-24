@@ -5,7 +5,7 @@
 set -eu
 
 CONF_DIR="/etc/apache2-bmc"
-SEED_DIR="/usr/share/fx-webdav"
+SEED_DIR="/usr/share/bmc-webdav"
 USERS_FILE="${CONF_DIR}/users.txt"
 HTPASSWD_FILE="${CONF_DIR}/htpasswd"
 

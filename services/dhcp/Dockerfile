@@ -20,7 +20,7 @@ RUN sed -i "s|deb.debian.org|${APT_MIRROR}|g" /etc/apt/sources.list.d/debian.sou
 # 统一生效入口：平台契约要求所有服务镜像都提供 /reload.sh（docker exec <容器> /reload.sh）
 COPY reload.sh /reload.sh
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
-COPY defaults/dnsmasq.conf /usr/share/fx-dhcp/dnsmasq.conf.default
+COPY defaults/dnsmasq.conf /usr/share/bmc-dhcp/dnsmasq.conf.default
 RUN chmod +x /reload.sh /usr/local/bin/entrypoint.sh
 
 # DHCPv4 / DHCPv6 / DNS

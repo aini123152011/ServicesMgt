@@ -49,7 +49,7 @@ no-dhcp-interface=eth0
 {% endif %}
 
 # ---- 静态解析记录（A / AAAA / PTR）----
-# 名字没写域名后缀时**同时**注册短名与 FQDN（fx-01 与 fx-01.bmc.lab 都能解析）：
+# 名字没写域名后缀时**同时**注册短名与 FQDN（bmc-01 与 bmc-01.bmc.lab 都能解析）：
 # BMC 从 DHCP 拿到 domain 后会按 FQDN 查，而人工排障时常用短名；dnsmasq 的 host-record
 # 支持「多个名字 + 多个地址」写在一行（实测短名与 FQDN 同时可解析、v4/v6 双向 PTR 都有）
 {% if fault_mode == 'dns_wrong_answer' %}

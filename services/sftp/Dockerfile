@@ -24,8 +24,8 @@ COPY reload.sh /reload.sh
 # 启动前置脚本：处理配置卷首次挂空 + 主机密钥/账号准备 + 监督循环（sshd 为其子进程）
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 # 镜像内置默认配置：内容与 schema.json 默认值的渲染结果保持一致，作为空卷种子
-COPY defaults/sshd_config /usr/share/fx-sftp/sshd_config.default
-COPY defaults/users.txt /usr/share/fx-sftp/users.txt.default
+COPY defaults/sshd_config /usr/share/bmc-sftp/sshd_config.default
+COPY defaults/users.txt /usr/share/bmc-sftp/users.txt.default
 RUN chmod +x /reload.sh /usr/local/bin/entrypoint.sh
 
 # SFTP 标准端口
