@@ -1,7 +1,7 @@
 # 服务元数据：平台 Service Registry 扫描 services/* 时按此识别与展示
 # 字段名是平台契约，后续服务照此复制，勿改名
 name: tftpd-hpa
-display_name: TFTP 文件传输
+display_name: TFTP 文件服务器
 category: file-share          # 分类枚举: time | file-share | log-monitor
 description: 基于 tftpd-hpa 的 TFTP 服务，供 BMC/网络设备上传下载配置与固件
 container_name: fx-tftpd-hpa

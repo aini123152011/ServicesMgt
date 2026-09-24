@@ -1,6 +1,6 @@
 # 服务元数据：平台 Service Registry 扫描 services/* 时按此识别与展示
 name: samba
-display_name: Samba / CIFS 文件共享
+display_name: SMB / CIFS 文件服务器
 category: file-share          # 分类枚举: time | file-share | log-monitor
 description: 基于 Samba 的 Windows/CIFS 文件共享服务，支持 SMB2/SMB3、用户认证与协议版本故障注入
 container_name: fx-samba

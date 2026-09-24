@@ -1,9 +1,9 @@
 # 服务元数据：平台 Service Registry 扫描 services/* 时按此识别与展示
 # 字段名是平台契约，后续服务照此复制，勿改名
 name: sftp
-display_name: SFTP 文件传输
+display_name: SFTP 文件服务器
 category: file-share          # 分类枚举: time | file-share | log-monitor
-description: 基于 OpenSSH 的 SFTP 文件传输服务，多用户密码登录并按目录 chroot 隔离
+description: 基于 OpenSSH 的 SFTP 文件服务器服务，多用户密码登录并按目录 chroot 隔离
 container_name: fx-sftp
 config_dir: /etc/ssh          # 配置卷在容器内的挂载点
 config_files:                 # 渲染产物相对 config_dir 的路径列表

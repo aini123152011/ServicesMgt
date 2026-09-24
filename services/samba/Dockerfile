@@ -1,4 +1,4 @@
-# Samba / CIFS 文件共享服务镜像：debian:bookworm-slim + 官方 apt 包
+# SMB / CIFS 文件服务器服务镜像：debian:bookworm-slim + 官方 apt 包
 FROM debian:bookworm-slim
 
 ARG APT_MIRROR=deb.debian.org

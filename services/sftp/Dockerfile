@@ -1,4 +1,4 @@
-# SFTP 文件传输服务镜像：debian:bookworm-slim + 发行版官方 apt 包，架构无关，
+# SFTP 文件服务器服务镜像：debian:bookworm-slim + 发行版官方 apt 包，架构无关，
 # 可直接用 docker buildx build --platform linux/arm64,linux/amd64 多架构构建
 FROM debian:bookworm-slim
 

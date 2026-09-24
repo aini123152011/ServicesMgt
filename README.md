@@ -57,15 +57,15 @@ docker compose ps             # 看健康状态
 
 | 服务 | 用途 | 容器内端口 | 宿主发布（统一范围 + 标准端口） | 生效方式 | IPv6 |
 | --- | --- | --- | --- | --- | --- |
-| chrony | NTP 时间同步 | 123/udp | 18101、123 | 热 | ✅ 双栈（`bindaddress` 两族） |
-| nginx | HTTP / HTTPS 文件服务 | 80、443 | 18102、18103 | 热 | ✅ 双栈（`listen [::]`） |
-| rsyslog | BMC 日志归集 | 514/tcp+udp | 18104、514 | 重启 | ✅ 双栈（默认） |
-| webdav | WebDAV 文件共享 | 8080 | 18105 | 重启 | ✅ 双栈（`Listen [::]`） |
-| sftp | SFTP 文件传输 | 22 | 18106 | 重启 | ✅ 双栈（默认） |
-| vsftpd | FTP 文件共享 | 21、40000-40100 | 18107、21、40000-40100 | 重启 | ✅ 双栈（`listen_ipv6`） |
-| tftpd-hpa | TFTP 文件传输 | 69/udp | 18108、69 | 重启 | ✅ 双栈（`[::]:69`） |
-| samba | Samba / CIFS 文件共享 | 445 | 18109、445 | 重启 | ✅ 双栈（默认） |
-| nfs-ganesha | NFS 网络文件系统 | 2049 | 18110、2049 | 重启 | ✅ 双栈（默认） |
+| chrony | NTP 时间服务器 | 123/udp | 18101、123 | 热 | ✅ 双栈（`bindaddress` 两族） |
+| nginx | HTTP / HTTPS 文件服务器 | 80、443 | 18102、18103 | 热 | ✅ 双栈（`listen [::]`） |
+| rsyslog | Syslog 日志服务器 | 514/tcp+udp | 18104、514 | 重启 | ✅ 双栈（默认） |
+| webdav | WebDAV 文件服务器 | 8080 | 18105 | 重启 | ✅ 双栈（`Listen [::]`） |
+| sftp | SFTP 文件服务器 | 22 | 18106 | 重启 | ✅ 双栈（默认） |
+| vsftpd | FTP 文件服务器 | 21、40000-40100 | 18107、21、40000-40100 | 重启 | ✅ 双栈（`listen_ipv6`） |
+| tftpd-hpa | TFTP 文件服务器 | 69/udp | 18108、69 | 重启 | ✅ 双栈（`[::]:69`） |
+| samba | SMB / CIFS 文件服务器 | 445 | 18109、445 | 重启 | ✅ 双栈（默认） |
+| nfs-ganesha | NFS 文件服务器 | 2049 | 18110、2049 | 重启 | ✅ 双栈（默认） |
 | snmptrapd | SNMP Trap 接收 | 162/udp | 18111、162 | 重启 | ✅ 双栈（`udp6:162`） |
 | postfix | SMTP 邮件中继 | 25 | 18112、25 | 重启 | ✅ 双栈（默认） |
 | dhcp | DHCPv4 / DHCPv6+SLAAC / DNS | 67/udp、547/udp、53/tcp+udp | 18113（仅 DNS） | 重启 | ✅ 双栈（v4 池 + RA/DHCPv6） |

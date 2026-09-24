@@ -1,7 +1,7 @@
 # 服务元数据：平台 Service Registry 扫描 services/* 时按此识别与展示
 # 字段名是平台契约，各服务保持规范一致
 name: nginx
-display_name: HTTP / HTTPS 文件服务
+display_name: HTTP / HTTPS 文件服务器
 category: file-share          # 分类枚举: time | file-share | log-monitor
 description: 提供高性能固件分发与日志收集的 HTTP/HTTPS 服务，支持 Basic 认证、限速与故障注入
 container_name: fx-nginx

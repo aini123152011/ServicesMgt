@@ -1,7 +1,7 @@
 # 服务元数据：平台 Service Registry 扫描 services/* 时按此识别与展示
 # 字段名是平台契约，后续服务照此复制，勿改名
 name: vsftpd
-display_name: FTP 文件共享
+display_name: FTP 文件服务器
 category: file-share          # 分类枚举: time | file-share | log-monitor
 description: 基于 vsftpd 的 FTP 服务，本地账号密码登录，支持被动模式、chroot 与限速
 container_name: fx-vsftpd

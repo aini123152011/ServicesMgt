@@ -1,6 +1,6 @@
 # 服务元数据：平台 Service Registry 扫描 services/* 时按此识别与展示
 name: freeradius
-display_name: RADIUS 认证服务
+display_name: RADIUS 认证服务器
 category: network            # 分类枚举: time | file-share | log-monitor | network
 description: 基于 FreeRADIUS 的认证服务：为 BMC 提供 RADIUS 认证/计费应答，可下发 VLAN 等回复属性，并带拒绝/无应答/属性篡改类故障模式
 container_name: fx-freeradius

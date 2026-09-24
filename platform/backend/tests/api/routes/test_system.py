@@ -41,7 +41,7 @@ def fake_targets(monkeypatch: pytest.MonkeyPatch) -> list[dict[str, Any]]:
         },
         {
             "target": "nginx",
-            "display_name": "HTTP / HTTPS 文件服务",
+            "display_name": "HTTP / HTTPS 文件服务器",
             "container_name": "fx-nginx",
             "image": "bmc/nginx:latest",
             "running_image_id": "sha256:old",
@@ -120,7 +120,7 @@ def test_check_updates_returns_conclusion(
             "targets": [
                 {
                     "target": "nginx",
-                    "display_name": "HTTP / HTTPS 文件服务",
+                    "display_name": "HTTP / HTTPS 文件服务器",
                     "container_name": "fx-nginx",
                     "image": "bmc/nginx:latest",
                     "running_image_id": "sha256:old",

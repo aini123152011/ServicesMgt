@@ -33,7 +33,7 @@ def _manifest_with_usage(usage: Any) -> dict[str, Any]:
     """构造一份除 usage 外全部合法的 manifest，把被测字段隔离出来。"""
     manifest: dict[str, Any] = {
         "name": "chrony",
-        "display_name": "NTP 时间同步",
+        "display_name": "NTP 时间服务器",
         "category": "time",
         "description": "usage 校验测试用 manifest",
         "container_name": "fx-chrony",

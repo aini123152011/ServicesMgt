@@ -1,6 +1,6 @@
 # 服务元数据：平台 Service Registry 扫描 services/* 时按此识别与展示
 name: nfs-ganesha
-display_name: NFS 网络文件系统
+display_name: NFS 文件服务器
 category: file-share          # 分类枚举: time | file-share | log-monitor
 description: 基于 NFS-Ganesha 的网络文件共享服务，支持 NFSv3/v4、网段访问控制与虚拟介质故障注入
 container_name: fx-nfs-ganesha

@@ -67,7 +67,7 @@ const BASE_INFO: SystemInfo = {
     },
     {
       target: 'chrony',
-      display_name: 'NTP 时间同步',
+      display_name: 'NTP 时间服务器',
       container_name: 'fx-chrony',
       image: 'bmc/chrony:latest',
       running_image_id: 'sha256:cccc55556666',
@@ -112,7 +112,7 @@ describe('UpdateButton', () => {
     await expect
       .element(screen.getByText('HTTP/HTTPS 文件服务'))
       .toBeInTheDocument()
-    expect(screen.getByText('NTP 时间同步').query()).toBeNull()
+    expect(screen.getByText('NTP 时间服务器').query()).toBeNull()
     await expect.element(screen.getByText(/aaaa11112222/)).toBeInTheDocument()
   })
 

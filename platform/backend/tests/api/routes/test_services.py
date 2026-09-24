@@ -104,7 +104,7 @@ def test_read_services(
     chrony = next(item for item in content["data"] if item["name"] == "chrony")
     assert chrony == {
         "name": "chrony",
-        "display_name": "NTP 时间同步",
+        "display_name": "NTP 时间服务器",
         "category": "time",
         "description": "基于 chrony 的 NTP 服务，为 BMC/内网设备提供时间同步",
         "container_name": "fx-chrony",
