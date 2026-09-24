@@ -2,6 +2,7 @@
 # 字段名是平台契约，后续服务照此复制，勿改名
 name: webdav
 display_name: WebDAV 文件服务器
+display_name_en: "WebDAV File Server"
 category: file-share          # 分类枚举: time | file-share | log-monitor
 description: 基于 Apache mod_dav 的 WebDAV 服务，支持 Basic 认证、只读模式与上传限额
 container_name: fx-webdav

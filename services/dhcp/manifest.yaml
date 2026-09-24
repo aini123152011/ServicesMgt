@@ -1,6 +1,7 @@
 # 服务元数据：平台 Service Registry 扫描 services/* 时按此识别与展示
 name: dhcp
 display_name: DHCP / DNS 服务器
+display_name_en: "DHCP / DNS Server"
 category: network            # 分类枚举: time | file-share | log-monitor | network
 description: 基于 dnsmasq 的 DHCPv4 + DHCPv6/SLAAC + DNS 服务：为 BMC 管理口下发地址、网关、DNS 与域名，并支持 PXE 引导参数（与 tftpd-hpa 夹具联动）
 container_name: fx-dhcp

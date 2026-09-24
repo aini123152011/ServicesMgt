@@ -14,6 +14,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { type AuditLogEntry } from '@/api/audit'
 import { type ServiceStatusResponse, type ServiceSummary } from '@/api/services'
+import { serviceDisplayName } from '@/lib/service-name'
 import { cn } from '@/lib/utils'
 import { usePermissions } from '@/hooks/use-permissions'
 import { Badge } from '@/components/ui/badge'
@@ -205,7 +206,7 @@ export function Home() {
                         params={{ serviceName: service.name }}
                         className='font-medium hover:underline'
                       >
-                        {service.display_name}
+                        {serviceDisplayName(service)}
                       </Link>
                       <Badge variant='destructive'>{service.fault_mode}</Badge>
                       <Button
@@ -385,7 +386,7 @@ function ServiceHealthTable({
                     className='hover:underline'
                     onClick={(event) => event.stopPropagation()}
                   >
-                    {service.display_name}
+                    {serviceDisplayName(service)}
                   </Link>
                 </TableCell>
                 <TableCell>

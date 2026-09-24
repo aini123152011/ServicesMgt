@@ -2,6 +2,7 @@
 # 字段名是平台契约，后续服务照此复制，勿改名
 name: sftp
 display_name: SFTP 文件服务器
+display_name_en: "SFTP File Server"
 category: file-share          # 分类枚举: time | file-share | log-monitor
 description: 基于 OpenSSH 的 SFTP 文件服务器服务，多用户密码登录并按目录 chroot 隔离
 container_name: fx-sftp

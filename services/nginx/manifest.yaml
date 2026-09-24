@@ -2,6 +2,7 @@
 # 字段名是平台契约，各服务保持规范一致
 name: nginx
 display_name: HTTP / HTTPS 文件服务器
+display_name_en: "HTTP / HTTPS File Server"
 category: file-share          # 分类枚举: time | file-share | log-monitor
 description: 提供高性能固件分发与日志收集的 HTTP/HTTPS 服务，支持 Basic 认证、限速与故障注入
 container_name: fx-nginx

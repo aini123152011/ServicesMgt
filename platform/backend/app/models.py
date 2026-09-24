@@ -119,6 +119,9 @@ class ServicePort(SQLModel):
 class ServiceSummary(SQLModel):
     name: str
     display_name: str
+    # 英文展示名（可选）：英文界面优先用它，缺失时前端回落 display_name。
+    # 字段 label/help 仍是中文——英文元数据目前只覆盖服务名这一层
+    display_name_en: str | None = None
     category: str
     description: str | None = None
     container_name: str

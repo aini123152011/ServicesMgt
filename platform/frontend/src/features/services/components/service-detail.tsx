@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { type ServiceAction } from '@/api/services'
+import { serviceDisplayName } from '@/lib/service-name'
 import { usePermissions } from '@/hooks/use-permissions'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -128,7 +129,7 @@ export function ServiceDetail({ name }: ServiceDetailProps) {
           </Button>
           <Separator orientation='vertical' className='h-5!' />
           <h2 className='text-2xl font-bold tracking-tight'>
-            {manifest.display_name}
+            {serviceDisplayName(manifest)}
           </h2>
           <Badge variant='outline' className={categoryTypes[manifest.category]}>
             {t(categoryLabelKeys[manifest.category])}

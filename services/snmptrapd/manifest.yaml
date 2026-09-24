@@ -2,6 +2,7 @@
 # 字段名是平台契约，后续服务照此复制，勿改名
 name: snmptrapd
 display_name: SNMP Trap 接收
+display_name_en: "SNMP Trap Receiver"
 category: log-monitor          # 分类枚举: time | file-share | log-monitor
 description: 基于 net-snmp snmptrapd 的 Trap 接收服务，接收 BMC 告警事件并落盘
 container_name: fx-snmptrapd

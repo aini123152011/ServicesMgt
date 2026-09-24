@@ -10,6 +10,8 @@ export type ReloadMode = 'hot' | 'restart'
 export interface ServiceSummary {
   name: string
   display_name: string
+  /** 英文展示名；英文界面优先用它，缺失时回落 display_name（字段 label/help 仍是中文） */
+  display_name_en?: string | null
   category: ServiceCategory
   description: string | null
   container_name: string

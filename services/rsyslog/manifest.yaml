@@ -2,6 +2,7 @@
 # 字段名是平台契约，后续服务照此复制，勿改名
 name: rsyslog
 display_name: Syslog 日志服务器
+display_name_en: "Syslog Server"
 category: log-monitor          # 分类枚举: time | file-share | log-monitor
 description: 基于 rsyslog 的集中日志接收服务，按日期目录与来源 IP 归档 BMC 日志
 container_name: fx-rsyslog

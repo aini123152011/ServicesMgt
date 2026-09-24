@@ -2,6 +2,7 @@
 # 字段名是平台契约，后续服务照此复制，勿改名
 name: tftpd-hpa
 display_name: TFTP 文件服务器
+display_name_en: "TFTP File Server"
 category: file-share          # 分类枚举: time | file-share | log-monitor
 description: 基于 tftpd-hpa 的 TFTP 服务，供 BMC/网络设备上传下载配置与固件
 container_name: fx-tftpd-hpa

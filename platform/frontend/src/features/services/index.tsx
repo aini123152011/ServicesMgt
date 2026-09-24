@@ -2,6 +2,7 @@ import { Link } from '@tanstack/react-router'
 import { Network } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { type ServiceSummary } from '@/api/services'
+import { serviceDisplayName } from '@/lib/service-name'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -92,7 +93,7 @@ function ServiceCard({ service }: { service: ServiceSummary }) {
           <div className='flex items-start justify-between gap-2'>
             <CardTitle className='flex items-center gap-2'>
               <CategoryIcon className='size-4 text-muted-foreground' />
-              {service.display_name}
+              {serviceDisplayName(service)}
             </CardTitle>
             <Badge
               variant='outline'

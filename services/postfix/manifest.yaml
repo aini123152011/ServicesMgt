@@ -2,6 +2,7 @@
 # 字段名是平台契约，后续服务照此复制，勿改名
 name: postfix
 display_name: SMTP 邮件中继
+display_name_en: "SMTP Mail Relay"
 category: log-monitor          # 分类枚举: time | file-share | log-monitor
 description: 基于 postfix 的 SMTP 服务，为 BMC 告警邮件提供中继与投递
 container_name: fx-postfix
