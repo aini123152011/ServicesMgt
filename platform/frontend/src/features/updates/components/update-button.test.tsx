@@ -45,6 +45,10 @@ vi.mock('@/features/settings/hooks/use-system', () => ({
   useSystemInfoQuery: mocks.useSystemInfoQuery,
   useUpdateStatusQuery: mocks.useUpdateStatusQuery,
   useApplyUpdateMutation: () => ({ mutate: mocks.applyMutate }),
+  useApplyAllUpdatesMutation: () => ({
+    mutate: mocks.applyMutate,
+    isPending: false,
+  }),
 }))
 
 const BASE_INFO: SystemInfo = {

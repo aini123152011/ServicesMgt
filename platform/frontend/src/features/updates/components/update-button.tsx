@@ -15,6 +15,7 @@ import {
 import { Separator } from '@/components/ui/separator'
 import { taskStatusKey } from '@/features/settings/data/update-status'
 import {
+  useApplyAllUpdatesMutation,
   useApplyUpdateMutation,
   useSystemInfoQuery,
   useUpdateStatusQuery,
@@ -44,6 +45,7 @@ export function UpdateButton() {
   const infoQuery = useSystemInfoQuery(AUTO_CHECK_INTERVAL_MS)
   const statusQuery = useUpdateStatusQuery(true)
   const applyMutation = useApplyUpdateMutation()
+  const applyAllMutation = useApplyAllUpdatesMutation()
 
   const targets = infoQuery.data?.targets ?? []
   const available = targets.filter((target) => target.update_available)
@@ -121,6 +123,29 @@ export function UpdateButton() {
           </Button>
         </div>
         <Separator />
+
+        {/* 一键更新：目标多时逐个点太累，这里给一个整行主按钮（与设置页同一个接口） */}
+        {available.length > 1 && (
+          <div className='px-4 pt-3'>
+            <Button
+              size='sm'
+              className='w-full'
+              disabled={running || applyAllMutation.isPending}
+              onClick={() =>
+                applyAllMutation.mutate(undefined, {
+                  onSuccess: () => toast.success(t('system.quick.applied')),
+                })
+              }
+            >
+              {running || applyAllMutation.isPending ? (
+                <LoaderCircle className='animate-spin' />
+              ) : (
+                <ArrowUpCircle />
+              )}
+              {t('system.applyAll', { count: available.length })}
+            </Button>
+          </div>
+        )}
 
         <div className='max-h-72 overflow-y-auto'>
           {targets.length === 0 ? (
