@@ -105,6 +105,7 @@ def test_read_services(
     assert chrony == {
         "name": "chrony",
         "display_name": "NTP 时间服务器",
+        "display_name_en": "NTP Time Server",
         "category": "time",
         "description": "基于 chrony 的 NTP 服务，为 BMC/内网设备提供时间同步",
         "container_name": "fx-chrony",
