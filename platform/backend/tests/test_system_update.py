@@ -13,6 +13,7 @@ import pytest
 from docker.errors import ImageLoadError
 
 from app import container_rebuild, system_update, update_status
+from app.core.config import settings
 
 
 class _FakeContainer:
@@ -287,3 +288,73 @@ def test_read_status_returns_none_for_corrupt_file(tmp_path: Path) -> None:
     path.write_text("{not json", encoding="utf-8")
 
     assert update_status.read(path) is None
+
+
+# --------------------------------------------------------------------------- #
+# 拉取用的镜像引用构造（UPDATE_REGISTRY）
+#
+# 实测踩到：容器上的镜像引用可能已经带仓库（甚至镜像站）主机名，把整段拼在前缀后面会得到
+# 非法引用（ghcr.io/org/ghcr.nju.edu.cn/org/fx-chrony:latest），pull 必然失败。
+# --------------------------------------------------------------------------- #
+def _stub_targets(image: str) -> Any:
+    """替身 collect_targets：只返回一个带指定镜像引用的目标。"""
+    return lambda plugins: [{"target": "chrony", "image": image}]
+
+
+def test_pull_refs_replaces_existing_registry_prefix(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """容器引用带镜像站主机名时，只取「名字:tag」再拼目标仓库前缀。"""
+    monkeypatch.setattr(settings, "UPDATE_REGISTRY", "ghcr.io/aini123152011")
+    monkeypatch.setattr(
+        system_update,
+        "collect_targets",
+        _stub_targets("ghcr.nju.edu.cn/aini123152011/fx-chrony:latest"),
+    )
+
+    assert system_update.pull_refs([]) == ["ghcr.io/aini123152011/fx-chrony:latest"]
+
+
+def test_pull_refs_handles_bare_local_image(monkeypatch: pytest.MonkeyPatch) -> None:
+    """本地构建（引用没有仓库前缀）时同样成立。"""
+    monkeypatch.setattr(settings, "UPDATE_REGISTRY", "registry.local:5000")
+    monkeypatch.setattr(
+        system_update, "collect_targets", _stub_targets("fx-nginx:latest")
+    )
+
+    assert system_update.pull_refs([]) == ["registry.local:5000/fx-nginx:latest"]
+
+
+def test_pull_refs_tolerates_trailing_slash(monkeypatch: pytest.MonkeyPatch) -> None:
+    """前缀末尾多写一个斜杠不该拼出双斜杠。"""
+    monkeypatch.setattr(settings, "UPDATE_REGISTRY", "ghcr.io/org/")
+    monkeypatch.setattr(
+        system_update, "collect_targets", _stub_targets("fx-dhcp:latest")
+    )
+
+    assert system_update.pull_refs([]) == ["ghcr.io/org/fx-dhcp:latest"]
+
+
+def test_pull_refs_empty_without_registry(monkeypatch: pytest.MonkeyPatch) -> None:
+    """未配置仓库时不拉取（界面也不显示在线更新入口）。"""
+    monkeypatch.setattr(settings, "UPDATE_REGISTRY", "")
+    monkeypatch.setattr(
+        system_update, "collect_targets", _stub_targets("fx-dhcp:latest")
+    )
+
+    assert system_update.pull_refs([]) == []
+
+
+def test_pull_refs_skips_targets_without_image(monkeypatch: pytest.MonkeyPatch) -> None:
+    """容器还没起来（取不到镜像引用）的目标跳过，不拼出「前缀/」这种半截引用。"""
+    monkeypatch.setattr(settings, "UPDATE_REGISTRY", "ghcr.io/org")
+    monkeypatch.setattr(
+        system_update,
+        "collect_targets",
+        lambda plugins: [
+            {"target": "chrony", "image": ""},
+            {"target": "nginx", "image": "fx-nginx:latest"},
+        ],
+    )
+
+    assert system_update.pull_refs([]) == ["ghcr.io/org/fx-nginx:latest"]

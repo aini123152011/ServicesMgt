@@ -115,7 +115,7 @@ docker compose down                     # 停止（保留卷）
 | `FIRST_SUPERUSER` / `FIRST_SUPERUSER_PASSWORD` | 初始管理员账号（必填） |
 | `POSTGRES_USER` / `POSTGRES_DB` | 默认 `bmc` / `bmc_platform` |
 | `PROJECT_NAME` / `FRONTEND_HOST` | 界面标题与前端地址（默认 `http://localhost:18080`） |
-| `UPDATE_REGISTRY` | 平台自更新用的镜像仓库地址；留空则关闭在线更新入口 |
+| `UPDATE_REGISTRY` | 平台自更新用的镜像仓库前缀（主机+命名空间，如 `ghcr.io/<账号>`；国内可写镜像站 `ghcr.nju.edu.cn/<账号>`）。配置后「检查更新」会逐个 `docker pull` 同名镜像；留空则平台不主动拉取，只能靠离线包或宿主 `docker compose pull` |
 
 ---
 

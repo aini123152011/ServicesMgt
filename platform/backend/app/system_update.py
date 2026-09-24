@@ -181,13 +181,34 @@ def check_updates(plugins: list[Any]) -> dict[str, Any]:
     }
 
 
+def pull_refs(plugins: list[Any]) -> list[str]:
+    """算出「从 UPDATE_REGISTRY 拉取」用的镜像引用（未配置仓库时返回空列表）。
+
+    只取镜像名与 tag（引用的最后一段）再拼仓库前缀。**不能把容器的完整镜像引用直接拼在前缀后面**：
+    容器上的引用本身可能已经带仓库主机名（甚至镜像站），例如
+    `ghcr.nju.edu.cn/org/fx-chrony:latest`，拼出来会变成
+    `ghcr.io/org/ghcr.nju.edu.cn/org/fx-chrony:latest` 这种非法引用，pull 必然失败（实测）。
+
+    Args:
+        plugins: 已加载的服务插件列表。
+
+    Returns:
+        待拉取的镜像引用列表；未配置 UPDATE_REGISTRY 时为空。
+    """
+    prefix = settings.UPDATE_REGISTRY.strip().rstrip("/")
+    if not prefix:
+        return []
+    return [
+        f"{prefix}/{str(t['image']).rsplit('/', 1)[-1]}"
+        for t in collect_targets(plugins)
+        if t.get("image")
+    ]
+
+
 def _pull_from_registry(plugins: list[Any]) -> None:
     """配置了镜像仓库时逐个 pull；单个失败只记日志，不阻断其余检查。"""
     client = _client()
-    refs = [
-        f"{settings.UPDATE_REGISTRY}/{t['image']}" for t in collect_targets(plugins)
-    ]
-    for ref in refs:
+    for ref in pull_refs(plugins):
         if not ref or ref.endswith("/"):
             continue
         try:
