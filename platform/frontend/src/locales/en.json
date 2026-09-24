@@ -490,7 +490,6 @@
       "tooltip": "Check for updates",
       "upToDate": "Everything is up to date",
       "availableCount": "{{count}} updates available",
-      "autoCheckHint": "Checked automatically every 5 minutes",
       "more": "Full settings",
       "applied": "Update task started"
     },

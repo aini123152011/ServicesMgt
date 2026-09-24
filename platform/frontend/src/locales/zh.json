@@ -490,7 +490,6 @@
       "tooltip": "检查更新",
       "upToDate": "所有目标都是最新版本",
       "availableCount": "有 {{count}} 个可用更新",
-      "autoCheckHint": "每 5 分钟自动检查一次",
       "more": "完整设置",
       "applied": "更新任务已启动"
     },

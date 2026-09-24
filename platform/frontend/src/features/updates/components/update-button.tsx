@@ -124,29 +124,6 @@ export function UpdateButton() {
         </div>
         <Separator />
 
-        {/* 一键更新：目标多时逐个点太累，这里给一个整行主按钮（与设置页同一个接口） */}
-        {available.length > 1 && (
-          <div className='px-4 pt-3'>
-            <Button
-              size='sm'
-              className='w-full'
-              disabled={running || applyAllMutation.isPending}
-              onClick={() =>
-                applyAllMutation.mutate(undefined, {
-                  onSuccess: () => toast.success(t('system.quick.applied')),
-                })
-              }
-            >
-              {running || applyAllMutation.isPending ? (
-                <LoaderCircle className='animate-spin' />
-              ) : (
-                <ArrowUpCircle />
-              )}
-              {t('system.applyAll', { count: available.length })}
-            </Button>
-          </div>
-        )}
-
         <div className='max-h-72 overflow-y-auto'>
           {targets.length === 0 ? (
             <p className='px-4 py-6 text-center text-sm text-muted-foreground'>
@@ -191,21 +168,43 @@ export function UpdateButton() {
 
         <Separator />
         <div className='flex items-center justify-between gap-2 px-4 py-3'>
-          <span className='text-xs text-muted-foreground'>
-            {running && status
-              ? `${t(taskStatusKey(status.status))}${
-                  status.target ? ` · ${status.target}` : ''
-                }`
-              : t('system.quick.autoCheckHint')}
-          </span>
-          {failed ? (
-            <Badge variant='destructive'>{t('system.status.failed')}</Badge>
-          ) : null}
-          <Button size='sm' variant='ghost' asChild>
-            <Link to='/settings/updates' onClick={() => setOpen(false)}>
-              {t('system.quick.more')}
-            </Link>
-          </Button>
+          {/* 左下角：任务在跑时显示进度（比按钮更有用），否则给「全部更新」——目标多时不用逐个点 */}
+          {running && status ? (
+            <span className='text-xs text-muted-foreground'>
+              {t(taskStatusKey(status.status))}
+              {status.target ? ` · ${status.target}` : ''}
+            </span>
+          ) : available.length > 1 ? (
+            <Button
+              size='sm'
+              variant='outline'
+              disabled={applyAllMutation.isPending}
+              onClick={() =>
+                applyAllMutation.mutate(undefined, {
+                  onSuccess: () => toast.success(t('system.quick.applied')),
+                })
+              }
+            >
+              {applyAllMutation.isPending ? (
+                <LoaderCircle className='animate-spin' />
+              ) : (
+                <ArrowUpCircle />
+              )}
+              {t('system.applyAll', { count: available.length })}
+            </Button>
+          ) : (
+            <span />
+          )}
+          <div className='flex items-center gap-2'>
+            {failed ? (
+              <Badge variant='destructive'>{t('system.status.failed')}</Badge>
+            ) : null}
+            <Button size='sm' variant='ghost' asChild>
+              <Link to='/settings/updates' onClick={() => setOpen(false)}>
+                {t('system.quick.more')}
+              </Link>
+            </Button>
+          </div>
         </div>
       </PopoverContent>
     </Popover>
