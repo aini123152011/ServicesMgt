@@ -1643,20 +1643,18 @@ def clear_dhcp_leases() -> None:
 
 
 def dhcp_container_ipv6() -> str:
-    """dhcp 容器上**第一个非空**的全局 IPv6 地址（用于验证 DNS 的 v6 监听）。
+    """dhcp 容器在 **dhcp-net 网桥** 上的全局 IPv6 地址（用于验证 DNS 的 v6 监听）。
 
-    取第一个非空值而不是第一个字段：启用二层夹具后容器同时挂在 dhcp-net 与 macvlan 上，
-    而 macvlan 网络没有 IPv6 子网（该网络的 GlobalIPv6Address 是空串），且 docker inspect 的
-    `range` 遍历 map 顺序不固定——按位置取会随机拿到空串，探针就报「取不到地址」（实测踩到）。
+    必须限定在 dhcp-net 上取：启用二层夹具后容器同时挂在 dhcp-net 与 macvlan 上，
+    而探针容器只在 dhcp-net 里——拿 macvlan 的 v6 地址（如 fd00:95::2）去查必然超时。
+    实测踩过两次：先是 macvlan 没有 v6 子网时按位置取到空串，后来给 macvlan 配了 v6 段，
+    按「第一个非空」又会取到 macvlan 地址（18.6 超时）。所以按网络名精确取。
     """
     output = sh(
         f"docker inspect {DHCP_CONTAINER} --format "
-        "'{{range .NetworkSettings.Networks}}{{.GlobalIPv6Address}} {{end}}'"
+        f"'{{{{(index .NetworkSettings.Networks \"{DHCP_NETWORK}\").GlobalIPv6Address}}}}'"
     )
-    for part in output.split():
-        if ":" in part:
-            return part
-    return ""
+    return output.strip()
 
 
 def phase_dhcp(token: str) -> None:
