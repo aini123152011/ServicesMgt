@@ -21,7 +21,7 @@ IMAGE_PREFIX="${IMAGE_PREFIX:-}"
 IMAGE_TAG="${IMAGE_TAG:-$VERSION}"
 IMAGE_REF="${IMAGE_PREFIX}fx-platform:${IMAGE_TAG}"
 BUILD_LOCAL="${BUILD_LOCAL:-0}"
-DEPLOY_DIR="${DEPLOY_DIR:-/opt/fx-deploy}"
+DEPLOY_DIR="${DEPLOY_DIR:-/opt/servicesmgt-deploy}"
 CONTAINER="${CONTAINER:-fx-platform}"
 PACKAGE="${PACKAGE:-/tmp/platform-update.tgz}"
 

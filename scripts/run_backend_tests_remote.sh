@@ -13,7 +13,7 @@
 #   bash scripts/run_backend_tests_remote.sh tests/test_service_seeds.py -q   # 透传 pytest 参数
 set -euo pipefail
 
-DEPLOY_DIR="${DEPLOY_DIR:-/opt/fx-deploy}"
+DEPLOY_DIR="${DEPLOY_DIR:-/opt/servicesmgt-deploy}"
 IMAGE="${IMAGE:-fx-platform:latest}"
 PG_IMAGE="${PG_IMAGE:-postgres:18.4-alpine}"
 PG_NAME="fx-pytest-pg"
