@@ -186,3 +186,21 @@ ssh root@<目标机> 'VERSION=<x.y.z> bash -s' < scripts/deploy_platform_remote.
 
 更多容器层面的坑（权限、`/var/run` 空 tmpfs、被动端口段、降权守护进程的 reload 陷阱等）见
 [容器运行时踩坑清单](./container-runtime-guidelines.md)。
+
+| 平台更新后新接口 500 / 新表不存在 | 只 `docker compose up -d` 不会跑迁移。迁移由 `deploy_platform_remote.sh` 负责；手动补：`docker exec fx-platform /app/backend/.venv/bin/alembic upgrade head` |
+| 新增依赖后容器起不来（`ModuleNotFoundError`） | `Dockerfile.platform.fast` 是增量叠加、**不跑 `uv sync`**。改过 `pyproject.toml`/`uv.lock` 必须用 `Dockerfile.platform` 完整重建 |
+| 完整构建时 `Failed to download ... operation timed out` | `uv sync --frozen` 按 lock 里记的 `files.pythonhosted.org` 下载，部署机到不了该 CDN。在部署机按镜像重新生成 lock（版本不变）后再构建，仓库里的 lock 留给 CI |
+| `.env` 里配了变量但容器里没有 | 平台服务在 compose 里是**显式 `environment:` 列表**，不是 `env_file`：新增变量要同时加进 compose |
+
+## 平台发信（注册验证码 / 找回密码）
+
+平台经 SMTP 发信，配置只放部署目录 `.env`（不进仓库）：
+
+| 变量 | 取值 | 说明 |
+| --- | --- | --- |
+| `SMTP_HOST` | `smtp.exmail.qq.com` | 腾讯企业邮 |
+| `SMTP_PORT` / `SMTP_TLS` / `SMTP_SSL` | `587` / `true` / `false` | **必须走 587 + STARTTLS**：465 在本网络被中间设备做 TLS 重签名（自签链），Python 的 `SMTP_SSL` 必然校验失败。不要为了绕过而关闭证书校验——那等于把邮箱口令交给该设备 |
+| `SMTP_USER` / `SMTP_PASSWORD` | 邮箱账号 / **客户端专用密码** | 企业微信邮箱开了「安全登录」，登录密码不能用于 SMTP |
+| `EMAILS_FROM_EMAIL` | 与 `SMTP_USER` 一致 | 腾讯要求发件地址与认证账号一致，否则 553 拒收 |
+
+未配置时平台不会静默失败：注册接口返回 503「邮件服务未配置」，管理员仍可在用户列表用「标记已验证」人工放行。
