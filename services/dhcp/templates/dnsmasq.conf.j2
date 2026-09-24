@@ -16,7 +16,11 @@ expand-hosts
 
 # ---- DHCPv4 ----
 dhcp-authoritative
-{% if fault_mode == 'pool_exhausted' %}
+{% if fault_mode == 'blackhole' %}
+# 故障注入：不应答 DHCP —— 直接不渲染任何 dhcp-range，dnsmasq 便在任何接口上都不服务 DHCP，
+# 而 DNS 照常。**不能写成 no-dhcp-interface=eth0**：容器同时挂 macvlan 与 bridge 时 eth0 是
+# macvlan，禁用它对 bridge 上的客户端毫无作用（实测踩到：探针照样拿到地址）
+{% elif fault_mode == 'pool_exhausted' %}
 # 故障注入：地址池只剩一个地址，第二个客户端拿不到地址
 dhcp-range={{ pool_start }},{{ pool_start }},{{ effective_lease }}
 {% else %}
@@ -43,10 +47,6 @@ dhcp-boot={{ boot_file }},,{{ next_server }}
 {% elif boot_file %}
 dhcp-boot={{ boot_file }}
 {% endif %}
-{% if fault_mode == 'blackhole' %}
-# 故障注入：本接口不应答 DHCP（BMC 取不到地址）；DNS 仍正常，便于区分「取址失败」与「服务已挂」
-no-dhcp-interface=eth0
-{% endif %}
 
 # ---- 静态解析记录（A / AAAA / PTR）----
 # 名字没写域名后缀时**同时**注册短名与 FQDN（bmc-01 与 bmc-01.bmc.lab 都能解析）：
@@ -66,7 +66,9 @@ host-record={{ names | join(',') }},{{ parts[1:] | join(',') }}
 {% if ra_mode != 'off' %}
 
 # ---- IPv6：RA（SLAAC）或有状态 DHCPv6 ----
-{% if ra_mode == 'slaac' %}
+{% if fault_mode == 'blackhole' %}
+# 故障注入：blackhole 时 v6 侧同样不取址（RA 与 DHCPv6 都不下发）
+{% elif ra_mode == 'slaac' %}
 # 只发 RA（无状态自动配置）；dnsmasq 通告的 RA 前缀固定按 /64 处理
 dhcp-range={{ ra_prefix }},ra-only
 {% elif ra_mode == 'stateful' %}
