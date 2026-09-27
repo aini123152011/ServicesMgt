@@ -1,0 +1,47 @@
+# 单服务独立部署入口：cd services/pki && docker compose up -d
+# 独立网络 + 独立卷，与其他服务互不影响（R1 隔离）；平台总编排按需引用本文件。
+services:
+  pki:
+    # 有 image 时 compose 会把 build 产物打上该 tag，也方便直接使用 CI 构建好的镜像
+    image: ${IMAGE_PREFIX:-}fx-pki:${IMAGE_TAG:-latest}
+    build: .
+    container_name: fx-pki
+    restart: unless-stopped
+    ports:
+      # 8090 是服务自身端口（与容器内一致，便于照抄命令）；18115 是统一范围内端口
+      - "8090:8090/tcp"
+      - "18115:8090/tcp"
+    volumes:
+      # 配置卷：平台把渲染后的 pki.conf 写入这里，reload.sh 触发生效
+      - pki-config:/etc/pki-bmc
+      # 数据卷（公开产物）：平台数据浏览接口的可浏览根，只有证书/链/CSR/清单，绝不放私钥
+      - pki-data:/data/pki
+      # 密钥卷：CA 私钥与签发出的私钥；manifest 不声明该目录，平台看不到
+      - pki-secrets:/srv/pki-secrets
+    networks:
+      - pki-net
+    healthcheck:
+      # 与 Dockerfile 的 HEALTHCHECK 保持一致（读配置取端口后探 /healthz）
+      test:
+        [
+          "CMD",
+          "python3",
+          "/usr/local/bin/api.py",
+          "--config",
+          "/etc/pki-bmc/pki.conf",
+          "--healthcheck",
+        ]
+      interval: 30s
+      timeout: 15s
+      start_period: 15s
+      retries: 3
+
+networks:
+  pki-net:
+    # 每服务独立 bridge 网络，服务间互不可见
+    driver: bridge
+
+volumes:
+  pki-config:
+  pki-data:
+  pki-secrets:

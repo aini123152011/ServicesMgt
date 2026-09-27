@@ -36,3 +36,5 @@ services:
     build: ./services/dhcp
   freeradius:
     build: ./services/freeradius
+  pki:
+    build: ./services/pki

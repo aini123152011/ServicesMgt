@@ -47,7 +47,7 @@ docker compose -f compose.yaml -f compose.build.yaml up -d --build
 
 ---
 
-## 一、一键编排（平台 + 13 个服务）
+## 一、一键编排（平台 + 14 个服务）
 
 前置：Linux 宿主、Docker 24+ 与 Compose v2；宿主机需能拉取 `debian:bookworm-slim`、`postgres:18.4-alpine`
 等基础镜像（国内可给 Docker 配 registry 镜像加速）。

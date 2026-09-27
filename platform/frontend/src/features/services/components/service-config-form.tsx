@@ -73,8 +73,8 @@ function SecretTextarea({
 }: {
   value: string
   onChange: (v: string) => void
-  /** 值为掩码占位符时提供：显示前先取回明文并写进表单，否则「显示」出来的还是 ******** */
-  onReveal?: () => Promise<void>
+  /** 值为掩码占位符时提供：显示前先取回明文并写进表单；返回 false 表示没取到，保持遮蔽 */
+  onReveal?: () => Promise<boolean>
   rows: number
   disabled: boolean
   placeholder: string
@@ -90,11 +90,9 @@ function SecretTextarea({
     }
     if (onReveal) {
       setRevealing(true)
-      try {
-        await onReveal()
-      } finally {
-        setRevealing(false)
-      }
+      const revealed = await onReveal()
+      setRevealing(false)
+      if (!revealed) return
     }
     setVisible(true)
   }
@@ -343,14 +341,18 @@ export function ServiceConfigForm({
    * 只在当前值是掩码占位符时挂上去：掩码是后端产出的字符串，浏览器里没有任何地方
    * 存着明文，不取一次就永远是 ********。取回后写进表单值，用户可以直接复制，
    * 不改动就保存也不会把它改掉（值与原值一致）。
+   *
+   * 失败时只弹提示并返回 false（**不抛异常**：调用方在组件内部 await，
+   * 抛出去就变成未捕获的 rejection）；返回 false 时调用方保持遮蔽状态。
    */
-  const revealSecret = async (fieldName: string) => {
+  const revealSecret = async (fieldName: string): Promise<boolean> => {
     try {
       const plaintext = await getServiceSecret(name, fieldName)
       form.setValue(fieldName, plaintext as never)
+      return true
     } catch {
       toast.error(t('services.config.revealFailed'))
-      throw new Error('reveal failed')
+      return false
     }
   }
 

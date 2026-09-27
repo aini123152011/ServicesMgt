@@ -176,15 +176,19 @@ describe('ServiceConfigForm 敏感字段显示明文', () => {
     expect(getServiceSecret).toHaveBeenCalledWith('nginx', 'ssl_key_pem')
   })
 
-  it('取明文失败时报错且不回退成显示掩码', async () => {
+  it('取明文失败时报错且保持遮蔽，不回退成显示掩码', async () => {
     getServiceSecret.mockReset()
     getServiceSecret.mockRejectedValue(new Error('403'))
     const screen = await renderWithSecret([SECRET_PASSWORD_FIELD])
 
     await userEvent.click(screen.getByRole('button', { name: '显示密码' }))
 
+    // 值不变，且没有切成明文输入框（切了会让人误以为内容是空的）
     await expect
       .element(screen.getByLabelText('Basic 认证密码'))
       .toHaveValue('********')
+    expect(
+      screen.getByLabelText('Basic 认证密码').element().getAttribute('type')
+    ).toBe('password')
   })
 })

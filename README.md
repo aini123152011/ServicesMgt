@@ -16,8 +16,8 @@
 ```bash
 cp .env.example .env          # 填 SECRET_KEY / POSTGRES_PASSWORD / FIRST_SUPERUSER_PASSWORD
                               # 并把 IMAGE_PREFIX 指向你要用的镜像仓库
-docker compose pull           # 拉取 12 个已构建好的镜像（不构建）
-docker compose up -d          # 拉起平台（含 PostgreSQL）与 13 个服务
+docker compose pull           # 拉取全部已构建好的镜像（不构建）
+docker compose up -d          # 拉起平台（含 PostgreSQL）与 14 个服务
 docker compose ps             # 看健康状态
 ```
 
@@ -83,7 +83,7 @@ services/<name>/            每个服务一个插件目录：Dockerfile、compos
                             templates/*.j2（配置模板）、defaults/（空卷种子）、entrypoint、reload
 platform/backend/           FastAPI + SQLModel + PostgreSQL + Alembic（配置渲染、生命周期、审计、RBAC）
 platform/frontend/          React 19 + Vite + TanStack + shadcn/ui
-compose.yaml                一键编排：平台 + PostgreSQL + 13 个服务
+compose.yaml                一键编排：平台 + PostgreSQL + 14 个服务
 scripts/build.sh            服务镜像统一构建入口（本地/CI 共用，支持多架构）
 scripts/verify_bmc_platform_e2e.py   实机验收套件（162 条用例，真实协议判定）
 docs/                       部署、服务接入、容器踩坑与验证矩阵

@@ -12,8 +12,12 @@ type PasswordInputProps = Omit<
   /**
    * 值为掩码占位符时提供：切到明文前先取回真实值（并写回受控值）。
    * 没有它的话「显示」出来的只是 ******** ——掩码是服务端产物，不是 CSS 遮蔽。
+   *
+   * 返回 false 表示没取到（权限不足/无已保存值）：此时保持在遮蔽状态，
+   * 不要切过去让人误以为内容为空。**实现方不得抛异常**——组件不做错误提示，
+   * 抛出来只会变成未捕获的 rejection（曾因此让前端测试套件退出码非 0）。
    */
-  onReveal?: () => Promise<void>
+  onReveal?: () => Promise<boolean>
 }
 
 export function PasswordInput({
@@ -34,11 +38,9 @@ export function PasswordInput({
     }
     if (onReveal) {
       setRevealing(true)
-      try {
-        await onReveal()
-      } finally {
-        setRevealing(false)
-      }
+      const revealed = await onReveal()
+      setRevealing(false)
+      if (!revealed) return
     }
     setShowPassword(true)
   }

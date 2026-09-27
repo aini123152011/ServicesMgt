@@ -1,0 +1,56 @@
+# 服务元数据：平台 Service Registry 扫描 services/* 时按此识别与展示
+# 字段名是平台契约，各服务保持规范一致
+name: pki
+display_name: 证书服务（CA）
+display_name_en: "Certificate Authority"
+category: security            # 分类枚举: time | file-share | log-monitor | network | security
+description: 内置 CA 按需签发证书（CN/SAN/有效期/算法可控）并生成故意失败的变体，打通 BMC 证书生命周期的正负向验证
+container_name: fx-pki
+config_dir: /etc/pki-bmc      # 配置卷在容器内的挂载点
+config_files:                 # 渲染产物相对 config_dir 的路径列表
+  - pki.conf
+ports:
+  - port: 8090
+    protocol: tcp
+    description: 证书服务 HTTP API 端口（健康检查、签发、变体）
+reload_mode: restart          # 配置变更后由 /reload.sh 重启 API 进程（入口脚本监督循环拉起）
+data_dir: /data/pki           # 平台可浏览的数据卷：只放公开产物（根证书/证书/链/CSR/清单）
+usage:                        # 详情页「外部使用方式」卡片内容；命令里的 {{host}}/{{port}} 由前端按当前页面替换
+  - target: BMC
+    summary: 让 BMC 生成 CSR、交给本服务签发、再用 Redfish 装回 BMC（私钥始终留在 BMC）；替换 Web 证书不可逆，替换前先按服务配置页的提示归档原证书
+    command: |
+      BMC=192.0.2.10            # 换成被测 BMC 地址
+      BMC_USER=admin            # 换成 BMC 账号
+      BMC_PASSWORD=change-me    # 换成 BMC 密码
+      CERT_COLLECTION=/redfish/v1/Managers/0/NetworkProtocol/HTTPS/Certificates   # 按 BMC 实际暴露的证书集合调整
+      # 1) BMC 生成 CSR（Redfish CertificateService.GenerateCSR）
+      curl -sk -u "$BMC_USER:$BMC_PASSWORD" -H 'Content-Type: application/json' \
+        -X POST "https://$BMC/redfish/v1/CertificateService/Actions/CertificateService.GenerateCSR" \
+        -d "{\"CertificateCollection\":{\"@odata.id\":\"$CERT_COLLECTION\"},\"CommonName\":\"bmc.test.lab\",\"KeyPairAlgorithm\":\"RSA\",\"KeyBitLength\":2048,\"AlternativeNames\":[\"bmc.test.lab\"]}" \
+        -o /tmp/bmc-csr.json
+      # 2) 把 CSR 交给夹具签发（私钥不离 BMC）
+      python3 -c 'import json;print(json.dumps({"csr_pem": json.load(open("/tmp/bmc-csr.json"))["CSRString"]}))' > /tmp/sign-req.json
+      curl -s -X POST http://{{host}}:{{port}}/api/v1/sign -H 'Content-Type: application/json' -d @/tmp/sign-req.json -o /tmp/signed.json
+      # 3) 用 Redfish ReplaceCertificate 装回 BMC，再在 BMC「查看 SSL 认证」核对 CN/指纹/有效期
+      python3 -c 'import json;print(json.dumps({"CertificateType":"PEM","CertificateString":json.load(open("/tmp/signed.json"))["cert_pem"]}))' > /tmp/replace-req.json
+      curl -sk -u "$BMC_USER:$BMC_PASSWORD" -H 'Content-Type: application/json' \
+        -X POST "https://$BMC/redfish/v1/CertificateService/Actions/CertificateService.ReplaceCertificate" \
+        -d @/tmp/replace-req.json
+  - target: Linux
+    summary: 取根证书、签发一套并在本地用 openssl 验证（不给 CSR 时夹具生成密钥对并回传私钥，可再粘进 nginx 等用途）
+    command: |
+      # 接口返回的是 JSON 信封，交给 openssl 前先把 cert_pem 抠出来（直接 -o root.crt 会让 verify 失败）
+      curl -s http://{{host}}:{{port}}/api/v1/ca | python3 -c 'import json,sys;open("root.crt","w").write(json.load(sys.stdin)["cert_pem"])'
+      printf '%s' '{"common_name":"bmc.test.lab","sans":["bmc.test.lab","192.0.2.10"],"days":30}' > req.json
+      curl -s -X POST http://{{host}}:{{port}}/api/v1/sign -H 'Content-Type: application/json' -d @req.json -o signed.json
+      python3 -c 'import json;d=json.load(open("signed.json"));open("leaf.crt","w").write(d["cert_pem"]);open("leaf.key","w").write(d["key_pem"])'
+      openssl verify -CAfile root.crt leaf.crt
+      openssl x509 -in leaf.crt -noout -subject -ext subjectAltName -enddate
+  - target: Linux
+    summary: 取一个故意失败的「已过期」变体：验 BMC 上传/替换时是否拒绝过期证书（负向用例；GET /api/v1/variants 列出全部变体与各自的验点）
+    command: |
+      curl -s -X POST http://{{host}}:{{port}}/api/v1/variants/expired -H 'Content-Type: application/json' \
+        -d '{"common_name":"expired.test.lab","sans":["expired.test.lab"]}' -o expired.json
+      python3 -c 'import json;d=json.load(open("expired.json"));open("expired.crt","w").write(d["cert_pem"]);print("not_after:", d["not_after"])'
+      openssl x509 -in expired.crt -noout -enddate       # 预期已过期
+      curl -s http://{{host}}:{{port}}/api/v1/variants | python3 -m json.tool

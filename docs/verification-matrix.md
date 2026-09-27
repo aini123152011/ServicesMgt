@@ -4,7 +4,7 @@
 > 数据来源：`scripts/verify_bmc_platform_e2e.py` 实际存在的检查项与 `fault_mode` 取值、各服务 `schema.json`、
 > BMC Redfish 实测记录（见本机任务记录）。
 
-## IPv6 支持（13 服务中 12 个已覆盖）
+## IPv6 支持（14 服务中 12 个已覆盖）
 
 每个服务一条「IPv6 客户端可观测行为」用例，跑在启用 IPv6 的容器网络内（宿主无全局 IPv6）：
 
@@ -23,6 +23,7 @@
 | postfix | SMTP 横幅 over v6 | `220` 问候语 | ✅ |
 | dhcp | RA 通告前缀 / DHCPv6 SOLICIT / DNS over v6 | RA 前缀正确、拿到 v6 地址、AAAA 与 PTR 可解析 | ✅ |
 | freeradius | RADIUS over v6 | — | ❌ 未做用例（RADIUS 的 v6 路径未覆盖） |
+| pki | HTTP GET over v6 | 状态行 200 | ⏳ 未验证（新增服务；API 已实现双栈监听 :: + v4-mapped） |
 
 > samba/nfs 用连接级探针：探针容器里没有 smbclient 与挂载能力；协议级验证仍由 IPv4 阶段覆盖。
 > dhcp 的 v6 用例在 DHCP 阶段内（RA/SLAAC、DHCPv6 有状态、DNS over v6），不在 `V6_CASES` 里。
@@ -44,9 +45,11 @@
 | postfix | 13 条全通过 | 4 / **4** / 0 | 12 项全通过 | ⚠️ SmtpService 可写，真实发信需 BMC 事件触发 |
 | dhcp | 24 条全通过 | 5 / **5** / 0 | 12 项全通过 | ✅ v4 + v6 真机都已验证（BMC 取到 192.168.90.135 与 fd00:90::10d） |
 | freeradius | 12 条全通过 | 4 / **4** / 0 | 12 项全通过 | ⏳ 待测（容器网络内的真实 RADIUS 客户端已覆盖认证与 VLAN 下发） |
+| pki | ⏳ 待验证（2026-09-27 新增；接口语义已在开发机用真实 openssl 冒烟） | 2 / **0** / 2 | ⏳ 待验证 | ⏳ 待授权（Redfish CSR 闭环会替换 BMC Web 证书，不可逆） |
 
-合计：故障模式**声明 38 个，全部已验证**（36 个经 `fault_mode` 或等价覆盖验证；
+合计：13 个既有服务故障模式**声明 38 个，全部已验证**（36 个经 `fault_mode` 或等价覆盖验证；
 `tftpd-hpa.timeout_simulate` 与 `snmptrapd.blackhole_drop` 在修复实现后也已验证）。
+新增的 pki 声明 2 个故障模式（`sign_error` / `slow_response`），**尚未做实机验证**。
 
 本矩阵维护的结论：**「声明了但没验证过」在本项目里约等于「可能有缺陷」**——本轮 12 个从未验证的
 故障模式里挖出 3 个真缺陷（nginx corrupt_content_length 未实现、postfix force_tls 让服务不可用、
@@ -189,3 +192,22 @@ snmptrapd 重载不生效导致 blackhole_drop 与 output_file 等参数都改�
   与配置/数据卷/后端参数都无关，详见 `container-runtime-guidelines.md` 第 15 条 → 放弃交付，
   不纳入服务列表（宁可没有，也不要一个只有一半概率能起来的夹具）。
 - BMC 侧：⏳ 待测（真机需在 BMC 的认证设置里指向本夹具）
+
+### pki（2026-09-27 新增，待实机验证）
+
+- 能力：内置 CA 按需签发（CN / SAN(DNS+IP) / 有效期 / 算法 rsa2048·rsa4096·ec_p256 / 可选中间证书链）；
+  六个故意失败变体（`expired` / `not_yet_valid` / `cn_mismatch` / `missing_intermediate` /
+  `key_mismatch` / `weak_signature`）；根持久化（重启不换根）；可粘贴自有根（证书/私钥不配对拒绝启动）。
+- 故障模式声明：`sign_error`（签发/变体固定 500）、`slow_response`（固定延迟 slow_seconds 秒）
+  - 经 `fault_mode` 验证：（无，待实机）
+  - 未验证：2 个
+- **开发机已做（真实 openssl 冒烟，非本矩阵的实机结论）**：`/healthz` 真签一次自检、
+  `/sign`（带 CSR / 不带 CSR）、`/issued`、六个变体各自的可观测差异（过期/未生效被 `openssl verify` 拒绝、
+  `missing_intermediate` 链不完整、`key_mismatch` 公私钥不配对）、`sign_error`→500、`slow_response` 延迟、
+  `allow_weak_keys` 开关、以及「私钥只落 `/srv/pki-secrets`、`/data/pki` 下无 `.key`」。
+- **端口**：容器 8090；宿主发布 8090（服务自身端口，卡片命令照抄即可）与 18115。
+- **私钥边界（AC8 关键）**：manifest 的 `data_dir` 只声明 `/data/pki`（公开产物）；CA 私钥与签发出的私钥
+  一律写 `/srv/pki-secrets`（独立卷、0600，平台数据浏览不可见）。
+- **OpenSSL 版本差异（实测）**：Debian bookworm 自带 OpenSSL 3.0，**没有** `openssl x509 -not_before/-not_after`
+  （3.2 才加）——过期/未生效变体改用 `openssl ca -startdate/-enddate` 签发。
+- BMC 侧：⏳ 待授权（Redfish `GenerateCSR` → `/sign` → `ReplaceCertificate` 会替换 BMC Web 证书且不可逆）

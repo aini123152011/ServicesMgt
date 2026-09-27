@@ -398,7 +398,8 @@
       "time": "Time sync",
       "fileShare": "File sharing",
       "logMonitor": "Log monitoring",
-      "network": "Network"
+      "network": "Network",
+      "security": "Security"
     },
     "reloadMode": {
       "hot": "Applied by hot reload",

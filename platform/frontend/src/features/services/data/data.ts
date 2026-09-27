@@ -3,6 +3,7 @@ import {
   FolderOpen,
   Network,
   ScrollText,
+  ShieldCheck,
   type LucideIcon,
 } from 'lucide-react'
 import { type ReloadMode, type ServiceCategory } from '@/api/services'
@@ -16,6 +17,7 @@ export const categoryTypes: Record<ServiceCategory, string> = {
   'log-monitor':
     'bg-amber-100/40 text-amber-900 dark:text-amber-100 border-amber-300',
   network: 'bg-teal-100/40 text-teal-900 dark:text-teal-100 border-teal-300',
+  security: 'bg-rose-100/40 text-rose-900 dark:text-rose-100 border-rose-300',
 }
 
 /** 侧边栏菜单里的分类顺序，固定下来避免每次刷新顺序跳动 */
@@ -24,6 +26,7 @@ export const categoryOrder: ServiceCategory[] = [
   'network',
   'file-share',
   'log-monitor',
+  'security',
 ]
 
 /**
@@ -35,6 +38,7 @@ export const categoryLabelKeys: Record<ServiceCategory, TranslationKey> = {
   'file-share': 'services.category.fileShare',
   'log-monitor': 'services.category.logMonitor',
   network: 'services.category.network',
+  security: 'services.category.security',
 }
 
 /** 分类图标，总览卡片空态/详情页头部复用 */
@@ -43,6 +47,7 @@ export const categoryIcons: Record<ServiceCategory, LucideIcon> = {
   'file-share': FolderOpen,
   'log-monitor': ScrollText,
   network: Network,
+  security: ShieldCheck,
 }
 
 export const reloadModeLabelKeys: Record<ReloadMode, TranslationKey> = {

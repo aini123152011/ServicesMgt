@@ -398,7 +398,8 @@
       "time": "时间同步",
       "fileShare": "文件共享",
       "logMonitor": "日志监控",
-      "network": "网络服务"
+      "network": "网络服务",
+      "security": "安全"
     },
     "reloadMode": {
       "hot": "热重载生效",

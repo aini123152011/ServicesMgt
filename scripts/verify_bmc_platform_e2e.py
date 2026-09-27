@@ -509,6 +509,7 @@ CFG_POSTFIX_RELAY = {
 SERVICES_ALL = {
     "chrony", "nginx", "rsyslog", "webdav", "postfix", "snmptrapd",
     "sftp", "vsftpd", "tftpd-hpa", "samba", "nfs-ganesha", "dhcp", "freeradius",
+    "pki",
 }
 
 # RADIUS 正向配置（与 freeradius schema 默认值一致）
@@ -549,12 +550,12 @@ def phase_platform(token: str) -> None:
 
     st, resp = api("GET", "/api/v1/services/", token=token)
     names = {s["name"] for s in json.loads(resp).get("data", [])} if st == 200 else set()
-    record("1.2 12 种 BMC 支撑服务全部注册", st == 200 and SERVICES_ALL.issubset(names),
+    record("1.2 14 种 BMC 支撑服务全部注册", st == 200 and SERVICES_ALL.issubset(names),
            f"found {len(names)}: {sorted(names)}")
 
     not_running = [n for n in sorted(SERVICES_ALL) if not container_running(f"fx-{n}") and not (
         n == "nfs-ganesha" and container_running("fx-nfs-ganesha"))]
-    record("1.3 12 个服务容器均处于运行状态", not not_running, f"未运行: {not_running}")
+    record("1.3 14 个服务容器均处于运行状态", not not_running, f"未运行: {not_running}")
 
     st, resp = api("GET", "/api/v1/services/chrony", token=token)
     doc = json.loads(resp) if st == 200 else {}

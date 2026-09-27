@@ -1,0 +1,115 @@
+{
+  "fields": [
+    {
+      "name": "listen_port",
+      "type": "integer",
+      "label": "API 服务端口",
+      "default": 8090,
+      "min": 1,
+      "max": 65535,
+      "required": true,
+      "help": "容器内 HTTP API 的监听端口；宿主发布端口由 compose 决定",
+      "group": "base"
+    },
+    {
+      "name": "ca_common_name",
+      "type": "string",
+      "label": "自动生成根证书的 CN",
+      "default": "FX Test Root CA",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9 ._-]{0,63}$",
+      "help": "未粘贴自有根时，用它作为自建根证书的主体 CN（留空自动生成时使用）",
+      "group": "base"
+    },
+    {
+      "name": "ca_days",
+      "type": "integer",
+      "label": "根证书有效期（天）",
+      "default": 3650,
+      "min": 1,
+      "max": 36500,
+      "help": "自动生成根证书的有效期；粘贴自有根时该字段不生效",
+      "group": "base"
+    },
+    {
+      "name": "ca_cert_pem",
+      "type": "text",
+      "label": "自有根证书（PEM）",
+      "help": "留空则由本服务生成并持久化自建根；粘贴则使用你的根证书（证书/私钥必须成对，不配对会拒绝启动）",
+      "pem": true,
+      "default": "",
+      "group": "base"
+    },
+    {
+      "name": "ca_key_pem",
+      "type": "text",
+      "label": "自有根私钥（PEM）",
+      "help": "与自有根证书配对；按敏感字段处理（页面脱敏，取明文走「显示」按钮并写审计）",
+      "pem": true,
+      "secret": true,
+      "default": "",
+      "group": "base"
+    },
+    {
+      "name": "default_days",
+      "type": "integer",
+      "label": "签发默认有效期（天）",
+      "default": 365,
+      "min": 1,
+      "max": 36500,
+      "help": "签发请求未指定 days 时使用的有效期；变体（过期/未生效）会覆盖该值",
+      "group": "base"
+    },
+    {
+      "name": "default_algorithm",
+      "type": "enum",
+      "label": "默认密钥算法",
+      "options": [
+        "rsa2048",
+        "rsa4096",
+        "ec_p256"
+      ],
+      "default": "rsa2048",
+      "help": "未提供 CSR 时服务生成的密钥对算法；rsa2048 兼容性最好（BMC 侧最稳）",
+      "group": "base"
+    },
+    {
+      "name": "include_intermediate",
+      "type": "boolean",
+      "label": "使用中间证书签发",
+      "default": false,
+      "help": "打开后自建中间 CA 并由它签发叶证书，响应里的 chain_pem 含中间证书 + 根；关闭时由根直接签发",
+      "group": "base"
+    },
+    {
+      "name": "allow_weak_keys",
+      "type": "boolean",
+      "label": "允许弱算法变体",
+      "default": false,
+      "help": "打开后才允许生成 weak_signature 变体（SHA-1 + RSA-1024）；默认关闭，避免误用弱算法",
+      "group": "base"
+    },
+    {
+      "name": "fault_mode",
+      "type": "enum",
+      "label": "BMC 故障注入模式",
+      "options": [
+        "none",
+        "sign_error",
+        "slow_response"
+      ],
+      "default": "none",
+      "help": "测试桩异常注入：none 正常签发；sign_error 签发/变体接口固定返回 500（明确报错）；slow_response 签发/变体接口固定延迟 slow_seconds 秒（测 BMC 超时与重试）",
+      "group": "fault"
+    },
+    {
+      "name": "slow_seconds",
+      "type": "integer",
+      "label": "慢响应延迟秒数",
+      "default": 30,
+      "min": 0,
+      "max": 600,
+      "help": "fault_mode=slow_response 时，签发与变体接口在响应前固定延迟的秒数",
+      "group": "fault"
+    }
+  ]
+}

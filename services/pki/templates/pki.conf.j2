@@ -1,0 +1,31 @@
+{#- 平台渲染契约：后端按 schema.json 校验用户提交的配置值后，用本模板渲染出 pki.conf 写入配置卷 -#}
+{#- 渲染环境要求：Jinja2 需开启 trim_blocks=True + lstrip_blocks=True（Ansible 同款默认） -#}
+{#- defaults/pki.conf 就是 schema 默认值的渲染产物，改字段需同步 schema.json 并重新生成种子文件 -#}
+{#- 格式供 services/pki/api.py 解析：key = value 一行一个标量；多行 PEM 用 key_begin / key_end 包裹 -#}
+# 本文件由 BMC 服务管理平台自动渲染生成，请勿手工编辑
+
+# API 监听端口
+listen_port = {{ listen_port }}
+
+# 自建根证书参数（ca_cert_pem / ca_key_pem 为空时用它自动生成）
+ca_common_name = {{ ca_common_name }}
+ca_days = {{ ca_days }}
+
+# 签发默认值
+default_days = {{ default_days }}
+default_algorithm = {{ default_algorithm }}
+include_intermediate = {{ 'true' if include_intermediate else 'false' }}
+allow_weak_keys = {{ 'true' if allow_weak_keys else 'false' }}
+
+# BMC 故障注入
+fault_mode = {{ fault_mode }}
+slow_seconds = {{ slow_seconds }}
+
+# 自有根证书与私钥（PEM，多行；留空即用自建根）。
+# 私钥只被本服务写入 /srv/pki-secrets，绝不写进平台可浏览的 /data/pki。
+ca_cert_pem_begin
+{{ ca_cert_pem }}
+ca_cert_pem_end
+ca_key_pem_begin
+{{ ca_key_pem }}
+ca_key_pem_end

@@ -39,7 +39,7 @@ def read_system_info() -> Any:
 
     Returns:
         SystemInfo：version/build/update_registry、最近一次更新任务状态，
-        以及每个更新目标（platform 与 11 个服务）的镜像与容器状态。
+        以及每个更新目标（platform 与各服务）的镜像与容器状态。
     """
     info = system_update.platform_info()
     try:
