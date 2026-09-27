@@ -220,6 +220,8 @@ snmptrapd 重载不生效导致 blackhole_drop 与 output_file 等参数都改�
   **CN/SAN 与 BMC 地址不符仍被接受** ✗（204，固件不校验名字——记为发现）；
   证书与私钥不配对会被拒（`PrivateKeyCertificateFileNotMatch`），所以**被替换掉的旧证书再也装不回去**（密钥已换）。
 - AC7 的卡片 BMC 条目已按上述真实参数改写并**逐字跑通**（改前那版漏了 5 个必填项、还多写了不存在的 `KeyPairAlgorithm`）。
+- **BMC 侧推荐入口**：`scripts/bmc-cert.sh <BMC> <账号> <口令> --pki <本服务>`（归档 → CSR → 签发 → 装回 → 指纹比对；
+  `--dry-run` 预览、`--variant expired` 走负向）。卡片里那两条命令就是它，参数形状不再暴露给使用者。
 - **OpenSSL 版本差异（实测）**：Debian bookworm 自带 OpenSSL 3.0，**没有** `openssl x509 -not_before/-not_after`
   （3.2 才加）——过期/未生效变体改用 `openssl ca -startdate/-enddate` 签发。
 - BMC 侧：⏳ 待授权（Redfish `GenerateCSR` → `/sign` → `ReplaceCertificate` 会替换 BMC Web 证书且不可逆）
