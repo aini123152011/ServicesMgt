@@ -45,11 +45,11 @@
 | postfix | 13 条全通过 | 4 / **4** / 0 | 12 项全通过 | ⚠️ SmtpService 可写，真实发信需 BMC 事件触发 |
 | dhcp | 24 条全通过 | 5 / **5** / 0 | 12 项全通过 | ✅ v4 + v6 真机都已验证（BMC 取到 192.168.90.135 与 fd00:90::10d） |
 | freeradius | 12 条全通过 | 4 / **4** / 0 | 12 项全通过 | ⏳ 待测（容器网络内的真实 RADIUS 客户端已覆盖认证与 VLAN 下发） |
-| pki | ⏳ 待验证（2026-09-27 新增；接口语义已在开发机用真实 openssl 冒烟） | 2 / **0** / 2 | ⏳ 待验证 | ⏳ 待授权（Redfish CSR 闭环会替换 BMC Web 证书，不可逆） |
+| pki | 6 条已实机验证（AC1/AC2/AC3/AC6/AC7/AC8，真实 openssl 取证） | 2 / **2** / 0 | ✅ 已验证（列表+「安全」分组、端口徽标、卡片三条命令逐字跑通、配置改动能生效并留版本、私钥按 secret 脱敏） | ✅ 已验证（2026-09-27：Redfish GenerateCSR → 夹具签发 → ReplaceCertificate 204；过期证书被拒 `CertificateFileExpired`；CN/SAN 不符仍被接受——固件不校验名字） |
 
 合计：13 个既有服务故障模式**声明 38 个，全部已验证**（36 个经 `fault_mode` 或等价覆盖验证；
 `tftpd-hpa.timeout_simulate` 与 `snmptrapd.blackhole_drop` 在修复实现后也已验证）。
-新增的 pki 声明 2 个故障模式（`sign_error` / `slow_response`），**尚未做实机验证**。
+新增的 pki 声明 2 个故障模式（`sign_error` / `slow_response`），**已实机验证**（2026-09-27：经平台把 `fault_mode` 改成 `sign_error` → `/sign` 500 且健康检查仍 200；`slow_response` 延迟生效；复位后恢复）。
 
 本矩阵维护的结论：**「声明了但没验证过」在本项目里约等于「可能有缺陷」**——本轮 12 个从未验证的
 故障模式里挖出 3 个真缺陷（nginx corrupt_content_length 未实现、postfix force_tls 让服务不可用、
@@ -193,7 +193,7 @@ snmptrapd 重载不生效导致 blackhole_drop 与 output_file 等参数都改�
   不纳入服务列表（宁可没有，也不要一个只有一半概率能起来的夹具）。
 - BMC 侧：⏳ 待测（真机需在 BMC 的认证设置里指向本夹具）
 
-### pki（2026-09-27 新增，待实机验证）
+### pki（2026-09-27 新增，AC1–AC3/AC6–AC8 已实机验证）
 
 - 能力：内置 CA 按需签发（CN / SAN(DNS+IP) / 有效期 / 算法 rsa2048·rsa4096·ec_p256 / 可选中间证书链）；
   六个故意失败变体（`expired` / `not_yet_valid` / `cn_mismatch` / `missing_intermediate` /
@@ -208,6 +208,18 @@ snmptrapd 重载不生效导致 blackhole_drop 与 output_file 等参数都改�
 - **端口**：容器 8090；宿主发布 8090（服务自身端口，卡片命令照抄即可）与 18115。
 - **私钥边界（AC8 关键）**：manifest 的 `data_dir` 只声明 `/data/pki`（公开产物）；CA 私钥与签发出的私钥
   一律写 `/srv/pki-secrets`（独立卷、0600，平台数据浏览不可见）。
+
+**BMC 侧实测（2026-09-27，BMC 192.168.201.42 / 固件 3.10.00）**：
+
+- 闭环成立 ✓：`GenerateCSR`（必填 Subject 五项 + `CertificateCollection` 传**集合**的 `@odata.id` 对象）→ 夹具 `/sign`
+  （**私钥不回传**，留在 BMC）→ `ReplaceCertificate`（`CertificateUri` 指向**证书成员**）返回 204 → BMC 证书资源指纹
+  等于夹具签发结果、issuer 为 `CN = FX Test Root CA`。
+- 两套槽位要分清：`ReplaceCertificate` 只更新 Redfish 资源（**暂存**，内核 HTTPS 未热加载）；
+  BMC Web 的「产生 SSL 认证」直接改真实 HTTPS 且**立即生效**（但它会换掉密钥对）。
+- 负向行为：**过期证书被拒** ✓（`CertificateFileExpired: The certificate file expired.`）；
+  **CN/SAN 与 BMC 地址不符仍被接受** ✗（204，固件不校验名字——记为发现）；
+  证书与私钥不配对会被拒（`PrivateKeyCertificateFileNotMatch`），所以**被替换掉的旧证书再也装不回去**（密钥已换）。
+- AC7 的卡片 BMC 条目已按上述真实参数改写并**逐字跑通**（改前那版漏了 5 个必填项、还多写了不存在的 `KeyPairAlgorithm`）。
 - **OpenSSL 版本差异（实测）**：Debian bookworm 自带 OpenSSL 3.0，**没有** `openssl x509 -not_before/-not_after`
   （3.2 才加）——过期/未生效变体改用 `openssl ca -startdate/-enddate` 签发。
 - BMC 侧：⏳ 待授权（Redfish `GenerateCSR` → `/sign` → `ReplaceCertificate` 会替换 BMC Web 证书且不可逆）

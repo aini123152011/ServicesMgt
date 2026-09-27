@@ -7,6 +7,9 @@
 
 # Python
 __pycache__/
+
+# 本地临时脚本/产物（我曾用 git add -A 误提交过 .tmp-ac7-run-card.py）
+/.tmp-*
 *.py[cod]
 .venv/
 venv/

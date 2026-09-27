@@ -22,20 +22,25 @@ usage:                        # 详情页「外部使用方式」卡片内容；
       BMC=192.0.2.10            # 换成被测 BMC 地址
       BMC_USER=admin            # 换成 BMC 账号
       BMC_PASSWORD=change-me    # 换成 BMC 密码
-      CERT_COLLECTION=/redfish/v1/Managers/0/NetworkProtocol/HTTPS/Certificates   # 按 BMC 实际暴露的证书集合调整
-      # 1) BMC 生成 CSR（Redfish CertificateService.GenerateCSR）
+      CERT=/redfish/v1/Managers/0/NetworkProtocol/HTTPS/Certificates/1   # 要替换的那张证书（「查看 SSL 认证」页能看到当前值）
+      CERT_COLLECTION=/redfish/v1/Managers/0/NetworkProtocol/HTTPS/Certificates
+      # 1) BMC 生成 CSR。必填项一个都不能少：Subject 五项 + CertificateCollection（传**集合**的 @odata.id 对象，
+      #    传成员或字符串数组都会被拒），KeyPairAlgorithm 这个参数这台固件不认，别写
+      python3 -c 'import json,sys;print(json.dumps({"CertificateCollection":{"@odata.id":sys.argv[1]},"CommonName":sys.argv[2],"AlternativeNames":[sys.argv[2]],"Country":"CN","State":"Beijing","City":"Beijing","Organization":"FX Test Lab","OrganizationalUnit":"BMC Test","KeyBitLength":2048}))' "$CERT_COLLECTION" "$BMC" > /tmp/csr-req.json
       curl -sk -u "$BMC_USER:$BMC_PASSWORD" -H 'Content-Type: application/json' \
         -X POST "https://$BMC/redfish/v1/CertificateService/Actions/CertificateService.GenerateCSR" \
-        -d "{\"CertificateCollection\":{\"@odata.id\":\"$CERT_COLLECTION\"},\"CommonName\":\"bmc.test.lab\",\"KeyPairAlgorithm\":\"RSA\",\"KeyBitLength\":2048,\"AlternativeNames\":[\"bmc.test.lab\"]}" \
-        -o /tmp/bmc-csr.json
-      # 2) 把 CSR 交给夹具签发（私钥不离 BMC）
+        -d @/tmp/csr-req.json -o /tmp/bmc-csr.json -w 'GenerateCSR HTTP %{http_code}\n'
+      # 2) 把 CSR 交给本服务签发（私钥留在 BMC：这里不会回传 key_pem）
       python3 -c 'import json;print(json.dumps({"csr_pem": json.load(open("/tmp/bmc-csr.json"))["CSRString"]}))' > /tmp/sign-req.json
       curl -s -X POST http://{{host}}:{{port}}/api/v1/sign -H 'Content-Type: application/json' -d @/tmp/sign-req.json -o /tmp/signed.json
-      # 3) 用 Redfish ReplaceCertificate 装回 BMC，再在 BMC「查看 SSL 认证」核对 CN/指纹/有效期
-      python3 -c 'import json;print(json.dumps({"CertificateType":"PEM","CertificateString":json.load(open("/tmp/signed.json"))["cert_pem"]}))' > /tmp/replace-req.json
+      # 3) 装回 BMC。CertificateUri 要指向**证书成员**；注意这是「暂存」：BMC 的 Web 服务重启后才真正生效，
+      #    想立刻生效用 BMC 的「产生 SSL 认证」（但它会换掉密钥对，旧证书就再也装不回去了）
+      python3 -c 'import json,sys;print(json.dumps({"CertificateType":"PEM","CertificateUri":{"@odata.id":sys.argv[1]},"CertificateString":json.load(open("/tmp/signed.json"))["cert_pem"]}))' "$CERT" > /tmp/replace-req.json
       curl -sk -u "$BMC_USER:$BMC_PASSWORD" -H 'Content-Type: application/json' \
         -X POST "https://$BMC/redfish/v1/CertificateService/Actions/CertificateService.ReplaceCertificate" \
-        -d @/tmp/replace-req.json
+        -d @/tmp/replace-req.json -w 'ReplaceCertificate HTTP %{http_code}\n'   # 204 = 已受理
+      # 4) 核对：BMC「查看 SSL 认证」应显示新证书；过期证书会被拒（CertificateFileExpired），
+      #    但 CN/SAN 与 BMC 地址不符的证书这台固件照样接受（实测），换证书前先归档原证书指纹
   - target: Linux
     summary: 取根证书、签发一套并在本地用 openssl 验证（不给 CSR 时夹具生成密钥对并回传私钥，可再粘进 nginx 等用途）
     command: |
