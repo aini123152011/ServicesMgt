@@ -37,6 +37,8 @@ class FakeLifecycle:
         self.fail_on: set[str] = set()
         self.logs_text = "log line 1\nlog line 2\n"
         self.last_tail: int | None = None
+        # 容器发布端口替身：(容器端口, 协议) -> 宿主机端口
+        self.published: dict[tuple[int, str], int] = {}
 
     def _record(self, name: str, target: str) -> None:
         self.calls.append((name, target))
@@ -68,6 +70,10 @@ class FakeLifecycle:
         self._record("get_logs", container_name)
         return self.logs_text
 
+    def published_ports(self, container_name: str) -> dict[tuple[int, str], int]:
+        self._record("published_ports", container_name)
+        return self.published
+
 
 @pytest.fixture()
 def fake_lifecycle(monkeypatch: pytest.MonkeyPatch) -> FakeLifecycle:
@@ -79,6 +85,7 @@ def fake_lifecycle(monkeypatch: pytest.MonkeyPatch) -> FakeLifecycle:
     monkeypatch.setattr(lifecycle, "stop", fake.stop)
     monkeypatch.setattr(lifecycle, "restart", fake.restart)
     monkeypatch.setattr(lifecycle, "get_logs", fake.get_logs)
+    monkeypatch.setattr(lifecycle, "published_ports", fake.published_ports)
     return fake
 
 
@@ -109,7 +116,15 @@ def test_read_services(
         "category": "time",
         "description": "基于 chrony 的 NTP 服务，为 BMC/内网设备提供时间同步",
         "container_name": "fx-chrony",
-        "ports": [{"port": 123, "protocol": "udp", "description": "NTP 服务端口"}],
+        # host_port 只在详情接口解析（要逐个查容器绑定）；列表页不展示端口映射，恒为 null
+        "ports": [
+            {
+                "port": 123,
+                "protocol": "udp",
+                "description": "NTP 服务端口",
+                "host_port": None,
+            }
+        ],
         "reload_mode": "hot",
         # 未保存过配置时没有故障模式（首页据此判断是否处于非正常模式）
         "fault_mode": None,
@@ -148,8 +163,11 @@ def test_read_services_reports_saved_fault_mode(
         _clear_service_configs(db)
 
 
+@pytest.mark.usefixtures("fake_lifecycle")
 def test_read_service_detail(
-    client: TestClient, superuser_token_headers: dict[str, str], db: Session
+    client: TestClient,
+    superuser_token_headers: dict[str, str],
+    db: Session,
 ) -> None:
     """服务详情返回 manifest+schema+config 三段结构，未保存过配置时 config 全空。"""
     _clear_service_configs(db)
@@ -175,6 +193,62 @@ def test_read_service_detail(
     assert content["config"] == {"values": None, "applied": None, "rendered_at": None}
 
 
+def test_read_service_detail_fills_host_ports(
+    client: TestClient,
+    superuser_token_headers: dict[str, str],
+    fake_lifecycle: FakeLifecycle,
+) -> None:
+    """详情接口按运行期容器绑定回填宿主机发布端口，卡片才不会给出连不上的端口。"""
+    # 实机 fx-nginx：容器 80/443 发布到宿主 18102/18103（宿主 80 是另一个 web 服务）
+    fake_lifecycle.published = {(80, "tcp"): 18102, (443, "tcp"): 18103}
+
+    response = client.get(
+        f"{settings.API_V1_STR}/services/nginx", headers=superuser_token_headers
+    )
+
+    assert response.status_code == 200
+    ports = response.json()["manifest"]["ports"]
+    assert [(p["port"], p["host_port"]) for p in ports] == [(80, 18102), (443, 18103)]
+
+
+def test_read_service_detail_host_port_is_null_when_not_deployed(
+    client: TestClient,
+    superuser_token_headers: dict[str, str],
+    fake_lifecycle: FakeLifecycle,
+) -> None:
+    """未部署（读不到绑定）时 host_port 为 null，卡片退化为显示容器端口而不是报错。"""
+    assert fake_lifecycle.published == {}
+
+    response = client.get(
+        f"{settings.API_V1_STR}/services/nginx", headers=superuser_token_headers
+    )
+
+    assert response.status_code == 200
+    ports = response.json()["manifest"]["ports"]
+    assert [p["host_port"] for p in ports] == [None, None]
+
+
+def test_read_service_detail_host_port_falls_back_on_protocol_mismatch(
+    client: TestClient,
+    superuser_token_headers: dict[str, str],
+    fake_lifecycle: FakeLifecycle,
+) -> None:
+    """compose 的协议与 manifest 不一致时按端口号兜底，而不是留 None。"""
+    # rsyslog 的 manifest 同时声明 514/udp 与 514/tcp；这里只给 udp 的绑定
+    fake_lifecycle.published = {(514, "udp"): 514}
+
+    response = client.get(
+        f"{settings.API_V1_STR}/services/rsyslog", headers=superuser_token_headers
+    )
+
+    assert response.status_code == 200
+    ports = response.json()["manifest"]["ports"]
+    assert [(p["port"], p["protocol"], p["host_port"]) for p in ports] == [
+        (514, "udp", 514),
+        (514, "tcp", 514),
+    ]
+
+
 def test_read_service_not_found(
     client: TestClient, superuser_token_headers: dict[str, str]
 ) -> None:
@@ -184,6 +258,134 @@ def test_read_service_not_found(
     )
     assert response.status_code == 404
     assert response.json()["detail"] == "Service not found"
+
+
+def _save_nginx_config_with_secret(db: Session) -> None:
+    """给 nginx 存一份含敏感字段的配置（详情接口只给掩码，明文走专用接口）。"""
+    upsert_service_config(
+        session=db,
+        service_name="nginx",
+        values={
+            "listen_port": 80,
+            "auth_basic_enabled": True,
+            "auth_basic_user": "bmc_admin",
+            "auth_basic_password": "bmc-fixture-pass",
+            "fault_mode": "none",
+        },
+        rendered_at=get_datetime_utc(),
+        applied=True,
+    )
+
+
+def test_detail_masks_secret_and_reveal_returns_plaintext(
+    client: TestClient,
+    superuser_token_headers: dict[str, str],
+    db: Session,
+) -> None:
+    """详情里 secret 只给掩码；点「显示」走的专用接口才返回明文。"""
+    _save_nginx_config_with_secret(db)
+    try:
+        detail = client.get(
+            f"{settings.API_V1_STR}/services/nginx", headers=superuser_token_headers
+        )
+        assert detail.status_code == 200
+        assert detail.json()["config"]["values"]["auth_basic_password"] == "********"
+        # 非敏感字段照旧明文，掩码只针对 secret
+        assert detail.json()["config"]["values"]["auth_basic_user"] == "bmc_admin"
+
+        reveal = client.get(
+            f"{settings.API_V1_STR}/services/nginx/config/secret/auth_basic_password",
+            headers=superuser_token_headers,
+        )
+        assert reveal.status_code == 200
+        assert reveal.json() == {
+            "field": "auth_basic_password",
+            "value": "bmc-fixture-pass",
+        }
+    finally:
+        _clear_service_configs(db)
+
+
+def test_reveal_secret_rejects_non_secret_field(
+    client: TestClient,
+    superuser_token_headers: dict[str, str],
+    db: Session,
+) -> None:
+    """非敏感字段在详情里本来就是明文，专用接口拒绝它，避免被当成通用读值接口。"""
+    _save_nginx_config_with_secret(db)
+    try:
+        response = client.get(
+            f"{settings.API_V1_STR}/services/nginx/config/secret/auth_basic_user",
+            headers=superuser_token_headers,
+        )
+        assert response.status_code == 400
+        assert "not a secret field" in response.json()["detail"]
+    finally:
+        _clear_service_configs(db)
+
+
+def test_reveal_secret_404_without_stored_value(
+    client: TestClient,
+    superuser_token_headers: dict[str, str],
+    db: Session,
+) -> None:
+    """从未保存过配置（或该字段为空）时 404，而不是返回空串让界面显示「已清空」。"""
+    _clear_service_configs(db)
+    response = client.get(
+        f"{settings.API_V1_STR}/services/nginx/config/secret/auth_basic_password",
+        headers=superuser_token_headers,
+    )
+    assert response.status_code == 404
+    assert "No stored value" in response.json()["detail"]
+
+
+def test_reveal_secret_requires_operator(
+    client: TestClient,
+    readonly_token_headers: dict[str, str],
+    db: Session,
+) -> None:
+    """readonly 用户不能取明文：能看的掩码可以看，明文与改配置同权。"""
+    _save_nginx_config_with_secret(db)
+    try:
+        response = client.get(
+            f"{settings.API_V1_STR}/services/nginx/config/secret/auth_basic_password",
+            headers=readonly_token_headers,
+        )
+        assert response.status_code == 403
+    finally:
+        _clear_service_configs(db)
+
+
+def test_reveal_secret_is_audited(
+    client: TestClient,
+    superuser_token_headers: dict[str, str],
+    db: Session,
+) -> None:
+    """每次查看明文都留痕（只记字段名）：谁在什么时候把哪个服务的密钥看走了。"""
+    _save_nginx_config_with_secret(db)
+    try:
+        response = client.get(
+            f"{settings.API_V1_STR}/services/nginx/config/secret/auth_basic_password",
+            headers=superuser_token_headers,
+        )
+        assert response.status_code == 200
+
+        # 走审计接口核对（顺带证明这条记录在页面上看得到）
+        audits = client.get(
+            f"{settings.API_V1_STR}/audit-logs",
+            params={"action": "config.reveal_secret", "limit": 5},
+            headers=superuser_token_headers,
+        )
+        assert audits.status_code == 200
+        entries = audits.json()["data"]
+        assert len(entries) >= 1
+        entry = entries[0]
+        assert entry["service_name"] == "nginx"
+        assert entry["detail"] == "field=auth_basic_password"
+        # 审计里绝不能落明文
+        assert "bmc-fixture-pass" not in (entry["detail"] or "")
+    finally:
+        _clear_service_configs(db)
 
 
 def test_update_service_config_applied(

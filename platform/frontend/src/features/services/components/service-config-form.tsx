@@ -4,7 +4,12 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { AlertTriangle, LoaderCircle } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { type ServiceConfig, type ServiceField } from '@/api/services'
+import { toast } from 'sonner'
+import {
+  getServiceSecret,
+  type ServiceConfig,
+  type ServiceField,
+} from '@/api/services'
 import { usePermissions } from '@/hooks/use-permissions'
 import { Button } from '@/components/ui/button'
 import {
@@ -61,18 +66,39 @@ function emptyToUndefined(v: unknown) {
 function SecretTextarea({
   value,
   onChange,
+  onReveal,
   rows,
   disabled,
   placeholder,
 }: {
   value: string
   onChange: (v: string) => void
+  /** 值为掩码占位符时提供：显示前先取回明文并写进表单，否则「显示」出来的还是 ******** */
+  onReveal?: () => Promise<void>
   rows: number
   disabled: boolean
   placeholder: string
 }) {
   const [visible, setVisible] = useState(false)
+  const [revealing, setRevealing] = useState(false)
   const { t } = useTranslation()
+
+  const toggle = async () => {
+    if (visible) {
+      setVisible(false)
+      return
+    }
+    if (onReveal) {
+      setRevealing(true)
+      try {
+        await onReveal()
+      } finally {
+        setRevealing(false)
+      }
+    }
+    setVisible(true)
+  }
+
   return (
     <div className='space-y-1'>
       <Textarea
@@ -92,9 +118,10 @@ function SecretTextarea({
         type='button'
         variant='ghost'
         size='sm'
-        disabled={disabled}
-        onClick={() => setVisible((v) => !v)}
+        disabled={disabled || revealing}
+        onClick={() => void toggle()}
       >
+        {revealing && <LoaderCircle className='animate-spin' />}
         {visible
           ? t('services.config.hideSecret')
           : t('services.config.showSecret')}
@@ -310,6 +337,23 @@ export function ServiceConfigForm({
     defaultValues,
   })
 
+  /**
+   * 取回敏感字段的明文并写进表单（点「显示」/眼睛按钮时调用）。
+   *
+   * 只在当前值是掩码占位符时挂上去：掩码是后端产出的字符串，浏览器里没有任何地方
+   * 存着明文，不取一次就永远是 ********。取回后写进表单值，用户可以直接复制，
+   * 不改动就保存也不会把它改掉（值与原值一致）。
+   */
+  const revealSecret = async (fieldName: string) => {
+    try {
+      const plaintext = await getServiceSecret(name, fieldName)
+      form.setValue(fieldName, plaintext as never)
+    } catch {
+      toast.error(t('services.config.revealFailed'))
+      throw new Error('reveal failed')
+    }
+  }
+
   const onSubmit = (values: FormOutput) => {
     updateMutation.mutate(values)
   }
@@ -379,6 +423,11 @@ export function ServiceConfigForm({
               <SecretTextarea
                 value={String(field.value ?? '')}
                 onChange={field.onChange}
+                onReveal={
+                  field.value === '********'
+                    ? () => revealSecret(f.name)
+                    : undefined
+                }
                 rows={f.pem ? 8 : 4}
                 disabled={!canEdit}
                 placeholder={
@@ -408,6 +457,11 @@ export function ServiceConfigForm({
               <PasswordInput
                 {...field}
                 value={String(field.value ?? '')}
+                onReveal={
+                  field.value === '********'
+                    ? () => revealSecret(f.name)
+                    : undefined
+                }
                 placeholder={
                   field.value === '********'
                     ? t('services.config.secretKeepPassword')

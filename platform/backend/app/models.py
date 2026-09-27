@@ -129,6 +129,9 @@ class ServicePort(SQLModel):
     port: int
     protocol: str
     description: str | None = None
+    # 宿主机发布端口：manifest 里不写，只由详情页在运行期按容器绑定回填。
+    # 「使用方式」卡片的 {{port}} 在没有二层地址时要改用它——管理网的访问者够不到容器端口
+    host_port: int | None = None
 
 
 class ServiceSummary(SQLModel):
@@ -174,6 +177,14 @@ class ServiceConfigState(SQLModel):
 # PUT /services/{name}/config 的请求体
 class ServiceConfigUpdate(SQLModel):
     values: dict[str, Any]
+
+
+# 敏感字段的明文：只在用户主动点「显示」时按字段单个返回，并写审计。
+# 列表接口一律用掩码占位符（config_renderer.MASKED_SECRET_PLACEHOLDER），
+# 否则密码/私钥会随任意一次详情请求流出去
+class ServiceSecretValue(SQLModel):
+    field: str
+    value: str
 
 
 # 配置提交结果：applied=False 表示已写卷但容器未运行、reload 被跳过

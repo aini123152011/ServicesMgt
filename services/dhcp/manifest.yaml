@@ -37,7 +37,7 @@ usage:
       dhclient -4 -v eth0 && ip -4 addr show eth0
       dig +short @{{host}} bmc-01.bmc.lab A
       dig +short @{{host}} bmc-01.bmc.lab AAAA
-      dig +short @{{host}} -x 172.30.12.10 PTR
+      dig +short @{{host}} -x 172.30.12.10 PTR   # 地址取本服务 dns_records 里的地址（默认 bmc-01 → 172.30.12.10）
   - target: Linux
     summary: 查看租约文件（谁拿了哪个地址、租约何时到期）
     command: docker exec fx-dhcp cat /var/lib/dnsmasq/dnsmasq.leases

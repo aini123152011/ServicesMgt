@@ -25,6 +25,8 @@ export interface ServicePort {
   port: number
   protocol: 'tcp' | 'udp'
   description: string | null
+  /** 宿主机发布端口：详情接口按运行期容器绑定回填，未部署/未发布时为 null */
+  host_port?: number | null
 }
 
 /** 字段分组类型：基础配置 vs BMC 故障注入 */
@@ -142,6 +144,22 @@ export async function getService(name: string): Promise<ServiceDetailResponse> {
     `/api/v1/services/${name}`
   )
   return data
+}
+
+/**
+ * 按需取某个敏感字段的明文（页面上点「显示」时才调）。
+ *
+ * 详情接口里 secret 字段一律是掩码占位符：能把密码/私钥带在详情响应里，
+ * 等于任何一次页面加载都会把明文送到浏览器。后端要求 operator 及以上，并每次写审计。
+ */
+export async function getServiceSecret(
+  name: string,
+  field: string
+): Promise<string> {
+  const { data } = await apiClient.get<{ field: string; value: string }>(
+    `/api/v1/services/${name}/config/secret/${field}`
+  )
+  return data.value
 }
 
 export async function updateServiceConfig(

@@ -30,7 +30,8 @@
     "hidePassword": "隐藏密码",
     "delete": "删除",
     "enabled": "已开启",
-    "disabled": "已关闭"
+    "disabled": "已关闭",
+    "copyFailed": "复制失败：浏览器不允许访问剪贴板，请手动选中复制。"
   },
   "nav": {
     "groupServices": "服务管理",
@@ -378,7 +379,10 @@
       "readonlyAction": "只读角色无权操作",
       "configTitle": "服务配置",
       "configDir": "配置目录 {{dir}}",
-      "configFiles": "配置文件 {{files}}"
+      "configFiles": "配置文件 {{files}}",
+      "ports": "端口：",
+      "portsHint": "（箭头后为宿主机发布端口，管理网上用后者）",
+      "portsL2Hint": "（测试网段 {{address}} 上用这些容器端口）"
     },
     "action": {
       "start": "启动",
@@ -416,11 +420,12 @@
       "selectPlaceholder": "请选择",
       "showSecret": "显示内容",
       "hideSecret": "隐藏内容",
-      "savedNotApplied": "已保存，容器未运行，启动后生效"
+      "savedNotApplied": "已保存，容器未运行，启动后生效",
+      "revealFailed": "读取明文失败：需要 operator 及以上权限，且该字段要有已保存的值。"
     },
     "usage": {
       "title": "外部使用方式",
-      "description": "把被测设备或客户端指到本服务的可复制示例。命令里的主机名已按当前访问地址替换、端口已按本服务首个端口替换；宿主机做过端口映射时请改成实际发布端口。",
+      "description": "把被测设备或客户端指到本服务的可复制示例。命令里的主机名与端口已按当前访问方式替换：走管理网时用宿主机实际发布的端口；绑定了二层测试网段的服务改用它在测试网段上的地址与容器端口。",
       "copy": "复制",
       "copySuccess": "已复制到剪贴板"
     },

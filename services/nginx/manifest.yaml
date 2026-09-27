@@ -19,15 +19,18 @@ ports:
     description: HTTPS 安全端口
 reload_mode: hot              # nginx 原生支持热重载，发 SIGHUP / nginx -s reload 零停机生效
 data_dir: /data/nginx         # 数据卷在容器内的挂载点：存储分发固件与上传文件
-usage:                        # 详情页「外部使用方式」卡片内容；command 里的 {{host}}/{{port}} 由前端按当前页面替换
+usage:                        # 详情页「外部使用方式」卡片内容；命令里的 {{host}}/{{port}}/{{port:443}} 由前端按当前页面替换
   - target: BMC
-    summary: 让 BMC 从本服务下载固件/配置文件（固件更新、日志导出处填该 URL；本示例不触发实际刷写）
+    summary: 让 BMC 从本服务下载固件/配置文件（固件更新与配置导入的 URL 填这里；数据卷里先放好文件，本示例不触发实际刷写）
     command: |
-      # BMC Web → 固件更新 / 配置导入，URL 填：
-      http://{{host}}:{{port}}/firmware.bin
+      # BMC Web → 固件更新 / 配置导入，URL 填（示例文件名 bmc-fw-test.iso，换成数据卷里的文件名）：
+      http://{{host}}:{{port}}/bmc-fw-test.iso
   - target: 任意客户端
-    summary: 用 curl 验证文件下载与目录列表（开启 Basic 认证时加 -u 用户:密码）
-    command: curl -I http://{{host}}:{{port}}/firmware.bin
+    summary: 用 curl 验证下载、上传与 HTTPS（Basic 认证按本服务配置，默认账号 bmc_admin；HTTPS 是自签证书，能跳过校验的客户端用 -k，BMC 这类要校验的服务得换成受信任证书）
+    command: |
+      curl -u bmc_admin:bmc-fixture-pass -I http://{{host}}:{{port}}/bmc-fw-test.iso
+      curl -u bmc_admin:bmc-fixture-pass -T ./bmc-fw-test.iso http://{{host}}:{{port}}/bmc-fw-test.iso
+      curl -k -u bmc_admin:bmc-fixture-pass -I https://{{host}}:{{port:443}}/bmc-fw-test.iso
   - target: 任意客户端
-    summary: 用 HTTP PUT 上传固件到本服务（需 enable_upload 开启，数据卷挂载点 /data/nginx）
-    command: curl -T ./firmware.bin http://{{host}}:{{port}}/firmware.bin
+    summary: 浏览器打开根路径查看数据卷里的文件（autoindex 开启时直接列出目录）
+    command: http://{{host}}:{{port}}/

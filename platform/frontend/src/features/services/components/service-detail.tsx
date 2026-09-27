@@ -41,6 +41,7 @@ import { ServiceConfigForm } from './service-config-form'
 import { ServiceConfigHistory } from './service-config-history'
 import { ServiceDataExplorer } from './service-data-explorer'
 import { ServiceLogsDialog } from './service-logs-dialog'
+import { ServicePortList } from './service-port-list'
 import { ServiceStatusDot } from './service-status-dot'
 import { ServiceUsageCard } from './service-usage-card'
 
@@ -96,6 +97,8 @@ export function ServiceDetail({ name }: ServiceDetailProps) {
 
   const { manifest, schema, config } = serviceQuery.data
   const running = statusQuery.data?.running ?? false
+  // 二层地址（未绑二层时为 null）：端口提示要区分「管理网用发布端口」与「测试网段用容器端口」
+  const l2Address = serviceQuery.data.l2_address
   // variables 记录正在执行的动作，用于只在对应按钮上显示转圈
   const pendingAction = actionMutation.isPending
     ? actionMutation.variables
@@ -152,6 +155,8 @@ export function ServiceDetail({ name }: ServiceDetailProps) {
             {t('services.detail.health')}
             {statusQuery.data?.health ?? '—'}
           </span>
+          {/* 端口：容器端口 + 宿主机发布端口（见 ServicePortList 的说明） */}
+          <ServicePortList ports={manifest.ports} l2Address={l2Address} />
           <Button
             variant='outline'
             size='sm'
@@ -195,10 +200,11 @@ export function ServiceDetail({ name }: ServiceDetailProps) {
             排查时人就在这个页面，所以放在最前面 */}
         <L2StatusAlert name={name} />
 
-        {/* 外部使用方式：测试人员最先需要「怎么连」，放在配置卡片之前 */}
+        {/* 外部使用方式：测试人员最先需要「怎么连」，放在配置卡片之前。
+            端口按 manifest 端口表 + 运行期发布端口解析（管理网用发布端口，二层用容器端口） */}
         <ServiceUsageCard
           entries={manifest.usage}
-          port={manifest.ports[0]?.port}
+          ports={manifest.ports}
           l2Address={serviceQuery.data.l2_address}
         />
 

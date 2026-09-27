@@ -17,12 +17,12 @@ reload_mode: restart          # in.tftpd 无配置热加载能力，参数仅在
 data_dir: /srv/tftp           # 数据卷在容器内的挂载点：TFTP 服务根目录（root_dir）
 usage:                        # 详情页「外部使用方式」卡片内容；command 里的 {{host}}/{{port}} 由前端按当前页面替换
   - target: BMC
-    summary: 让 BMC 从本服务 TFTP 取固件/配置文件（固件更新、配置导入处填 TFTP 地址；本示例不触发实际刷写）
+    summary: 让 BMC 从本服务 TFTP 取固件/配置文件（固件更新与配置导入处填 TFTP 地址；文件名须是数据卷里已有的名字，本示例不触发实际刷写）
     command: |
       # BMC Web → 固件更新 / 配置导入（TFTP）：
-      服务器 {{host}}    端口 {{port}}    文件名 firmware.bin
+      服务器 {{host}}    端口 {{port}}    文件名 bmc-fw-test.iso   # 换成数据卷 /srv/tftp 里实际有的文件名
   - target: Linux
-    summary: 用 tftp-hpa 客户端上传再取回，验证读写（服务根目录即数据卷挂载点 /srv/tftp）
+    summary: 用 tftp-hpa 客户端上传再取回，验证读写（服务根目录即数据卷挂载点 /srv/tftp，本地路径换成本机文件）
     command: |
-      tftp {{host}} -c put ./firmware.bin firmware.bin
-      tftp {{host}} -c get firmware.bin firmware-downloaded.bin
+      tftp {{host}} -c put ./bmc-fw-test.iso bmc-fw-test.iso
+      tftp {{host}} -c get bmc-fw-test.iso downloaded.iso

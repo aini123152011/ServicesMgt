@@ -12,6 +12,13 @@ vi.mock('@/hooks/use-permissions', () => ({
   usePermissions: () => ({ isAdmin: true, isOperator: true, roles: ['admin'] }),
 }))
 
+// 明文只能按需向专用接口要（详情里是掩码）：这里替身返回明文，顺便断言调用参数
+const getServiceSecret = vi.fn()
+vi.mock('@/api/services', () => ({
+  getServiceSecret: (name: string, field: string) =>
+    getServiceSecret(name, field) as Promise<string>,
+}))
+
 const BASE_FIELD: ServiceField = {
   name: 'port',
   label: '基准端口字段',
@@ -95,5 +102,89 @@ describe('ServiceConfigForm 页签', () => {
     await expect
       .element(screen.getByText('基准端口字段'))
       .not.toBeInTheDocument()
+  })
+})
+
+describe('ServiceConfigForm 敏感字段显示明文', () => {
+  const SECRET_PASSWORD_FIELD: ServiceField = {
+    name: 'auth_basic_password',
+    label: 'Basic 认证密码',
+    type: 'string',
+    secret: true,
+    default: '',
+  }
+
+  const SECRET_TEXT_FIELD: ServiceField = {
+    name: 'ssl_key_pem',
+    label: 'SSL/TLS 私钥内容',
+    type: 'text',
+    secret: true,
+    pem: true,
+    default: '',
+  }
+
+  /** 已保存过配置的服务，详情接口给的是掩码占位符 */
+  const MASKED_CONFIG: ServiceConfig = {
+    values: { auth_basic_password: '********', ssl_key_pem: '********' },
+    applied: true,
+    rendered_at: '2026-09-27T00:00:00Z',
+  }
+
+  function renderWithSecret(fields: ServiceField[]) {
+    return render(
+      <ServiceConfigForm
+        name='nginx'
+        fields={fields}
+        config={MASKED_CONFIG}
+        activeTab='base'
+        onTabChange={vi.fn()}
+      />
+    )
+  }
+
+  it('点眼睛按钮取回明文并显示在原输入框里', async () => {
+    getServiceSecret.mockReset()
+    getServiceSecret.mockResolvedValue('bmc-fixture-pass')
+    const screen = await renderWithSecret([SECRET_PASSWORD_FIELD])
+
+    // 初始是掩码（密码框里看到的是掩码本身，不是 CSS 遮蔽）
+    await expect
+      .element(screen.getByLabelText('Basic 认证密码'))
+      .toHaveValue('********')
+
+    await userEvent.click(screen.getByRole('button', { name: '显示密码' }))
+
+    await expect
+      .element(screen.getByLabelText('Basic 认证密码'))
+      .toHaveValue('bmc-fixture-pass')
+    expect(getServiceSecret).toHaveBeenCalledWith(
+      'nginx',
+      'auth_basic_password'
+    )
+  })
+
+  it('多行私钥点「显示内容」同样取回明文', async () => {
+    getServiceSecret.mockReset()
+    getServiceSecret.mockResolvedValue('-----BEGIN PRIVATE KEY-----\nabc\n')
+    const screen = await renderWithSecret([SECRET_TEXT_FIELD])
+
+    await userEvent.click(screen.getByRole('button', { name: '显示内容' }))
+
+    await expect
+      .element(screen.getByRole('textbox'))
+      .toHaveValue('-----BEGIN PRIVATE KEY-----\nabc\n')
+    expect(getServiceSecret).toHaveBeenCalledWith('nginx', 'ssl_key_pem')
+  })
+
+  it('取明文失败时报错且不回退成显示掩码', async () => {
+    getServiceSecret.mockReset()
+    getServiceSecret.mockRejectedValue(new Error('403'))
+    const screen = await renderWithSecret([SECRET_PASSWORD_FIELD])
+
+    await userEvent.click(screen.getByRole('button', { name: '显示密码' }))
+
+    await expect
+      .element(screen.getByLabelText('Basic 认证密码'))
+      .toHaveValue('********')
   })
 })

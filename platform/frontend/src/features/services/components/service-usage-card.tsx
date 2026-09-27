@@ -1,7 +1,8 @@
 import { Copy } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { type ServiceUsageEntry } from '@/api/services'
+import { type ServicePort, type ServiceUsageEntry } from '@/api/services'
+import { copyText } from '@/lib/clipboard'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -15,35 +16,51 @@ import {
 type ServiceUsageCardProps = {
   /** manifest.usage；未声明或为空时不渲染卡片 */
   entries?: ServiceUsageEntry[] | null
-  /** 该服务 manifest 的第一个端口，用于替换命令里的 {{port}} */
-  port?: number
+  /** manifest.ports：{{port}} 取第一个端口，{{port:443}} 取容器端口为 443 的那一项 */
+  ports?: ServicePort[] | null
   /** 该服务在二层测试网段上的地址；给了就用它替换 {{host}}（见 fillPlaceholders） */
   l2Address?: string | null
 }
 
 /**
- * 替换命令里的 {{host}}/{{port}}：manifest 里不写死地址，换台机器示例依然可用。
+ * 替换命令里的 {{host}}/{{port}}：manifest 里不写死地址与端口，换台机器示例依然可用。
  *
  * {{host}} 默认取访问平台用的地址（`window.location.hostname`），但**绑定了二层测试网段的服务
  * 要用它在测试网段上的地址**（`l2Address`）——被测 BMC 在测试网段上够不到管理网地址，
- * 照抄管理网地址会直接连不上。端口缺失时保留占位符原文——宁可让用户看见没替换的 {{port}}，
- * 也不给一个错误端口。顺带去掉首尾空白：YAML 块标量（`command: |`）自带一个结尾换行。
+ * 照抄管理网地址会直接连不上。
+ *
+ * {{port}} 必须跟着 {{host}} 一起变，因为**容器端口只在容器网络里可用**：按管理网地址
+ * 访问时要用宿主机发布端口（nginx 容器 80 → 宿主 18102），按二层地址访问时反而只能用
+ * 容器端口（发布端口在测试网段上不通）。{{port:443}} 是同一套规则、按容器端口号取
+ * ——多端口服务（nginx 的 443、RADIUS 的 1813）才指得准。
+ *
+ * 端口未知（manifest 没声明该端口，或服务未部署且无发布端口）时保留占位符原文：
+ * 宁可让用户看见没替换的 {{port}}，也不给一个连不上的端口。顺带去首尾空白——
+ * YAML 块标量（`command: |`）自带一个结尾换行。
  */
 function fillPlaceholders(
   command: string,
-  port?: number,
+  ports?: ServicePort[] | null,
   l2Address?: string | null
 ): string {
-  const host = l2Address?.trim() || window.location.hostname
+  const l2 = l2Address?.trim()
+  const host = l2 || window.location.hostname
   return command
     .trim()
     .replace(/\{\{host\}\}/g, host)
-    .replace(/\{\{port\}\}/g, port === undefined ? '{{port}}' : String(port))
+    .replace(/\{\{port(?::(\d+))?\}\}/g, (placeholder, wanted?: string) => {
+      const containerPort =
+        wanted === undefined ? ports?.[0]?.port : Number(wanted)
+      const entry = ports?.find((item) => item.port === containerPort)
+      if (!entry) return placeholder
+      // 二层地址下用容器端口：宿主发布端口在测试网段上不通
+      return String(l2 ? entry.port : (entry.host_port ?? entry.port))
+    })
 }
 
 export function ServiceUsageCard({
   entries,
-  port,
+  ports,
   l2Address,
 }: ServiceUsageCardProps) {
   const { t } = useTranslation()
@@ -51,9 +68,13 @@ export function ServiceUsageCard({
   // 没有 usage 的服务不渲染卡片，避免留一张空卡片占位置
   if (!entries || entries.length === 0) return null
 
-  const handleCopy = (command: string) => {
-    navigator.clipboard.writeText(command)
-    toast.success(t('services.usage.copySuccess'))
+  const handleCopy = async (command: string) => {
+    // 复制成功才说成功：http 访问下 Clipboard API 不存在，靠 copyText 里的降级路径兜底
+    if (await copyText(command)) {
+      toast.success(t('services.usage.copySuccess'))
+    } else {
+      toast.error(t('common.copyFailed'))
+    }
   }
 
   return (
@@ -64,7 +85,7 @@ export function ServiceUsageCard({
       </CardHeader>
       <CardContent className='flex flex-col gap-3'>
         {entries.map((entry, index) => {
-          const command = fillPlaceholders(entry.command, port, l2Address)
+          const command = fillPlaceholders(entry.command, ports, l2Address)
           return (
             <div key={index} className='rounded-md border p-3'>
               <div className='flex flex-wrap items-center gap-2'>

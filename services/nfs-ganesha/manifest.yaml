@@ -22,8 +22,8 @@ usage:                        # 详情页「外部使用方式」卡片内容；
     summary: 在 BMC 虚拟介质里挂载本服务的 NFS 导出（Redfish VirtualMedia 的 Image 字段；路径即本服务 export_path）
     command: nfs://{{host}}/data/nfs
   - target: Linux
-    summary: 用 NFSv3 挂载本服务导出（部分 BMC 仅支持 v3；导出目录即数据卷挂载点）
-    command: mount -t nfs -o vers=3,nolock {{host}}:/data/nfs /mnt
-  - target: Linux
-    summary: 用 NFSv4 挂载并读取导出目录（本服务不注册 mountd，showmount 会报 Program not registered，属预期）
+    summary: 用 NFSv4 挂载并读取导出目录（实测可用；本服务不注册 mountd，showmount 会报 Program not registered，属预期）
     command: mkdir -p /mnt/fx-nfs-ganesha && mount -t nfs4 {{host}}:/data/nfs /mnt/fx-nfs-ganesha && ls /mnt/fx-nfs-ganesha
+  - target: Linux
+    summary: 用 NFSv3 挂载（需客户端能访问本服务的 rpcbind 111——宿主 111 被系统 rpcbind 占用时 v3 发现不到端口，此时改用 v4）
+    command: mount -t nfs -o vers=3,nolock {{host}}:/data/nfs /mnt

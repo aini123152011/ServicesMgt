@@ -30,7 +30,8 @@
     "hidePassword": "Hide password",
     "delete": "Delete",
     "enabled": "Enabled",
-    "disabled": "Disabled"
+    "disabled": "Disabled",
+    "copyFailed": "Copy failed: the browser blocked clipboard access — select the text and copy manually."
   },
   "nav": {
     "groupServices": "Services",
@@ -378,7 +379,10 @@
       "readonlyAction": "Read-only role cannot perform this action",
       "configTitle": "Service configuration",
       "configDir": "Config directory {{dir}}",
-      "configFiles": "Config files {{files}}"
+      "configFiles": "Config files {{files}}",
+      "ports": "Ports:",
+      "portsHint": "(number after → is the host-published port; use it from the management network)",
+      "portsL2Hint": "(use these container ports on the test segment {{address}})"
     },
     "action": {
       "start": "Start",
@@ -416,11 +420,12 @@
       "selectPlaceholder": "Select",
       "showSecret": "Show content",
       "hideSecret": "Hide content",
-      "savedNotApplied": "Saved. The container is not running, so it takes effect after the next start."
+      "savedNotApplied": "Saved. The container is not running, so it takes effect after the next start.",
+      "revealFailed": "Failed to read the plaintext: operator role or above is required and the field must have a stored value."
     },
     "usage": {
       "title": "External usage",
-      "description": "Copy-paste examples that point a device under test or a client at this service. The host name is substituted with the address you are browsing from and the port with this service's first port; use the published port instead when the host remaps ports.",
+      "description": "Copy-paste examples that point a device under test or a client at this service. Host and port are filled in for the current access path: the host-published port over the management network, and the test-segment address plus container port for services bound to it.",
       "copy": "Copy",
       "copySuccess": "Copied to clipboard"
     },

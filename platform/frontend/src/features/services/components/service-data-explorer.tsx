@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { copyText } from '@/lib/clipboard'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -91,10 +92,15 @@ export function ServiceDataExplorer({
     setSelectedFilePath(fullPath)
   }
 
-  const handleCopyLogs = () => {
+  const handleCopyLogs = async () => {
     if (!contentQuery.data?.lines) return
-    navigator.clipboard.writeText(contentQuery.data.lines.join('\n'))
-    toast.success(t('services.data.copySuccess'))
+    // 与「使用方式」卡片同一口径：http 访问下没有 Clipboard API，靠 copyText 的降级路径兜底，
+    // 并且只在真的写进剪贴板后才报成功
+    if (await copyText(contentQuery.data.lines.join('\n'))) {
+      toast.success(t('services.data.copySuccess'))
+    } else {
+      toast.error(t('common.copyFailed'))
+    }
   }
 
   const handleDownload = () => {

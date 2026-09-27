@@ -9,16 +9,39 @@ type PasswordInputProps = Omit<
   'type'
 > & {
   ref?: React.Ref<HTMLInputElement>
+  /**
+   * 值为掩码占位符时提供：切到明文前先取回真实值（并写回受控值）。
+   * 没有它的话「显示」出来的只是 ******** ——掩码是服务端产物，不是 CSS 遮蔽。
+   */
+  onReveal?: () => Promise<void>
 }
 
 export function PasswordInput({
   className,
   disabled,
   ref,
+  onReveal,
   ...props
 }: PasswordInputProps) {
   const [showPassword, setShowPassword] = React.useState(false)
+  const [revealing, setRevealing] = React.useState(false)
   const { t } = useTranslation()
+
+  const toggle = async () => {
+    if (showPassword) {
+      setShowPassword(false)
+      return
+    }
+    if (onReveal) {
+      setRevealing(true)
+      try {
+        await onReveal()
+      } finally {
+        setRevealing(false)
+      }
+    }
+    setShowPassword(true)
+  }
 
   return (
     <div className={cn('relative rounded-md', className)}>
@@ -33,9 +56,9 @@ export function PasswordInput({
         type='button'
         size='icon'
         variant='ghost'
-        disabled={disabled}
+        disabled={disabled || revealing}
         className='absolute inset-e-1 top-1/2 h-6 w-6 -translate-y-1/2 rounded-md text-muted-foreground'
-        onClick={() => setShowPassword((prev) => !prev)}
+        onClick={() => void toggle()}
       >
         {showPassword ? <Eye size={18} /> : <EyeOff size={18} />}
         <span className='sr-only'>

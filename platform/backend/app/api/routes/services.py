@@ -15,7 +15,13 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlmodel import Session
 
 from app import config_renderer, config_versions, host_network, lifecycle, registry
-from app.api.deps import CurrentUser, RequireOperator, SessionDep, get_current_user
+from app.api.deps import (
+    ClientIp,
+    CurrentUser,
+    RequireOperator,
+    SessionDep,
+    get_current_user,
+)
 from app.crud import (
     get_fault_modes,
     get_service_config,
@@ -32,6 +38,7 @@ from app.models import (
     ServiceConfigVersionsPublic,
     ServiceLogs,
     ServiceManifest,
+    ServiceSecretValue,
     ServicesPublic,
     ServiceStatus,
     ServiceSummary,
@@ -103,6 +110,37 @@ def _l2_address(name: str) -> str | None:
         return None
 
 
+def _attach_host_ports(manifest: ServiceManifest) -> None:
+    """把容器实际发布的宿主机端口回填到 manifest.ports（原地修改）。
+
+    卡片上的命令默认按管理网地址访问，而容器端口只在容器网络里可用，必须换成
+    宿主机发布端口（nginx 容器 80 → 宿主 18102 这类）。发布端口由各服务自己的
+    compose 决定、平台不参与，只能在运行期从容器读回来；读不到（未部署，或该服务
+    在二层网段上因而没有发布端口）就留 None，卡片退化为显示容器端口。
+    """
+    container_name = manifest.container_name
+    if not container_name:
+        return
+    try:
+        published = lifecycle.published_ports(container_name)
+    except Exception as e:  # noqa: BLE001 - 只影响卡片上的端口，不该让详情页 500
+        logger.warning(f"failed to resolve published ports for '{container_name}': {e}")
+        return
+    for port in manifest.ports:
+        host_port = published.get((port.port, port.protocol))
+        if host_port is None:
+            # compose 的协议与 manifest 不一致时按端口号兜底（同样的端口只此一处）
+            host_port = next(
+                (
+                    value
+                    for (number, _protocol), value in published.items()
+                    if number == port.port
+                ),
+                None,
+            )
+        port.host_port = host_port
+
+
 @router.get("/{name}")
 def read_service(session: SessionDep, name: str) -> Any:
     """返回服务详情：完整 manifest、schema 字段定义与当前已保存配置。
@@ -126,8 +164,10 @@ def read_service(session: SessionDep, name: str) -> Any:
         else None
     )
     # 手工组响应而非 response_model：顶层键 "schema" 与 pydantic 保留名冲突，直传 dict 保证形状逐字一致
+    manifest = ServiceManifest.model_validate(plugin.manifest)
+    _attach_host_ports(manifest)
     return {
-        "manifest": ServiceManifest.model_validate(plugin.manifest),
+        "manifest": manifest,
         "schema": plugin.schema,
         "config": ServiceConfigState(
             values=masked_values,
@@ -138,6 +178,62 @@ def read_service(session: SessionDep, name: str) -> Any:
         # 「使用方式」卡片用它替换 {{host}} —— BMC 在测试网段上够不到管理网地址
         "l2_address": _l2_address(name),
     }
+
+
+@router.get(
+    "/{name}/config/secret/{field_name}",
+    dependencies=[Depends(RequireOperator)],
+    response_model=ServiceSecretValue,
+)
+def read_service_secret(
+    session: SessionDep,
+    current_user: CurrentUser,
+    name: str,
+    field_name: str,
+    client_ip: ClientIp,
+) -> ServiceSecretValue:
+    """按需返回某个敏感字段的明文，供页面上的「显示」按钮使用。
+
+    为什么单独一个接口而不是让详情页直接返回明文：详情是所有登录用户都能拉的，
+    secret 一旦随详情返回，Basic 密码 / TLS 私钥 / NAS 密钥就会随任何一次页面加载
+    流到浏览器和日志里。这里要求 operator 及以上（与改配置同权：能改的人本来就能
+    把它改成自己知道的值），并且**每次查看都写审计**（只记字段名，不记值）。
+
+    Args:
+        session: 数据库会话。
+        current_user: 操作者（审计用）。
+        name: 服务名。
+        field_name: schema 里标记为 secret 的字段名。
+        client_ip: 来源 IP，记入审计。
+
+    Returns:
+        ServiceSecretValue：该字段当前保存的明文。
+
+    Raises:
+        HTTPException: 404 服务不存在 / 该字段没有已保存的值；400 字段不是敏感字段。
+    """
+    plugin = _get_plugin_or_404(name)
+    if field_name not in config_renderer.secret_field_names(plugin.schema):
+        # 非敏感字段在详情里本来就是明文，走这里没有任何意义，直接拒绝避免被当成通用读值接口
+        raise HTTPException(
+            status_code=400, detail=f"Field '{field_name}' is not a secret field"
+        )
+    config = get_service_config(session=session, service_name=name)
+    value = (config.values or {}).get(field_name) if config else None
+    if not isinstance(value, str) or not value:
+        raise HTTPException(
+            status_code=404, detail=f"No stored value for secret field '{field_name}'"
+        )
+    record_audit_log(
+        session=session,
+        user_id=current_user.id,
+        user_email=current_user.email,
+        action="config.reveal_secret",
+        service_name=name,
+        detail=f"field={field_name}",
+        ip=client_ip,
+    )
+    return ServiceSecretValue(field=field_name, value=value)
 
 
 def apply_config_values(

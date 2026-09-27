@@ -251,3 +251,46 @@ def get_logs(container_name: str, tail: int) -> str:
             f"Failed to read logs of container '{container_name}': {e}"
         ) from e
     return raw.decode("utf-8", errors="replace") if isinstance(raw, bytes) else str(raw)
+
+
+def published_ports(container_name: str) -> dict[tuple[int, str], int]:
+    """读取容器的「宿主机发布端口」，用于「使用方式」卡片替换 {{port}}。
+
+    服务容器的端口发布由各服务自己的 compose 决定，平台不参与，因此只能在运行期
+    从容器上读回来。shape 取自 Docker inspect 的 NetworkSettings.Ports：
+    {"80/tcp": [{"HostIp": "0.0.0.0", "HostPort": "18102"}, ...]}。
+
+    同一容器端口可能有多个发布端口（compose 同时发布同号端口与高位端口，
+    如 postfix 的 25 与 18112）：**优先取与容器端口同号的那个**——它才是照着服务
+    原生端口写的客户端命令能直接用的（BMC 的 SMTP/Syslog 配置只让填端口）；
+    否则取第一个非空绑定。没有绑定的协议键（未被发布的端口）不会出现在结果里。
+
+    Args:
+        container_name: 容器名（manifest.container_name）。
+
+    Returns:
+        {(容器端口, 协议): 宿主机端口}；容器不存在或读不到绑定信息时返回空 dict
+        ——详情页不能因为「服务还没部署」而报错，卡片退化为显示容器端口。
+    """
+    try:
+        attrs = _get_container(container_name, "inspect").attrs or {}
+    except LifecycleError as e:
+        logger.info(f"no published ports for '{container_name}': {e}")
+        return {}
+    raw = (attrs.get("NetworkSettings") or {}).get("Ports") or {}
+    bindings: dict[tuple[int, str], int] = {}
+    for key, entries in raw.items():
+        # key 形如 "80/tcp"；数字端口号必然可解析（Docker 只给合法映射）
+        port_text, _, protocol = str(key).partition("/")
+        if not port_text.isdigit() or not entries:
+            continue
+        port = int(port_text)
+        candidates: list[int] = []
+        for entry in entries:
+            host_port = str((entry or {}).get("HostPort") or "")
+            if host_port.isdigit():
+                candidates.append(int(host_port))
+        if not candidates:
+            continue
+        bindings[(port, protocol)] = port if port in candidates else candidates[0]
+    return bindings

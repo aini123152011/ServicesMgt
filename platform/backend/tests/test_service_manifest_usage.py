@@ -18,9 +18,11 @@ from app.core.config import settings
 
 SERVICES_DIR = Path(settings.SERVICES_DIR).resolve()
 
-# 命令里允许出现的占位符，渲染时由前端替换：{{host}}=页面所在主机，{{port}}=首个端口
+# 命令里允许出现的占位符，渲染时由前端替换：{{host}}=页面所在主机，{{port}}=首个端口，
+# {{port:443}}=容器端口 443 那一项的端口（多端口服务用它才指得准）
 ALLOWED_PLACEHOLDERS = {"{{host}}", "{{port}}"}
 PLACEHOLDER_PATTERN = re.compile(r"\{\{[^}]*\}\}")
+PORT_PLACEHOLDER_PATTERN = re.compile(r"\{\{port(?::(\d+))?\}\}")
 
 VALID_ENTRY: dict[str, str] = {
     "target": "BMC",
@@ -119,11 +121,17 @@ def test_every_service_declares_valid_usage(
 def test_usage_commands_only_use_known_placeholders(
     service: str, manifest: dict[str, Any]
 ) -> None:
-    """命令里只允许 {{host}}/{{port}}：别的占位符前端不会替换，会原样显示给用户。"""
+    """命令里只允许 {{host}}/{{port}}/{{port:<容器端口>}}：别的占位符前端不会替换，会原样显示。"""
     for index, entry in enumerate(manifest["usage"]):
         found = set(PLACEHOLDER_PATTERN.findall(entry["command"]))
-        assert found <= ALLOWED_PLACEHOLDERS, (
-            f"{service}.usage[{index}] 出现未知占位符: {sorted(found)}"
+        unknown = {
+            placeholder
+            for placeholder in found
+            if placeholder not in ALLOWED_PLACEHOLDERS
+            and not PORT_PLACEHOLDER_PATTERN.fullmatch(placeholder)
+        }
+        assert not unknown, (
+            f"{service}.usage[{index}] 出现未知占位符: {sorted(unknown)}"
         )
 
 
@@ -133,12 +141,24 @@ def test_usage_commands_only_use_known_placeholders(
 def test_port_placeholder_requires_declared_port(
     service: str, manifest: dict[str, Any]
 ) -> None:
-    """命令用了 {{port}} 就必须有端口可填：前端取的是 manifest 的第一个端口。"""
-    uses_port = any("{{port}}" in entry["command"] for entry in manifest["usage"])
-    if uses_port:
-        assert manifest.get("ports"), (
-            f"{service} 的命令用了 {{{{port}}}} 但没声明 ports"
-        )
+    """端口占位符必须指向已声明的端口：{{port}} 取第一个，{{port:443}} 取容器端口 443。
+
+    指向未声明的端口时前端会保留原文（宁可显示没替换的占位符也不给一个连不上的端口），
+    用户看到的是一行括号——所以契约在这里挡住。
+    """
+    declared = {port["port"] for port in manifest.get("ports") or []}
+    for index, entry in enumerate(manifest["usage"]):
+        for match in PORT_PLACEHOLDER_PATTERN.finditer(entry["command"]):
+            wanted = match.group(1)
+            if wanted is None:
+                assert declared, (
+                    f"{service}.usage[{index}] 用了 {{{{port}}}} 但没声明 ports"
+                )
+            else:
+                assert int(wanted) in declared, (
+                    f"{service}.usage[{index}] 用了 {match.group(0)}，"
+                    f"但该端口不在已声明端口 {sorted(declared)} 里"
+                )
 
 
 def test_detail_api_carries_usage(
