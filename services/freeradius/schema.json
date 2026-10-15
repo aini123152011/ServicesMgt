@@ -37,6 +37,36 @@
       "group": "base"
     },
     {
+      "name": "log_root",
+      "type": "string",
+      "label": "认证日志归档根目录",
+      "default": "/var/log/freeradius",
+      "help": "认证日志的根目录，需位于持久化数据卷挂载点（默认 /var/log/freeradius）内；日期目录与来源文件在其下自动创建",
+      "pattern": "^/[A-Za-z0-9._/\\-]+$",
+      "group": "base"
+    },
+    {
+      "name": "date_dir",
+      "type": "enum",
+      "label": "日期目录层级",
+      "default": "daily",
+      "options": [
+        "daily",
+        "monthly",
+        "none"
+      ],
+      "help": "归档目录按日期组织：daily=年-月-日 三级；monthly=年-月 两级；none=不按日期建目录，文件直接落在归档根目录",
+      "group": "base"
+    },
+    {
+      "name": "filename_by_ip",
+      "type": "boolean",
+      "label": "按来源 IP 命名文件",
+      "default": true,
+      "help": "字段域与 rsyslog 保持一致；但 FreeRADIUS 原生认证日志只带 clients.conf 里匹配到的客户端名（如 fx-nas），不带请求源 IP，因此本服务实际按客户端名命名——取不到 IP 时两种取值结果相同",
+      "group": "base"
+    },
+    {
       "name": "fault_mode",
       "type": "enum",
       "label": "故障注入模式",

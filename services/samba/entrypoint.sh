@@ -52,13 +52,46 @@ chmod 777 "${DATA_DIR}"
 # 共享目录下统一放开写权限——共享是给多个 samba 账号共用的，逐个 chown 到某个账号反而不对。
 chmod -R a+rw "${DATA_DIR}"
 
+# 3.5 运行期配置副本：把渲染产物里的 @BMC_DATE_DIR@ 换成「今天的日期段」。
+# 为什么不在模板里直接用 Samba 的日期 token：实测（Samba 4.17 / bookworm）log file 里
+# %Y 原样输出成字面量 "%Y"、%M/%m/%I/%D 全是客户端信息，没有年/月/日 token；
+# 而且 smbd 不会自建缺失的父目录——目录不在时它静默不写任何日志（连报错都没有）。
+# 所以日期只能在这里补，并且必须先把日期目录建好。
+# 生成的副本放在 /run 下，平台渲染产物保持原样（渲染产物始终是唯一事实来源）。
+LOG_ROOT_DEFAULT="/var/log/samba"
+RUNTIME_CONF_DIR="/run/smbd-bmc"
+RUNTIME_CONF="${RUNTIME_CONF_DIR}/smb.conf"
+
+prepare_runtime_conf() {
+    local log_root date_dir segment
+    log_root="$(sed -n 's/^# runtime: log_root=//p' "${CONFIG_DIR}/smb.conf" | tail -n 1)"
+    date_dir="$(sed -n 's/^# runtime: date_dir=//p' "${CONFIG_DIR}/smb.conf" | tail -n 1)"
+    log_root="${log_root:-${LOG_ROOT_DEFAULT}}"
+    case "${date_dir:-daily}" in
+        daily) segment="$(date +%Y-%m-%d)" ;;
+        monthly) segment="$(date +%Y-%m)" ;;
+        *) segment="" ;;
+    esac
+    mkdir -p "${RUNTIME_CONF_DIR}" "${log_root}"
+    if [ -n "${segment}" ]; then
+        mkdir -p "${log_root}/${segment}"
+        sed "s|@BMC_DATE_DIR@|${segment}|g" "${CONFIG_DIR}/smb.conf" > "${RUNTIME_CONF}"
+    else
+        # date_dir=none：模板本就不带占位符，这里顺带兼容（连前面的 '/' 一起去掉）
+        sed "s|/@BMC_DATE_DIR@||g" "${CONFIG_DIR}/smb.conf" > "${RUNTIME_CONF}"
+    fi
+    echo "entrypoint: 日志目录 ${log_root}/${segment}（date_dir=${date_dir:-daily}）"
+}
+
 STOPPED=0
 trap 'STOPPED=1; pkill -TERM smbd || true; exit 0' SIGTERM SIGINT
 
 echo "entrypoint: 启动 Samba 监督循环..."
 while [ "${STOPPED}" -eq 0 ]; do
     sync_users
-    smbd -F --no-process-group -s "${CONFIG_DIR}/smb.conf" &
+    # 每轮都重算日期段：reload 会走到这里，跨零点后 reload 一次即可切到新日期目录
+    prepare_runtime_conf
+    smbd -F --no-process-group -s "${RUNTIME_CONF}" &
     SMBD_PID=$!
     wait "${SMBD_PID}" || true
     if [ "${STOPPED}" -eq 1 ]; then

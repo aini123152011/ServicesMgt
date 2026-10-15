@@ -65,6 +65,28 @@
       "group": "base"
     },
     {
+      "name": "log_root",
+      "type": "string",
+      "label": "日志归档根目录",
+      "default": "/var/log/samba",
+      "help": "smbd 日志的根目录（默认沿用 /var/log/samba），日期目录在其下自动创建；要跨容器重建保留日志，需把该路径挂成数据卷",
+      "pattern": "^/[A-Za-z0-9._/\\-]+$",
+      "group": "base"
+    },
+    {
+      "name": "date_dir",
+      "type": "enum",
+      "label": "日期目录层级",
+      "default": "daily",
+      "options": [
+        "daily",
+        "monthly",
+        "none"
+      ],
+      "help": "日志目录按日期组织：daily=年-月-日 三级；monthly=年-月 两级；none=不按日期建目录，文件直接落在归档根目录",
+      "group": "base"
+    },
+    {
       "name": "fault_mode",
       "type": "enum",
       "label": "BMC 故障注入模式",

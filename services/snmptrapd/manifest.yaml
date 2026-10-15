@@ -25,5 +25,7 @@ usage:                        # 详情页「外部使用方式」卡片内容；
     summary: 用 net-snmp 客户端发一条 v2c Trap（社区须在本服务 communities 清单内，默认 bmctrap）
     command: snmptrap -v2c -c bmctrap {{host}}:{{port}} '' 1.3.6.1.4.1.8072.2.3.0.1 1.3.6.1.4.1.8072.2.3.0.2 s "fx-trap-test"
   - target: Linux
-    summary: 在目标机上查看 Trap 落盘结果（容器内日志文件 /var/log/snmp/traps.log）
-    command: docker exec fx-snmptrapd tail -n 5 /var/log/snmp/traps.log
+    summary: 查看 Trap 落盘结果（按「日期/来源IP」分文件，路径由 log_root/date_dir/filename_by_ip 决定）
+    command: |
+      docker exec fx-snmptrapd ls -l /var/log/snmp/$(date +%F)/
+      docker exec fx-snmptrapd tail -n 5 /var/log/snmp/$(date +%F)/*

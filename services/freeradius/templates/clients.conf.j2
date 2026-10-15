@@ -2,6 +2,17 @@
 {#- 渲染环境要求：Jinja2 需开启 trim_blocks=True + lstrip_blocks=True -#}
 # 本文件由 BMC 服务管理平台自动渲染生成，请勿手工编辑
 # 用途：定义允许发认证请求的 NAS（BMC）及其共享密钥
+#
+# ---- 运行时参数（entrypoint.sh 从这里重读，勿删）----
+# 认证日志落盘布局（约定见 .trellis/spec/services/index.md「日志落盘约定」）：
+#   <log_root>/<日期段>/<来源标识>.log
+# 落盘由 entrypoint 起的 splitter.py 完成（stdout 分流）：radiusd 的 log{} 只能写固定目标，
+# 所以打开 auth 日志后由分流器按来源分文件，并把原行透传到 stdout（docker logs 照旧可见）。
+# 注意：这里只放「运行时参数」，不放 radiusd 指令——log{} 段与 auth 开关不在渲染目录里，
+# 见 entrypoint.sh 里对镜像内 radiusd.conf 的幂等补丁及原因说明。
+# runtime: log_root={{ log_root }}
+# runtime: date_dir={{ date_dir }}
+# runtime: filename_by_ip={{ filename_by_ip | string | lower }}
 {% if fault_mode == 'no_response' %}
 # 故障注入 no_response：只声明一个**与 BMC 无关**的网段，于是 BMC 的请求来自「未知客户端」，
 # radiusd 直接静默丢弃（不回任何报文），BMC 侧的可观测行为就是「认证超时」。

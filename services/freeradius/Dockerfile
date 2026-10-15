@@ -12,7 +12,10 @@ RUN sed -i "s|deb.debian.org|${APT_MIRROR}|g" /etc/apt/sources.list.d/debian.sou
     && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
         freeradius=3.2* \
         iproute2 \
+        python3 \
     && rm -rf /var/lib/apt/lists/*
+# python3 完整包（不是 python3-minimal）：entrypoint 托管的日志分流器 splitter.py
+# 需要标准库的 argparse/subprocess/re/datetime，minimal 包不含这些模块。
 
 # 把平台渲染的两个文件接进发行版自带的配置树（配置卷只挂 bmc/ 子目录，不覆盖整棵树）：
 #   1) clients.conf 末尾追加 $INCLUDE bmc/clients.conf（$INCLUDE 相对 ${confdir}）
@@ -33,10 +36,12 @@ RUN printf '\n$INCLUDE bmc/clients.conf\n' >> /etc/freeradius/3.0/clients.conf \
 # 统一生效入口：平台契约要求所有服务镜像都提供 /reload.sh（docker exec <容器> /reload.sh）
 COPY reload.sh /reload.sh
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+# 日志分流器：把 radiusd 的 stdout 按 <log_root>/<日期段>/<来源>.log 落盘并透传
+COPY splitter.py /usr/local/bin/splitter.py
 # 镜像内置默认配置：内容与 schema.json 默认值的渲染结果一致，作为空卷种子
 COPY defaults/clients.conf /usr/share/bmc-freeradius/clients.conf.default
 COPY defaults/authorize /usr/share/bmc-freeradius/authorize.default
-RUN chmod +x /reload.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /reload.sh /usr/local/bin/entrypoint.sh /usr/local/bin/splitter.py
 
 # RADIUS 认证 / 计费
 EXPOSE 1812/udp 1813/udp
@@ -45,6 +50,7 @@ EXPOSE 1812/udp 1813/udp
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
     CMD grep -q ":0714 " /proc/net/udp /proc/net/udp6 || exit 1
 
-# entrypoint 内含监督循环：radiusd 以 -f（前台）作为其子进程运行，
-# reload.sh 终止 radiusd 后由循环带新配置拉起，docker stop 的 SIGTERM 由循环转发
+# entrypoint 内含监督循环：splitter.py 托管 radiusd（-f 前台，日志走 stdout 被分流后透传），
+# reload.sh 终止 radiusd 后管道 EOF、splitter 退出、循环带新配置拉起，
+# docker stop 的 SIGTERM 由循环转发给 splitter
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]

@@ -1,11 +1,25 @@
 {#- smb.conf.j2: Samba 配置文件模板 -#}
+# 本文件由 BMC 服务管理平台自动渲染生成，请勿手工编辑
+#
+# ---- 运行时参数（entrypoint.sh 从这里重读，勿删）----
+# 日志落盘布局（约定见 .trellis/spec/services/index.md「日志落盘约定」）：
+#   <log_root>/<日期段>/log.<客户端>
+# @BMC_DATE_DIR@ 不是 Samba 语法，是给 entrypoint 的占位符：Samba 的 log file 没有
+#   年/月/日 token（实测 %Y 原样输出成字面量、%m/%M/%I 是客户端信息），日期只能由
+#   entrypoint 补进运行期配置副本；smbd 也不会自建缺失的父目录（缺目录时静默不写日志）。
+# runtime: log_root={{ log_root }}
+# runtime: date_dir={{ date_dir }}
 [global]
    workgroup = {{ workgroup }}
    server string = BMC Samba Server
    security = user
    map to guest = Bad User
    dns proxy = no
-   log file = /var/log/samba/log.%m
+{% if date_dir in ['daily', 'monthly'] %}
+   log file = {{ log_root }}/@BMC_DATE_DIR@/log.%m
+{% else %}
+   log file = {{ log_root }}/log.%m
+{% endif %}
    max log size = 1000
 
    {% if fault_mode == 'force_protocol_mismatch' %}

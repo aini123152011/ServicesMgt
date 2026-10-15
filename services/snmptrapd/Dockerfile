@@ -12,7 +12,10 @@ RUN sed -i "s|deb.debian.org|${APT_MIRROR}|g" /etc/apt/sources.list.d/debian.sou
     && apt-get update \
     && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
         snmptrapd=5.9* \
+        python3 \
     && rm -rf /var/lib/apt/lists/*
+# 装完整 python3（不是 python3-minimal）：entrypoint 托管的分流器 splitter.py
+# 需要标准库的 argparse/subprocess/re/datetime，这些不在 minimal 包里。
 
 # MIB 目录处理：Debian 官方仓库不附带 IETF MIB 文本（在 non-free 的 snmp-mibs-downloader 包里），
 # MIBDIRS 指向包自带的 MIB 目录；MIBS=NONE 禁用 MIB 加载，trap 按数字 OID 记录，
@@ -26,21 +29,24 @@ RUN rm -f /etc/snmp/snmptrapd.conf
 
 # 统一生效入口：平台契约要求所有服务镜像都提供 /reload.sh（docker exec <容器> /reload.sh）
 COPY reload.sh /reload.sh
-# 启动前置脚本：处理配置卷首次挂空 + 监督循环（snmptrapd 为其子进程）
+# 启动前置脚本：处理配置卷首次挂空 + 监督循环（splitter 为其子进程，snmptrapd 是 splitter 的子进程）
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+# 日志分流器：把 snmptrapd 的 stdout 按 <log_root>/<日期段>/<来源IP>.log 落盘并透传
+COPY splitter.py /usr/local/bin/splitter.py
 # 镜像内置默认配置：内容与 schema.json 默认值的渲染结果保持一致，作为空卷种子
 COPY defaults/snmptrapd.conf /usr/share/bmc-snmptrapd/snmptrapd.conf.default
-RUN chmod +x /reload.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /reload.sh /usr/local/bin/entrypoint.sh /usr/local/bin/splitter.py
 
 # SNMP Trap 标准端口（UDP）
 EXPOSE 162/udp
 
 # 判活依据：snmptrapd 进程必须存活；bookworm-slim 精简掉 procps 没有 pgrep，
 # 用 grep 扫描 /proc/*/comm 等效实现（与 reload.sh 同款零依赖方案）
+# （snmptrapd 现在是 splitter.py 的子进程，进程名不变，判活口径不变）
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
     CMD grep -qs snmptrapd /proc/[0-9]*/comm || exit 1
 
-# entrypoint 内含监督循环：snmptrapd 以 -f（前台不 fork）作为其子进程运行，
-# 日志走 stderr 由 docker logs 捕获；reload.sh 终止 snmptrapd 后由循环带新配置拉起，
-# docker stop 的 SIGTERM 由循环转发给 snmptrapd 优雅退出
+# entrypoint 内含监督循环：splitter.py 托管 snmptrapd（-f 前台不 fork，记录走 stdout 被分流
+# 后透传到容器 stdout，docker logs 照旧可看）；reload.sh 终止 snmptrapd 后管道 EOF，
+# splitter 退出、循环带新配置拉起；docker stop 的 SIGTERM 由循环转发给 splitter 优雅退出
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]

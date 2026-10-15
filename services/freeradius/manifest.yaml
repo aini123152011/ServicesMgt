@@ -33,5 +33,8 @@ usage:
       radtest bmcuser ChangeMe123 {{host}} 0 fx-radius-secret
       # 期望 Access-Accept；密码错则 Access-Reject
   - target: Linux
-    summary: 查看服务日志（认证成功/失败逐条可查）
-    command: docker logs fx-freeradius --tail 50
+    summary: 查看认证逐条记录（按「日期/来源」分文件落盘；来源标识是 clients.conf 里匹配到的 NAS 客户端名）与容器日志
+    command: |
+      docker exec fx-freeradius ls -l /var/log/freeradius/$(date +%F)/
+      docker exec fx-freeradius tail -n 20 /var/log/freeradius/$(date +%F)/*.log
+      docker logs fx-freeradius --tail 50
