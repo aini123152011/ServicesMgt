@@ -57,8 +57,17 @@ CA_PUBLIC_DIR = DATA_DIR / "ca"
 ISSUED_SECRETS_DIR = SECRETS_DIR / "issued"
 ISSUED_PUBLIC_DIR = DATA_DIR / "issued"
 
-# 串行化签发：openssl 用 CAcreateserial 维护序列号文件，并发写会互相覆盖
+# 串行化签发：进程内的锁只能拦住同一进程的并发（健康检查是独立进程，拦不住）。
+# 因此**不使用持久序列号文件**（-CAcreateserial/-CAserial）：那张 .srl 会被 openssl
+# 「先截断再写」，一旦某个进程在写它的瞬间被 SIGTERM（容器重启/监督循环换配置），
+# 它就会变成 0 字节，之后所有签发永久失败（实测 2026-10-01、10-19 各复发一次，
+# 表现为 /healthz 恒 503）。改成每张证书给一个随机序列号，完全无状态。
 SIGN_LOCK = threading.Lock()
+
+
+def _random_serial() -> str:
+    """RFC 5280 允许 20 字节以内的正整数序列号；随机值可避免碰撞且无需任何共享状态。"""
+    return "0x" + os.urandom(16).hex()
 
 # 合法字符集（防注入：common_name 进 -subj，sans 进 extfile，都不允许出现分隔符）
 CN_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9 ._*@-]{0,63}$")
@@ -366,7 +375,8 @@ def ensure_intermediate(cfg: Config, ca: CaMaterial) -> None:
                 str(ca.cert_path),
                 "-CAkey",
                 str(ca.key_path),
-                "-CAcreateserial",
+                "-set_serial",
+                _random_serial(),
                 "-days",
                 str(cfg.ca_days),
                 "-sha256",
@@ -742,7 +752,8 @@ def issue(
                 str(issuer_cert),
                 "-CAkey",
                 str(issuer_key),
-                "-CAcreateserial",
+                "-set_serial",
+                _random_serial(),
                 "-out",
                 str(leaf_path),
                 "-extfile",
